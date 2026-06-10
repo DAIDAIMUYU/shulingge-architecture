@@ -51,12 +51,15 @@ interface AppViewProps {
   currentProjectId: string | null;
   vaultPath: string | null;
   onSelectProject: (projectId: string) => void;
+  onNavigate: (viewId: string) => void;
   onSetVault: (path: string) => Promise<void>;
   onClearVault: () => void;
 }
 
 const VIEWS: Record<string, (props: AppViewProps) => ReactNode> = {
-  workspace: ({ currentProjectId, vaultPath }) => <WorkspaceView currentProjectId={currentProjectId} vaultPath={vaultPath} />,
+  workspace: ({ currentProjectId, vaultPath, onNavigate }) => (
+    <WorkspaceView currentProjectId={currentProjectId} vaultPath={vaultPath} onNavigate={onNavigate} />
+  ),
   projects: ({ onSelectProject }) => <ProjectsView onOpenProject={onSelectProject} />,
   characters: () => <CharactersView />,
   relations: () => <RelationsView />,
@@ -148,7 +151,7 @@ export function App() {
             </div>
           </div>
         </header>
-        {Current({ currentProjectId, vaultPath, onSelectProject, onSetVault, onClearVault })}
+        {Current({ currentProjectId, vaultPath, onSelectProject, onNavigate: setView, onSetVault, onClearVault })}
       </div>
 
       <nav className="mobile-nav" aria-label="移动导航">

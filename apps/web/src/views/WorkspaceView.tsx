@@ -19,6 +19,8 @@ import {
   PenLine,
   Quote,
   Redo2,
+  RefreshCw,
+  Search,
   Trash2,
   Undo2,
 } from "lucide-react";
@@ -31,6 +33,7 @@ import {
   type EditorChapter,
   type LockRecord,
   type RunRecord,
+  type SearchResult,
 } from "../api/client.js";
 import { readWebPreferences } from "../app/preferences.js";
 import { ConfirmModal, InputModal } from "../app/Modals.js";
@@ -136,12 +139,47 @@ const CHAPTER_STATUS_DOT_CLASS: Record<ChapterStatus, string> = {
   archived: "status-archived",
 };
 
+const SEARCH_TYPE_LABELS: Record<string, string> = {
+  manuscript: "正文",
+  "chapter-metadata": "章节",
+  character: "角色",
+  worldbook: "世界书",
+  relation: "关系",
+  timeline: "时间线",
+  "knowledge-item": "知识",
+  summary: "摘要",
+  run: "运行",
+};
+
+const SEARCH_TYPE_VIEW: Record<string, string> = {
+  character: "characters",
+  worldbook: "worldbook",
+  relation: "relations",
+  timeline: "timeline",
+};
+
 function formatWordCount(value: number): string {
   return `${Math.max(0, value).toLocaleString("zh-CN")} 字`;
 }
 
 function normalizeChapterStatus(status: string): ChapterStatus {
   return CHAPTER_STATUS_VALUES.includes(status as ChapterStatus) ? (status as ChapterStatus) : "drafting";
+}
+
+function summarizeSearchContent(content: string): string {
+  const normalized = content.replace(/\s+/g, " ").trim();
+  return normalized.length > 86 ? `${normalized.slice(0, 86)}...` : normalized;
+}
+
+function chapterIdFromSearchResult(result: SearchResult): string | null {
+  const filename = result.path.split(/[\\/]/).pop();
+  const fileChapterId = filename?.replace(/\.(md|json)$/i, "");
+  if (fileChapterId) {
+    return fileChapterId;
+  }
+
+  const idPart = result.id?.split(":").pop();
+  return idPart || null;
 }
 
 function createAnnotationFromSelection(start: number, end: number): AnnotationRecord {
@@ -158,9 +196,10 @@ function createAnnotationFromSelection(start: number, end: number): AnnotationRe
 interface WorkspaceViewProps {
   currentProjectId?: string | null;
   vaultPath?: string | null;
+  onNavigate?: (viewId: string) => void;
 }
 
-export function WorkspaceView({ currentProjectId, vaultPath }: WorkspaceViewProps = {}) {
+export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: WorkspaceViewProps = {}) {
   const preferences = useMemo(() => readWebPreferences(), []);
   const watchedAgentIds = useMemo(() => new Set(preferences.watchedAgentIds), [preferences]);
   const [agents, setAgents] = useState<AgentInfo[]>(AGENT_FALLBACK);
@@ -172,6 +211,13 @@ export function WorkspaceView({ currentProjectId, vaultPath }: WorkspaceViewProp
   const [selectedNovelId, setSelectedNovelId] = useState<string | null>(null);
   const [createMenuOpen, setCreateMenuOpen] = useState(false);
   const [treeContextMenu, setTreeContextMenu] = useState<TreeContextMenu | null>(null);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchText, setSearchText] = useState("");
+  const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [searchError, setSearchError] = useState<string | null>(null);
+  const [indexRefreshing, setIndexRefreshing] = useState(false);
+  const [indexFeedback, setIndexFeedback] = useState<string | null>(null);
   const [promptRequest, setPromptRequest] = useState<PromptRequest | null>(null);
   const [confirmRequest, setConfirmRequest] = useState<ConfirmRequest | null>(null);
   const [draggedChapter, setDraggedChapter] = useState<{ novelId: string; chapter: ChapterNode } | null>(null);
@@ -374,6 +420,57 @@ export function WorkspaceView({ currentProjectId, vaultPath }: WorkspaceViewProp
       document.removeEventListener("keydown", closeOnEscape);
     };
   }, [treeContextMenu]);
+
+  useEffect(() => {
+    const query = searchText.trim();
+    if (!query) {
+      setSearchResults([]);
+      setSearchError(null);
+      setSearchLoading(false);
+      return;
+    }
+
+    if (!vaultSelected) {
+      setSearchResults([]);
+      setSearchError("请先选择资料库 Vault");
+      setSearchLoading(false);
+      return;
+    }
+
+    let alive = true;
+    setSearchLoading(true);
+    setSearchError(null);
+    const timer = setTimeout(() => {
+      void (async () => {
+        try {
+          const results = await api.search({
+            text: query,
+            projectId: currentProjectId ?? projectTree?.projectId,
+            limit: 30,
+          });
+          if (!alive) {
+            return;
+          }
+          setSearchResults(results);
+        } catch (err) {
+          if (!alive) {
+            return;
+          }
+          setSearchResults([]);
+          setSearchError(err instanceof ApiError ? err.message : "搜索失败");
+        } finally {
+          if (alive) {
+            setSearchLoading(false);
+          }
+        }
+      })();
+    }, 300);
+
+    return () => {
+      alive = false;
+      clearTimeout(timer);
+    };
+  }, [currentProjectId, projectTree?.projectId, searchText, vaultSelected]);
 
   useEffect(() => {
     if (!vaultSelected || !activeId) {
@@ -761,6 +858,52 @@ export function WorkspaceView({ currentProjectId, vaultPath }: WorkspaceViewProp
     await moveChapter(dropped.novelId, dropped.chapter, targetNovelId);
   };
 
+  const rebuildSearchIndex = async () => {
+    if (!vaultSelected || indexRefreshing) {
+      return;
+    }
+
+    try {
+      setIndexRefreshing(true);
+      setSearchError(null);
+      setIndexFeedback(null);
+      const result = await api.rebuildIndex();
+      setIndexFeedback(`索引已更新：${result.indexedCount} 条`);
+      if (searchText.trim()) {
+        const results = await api.search({
+          text: searchText.trim(),
+          projectId: currentProjectId ?? projectTree?.projectId,
+          limit: 30,
+        });
+        setSearchResults(results);
+      }
+    } catch (err) {
+      setSearchError(err instanceof ApiError ? err.message : "重建索引失败");
+    } finally {
+      setIndexRefreshing(false);
+    }
+  };
+
+  const openSearchResult = (result: SearchResult) => {
+    if (result.type === "manuscript" || result.type === "chapter-metadata") {
+      const chapterId = chapterIdFromSearchResult(result);
+      if (!chapterId || !result.novelId) {
+        setSearchError("无法定位该章节");
+        return;
+      }
+
+      setSelectedNovelId(null);
+      setActiveId(`${result.projectId}/${result.novelId}/${chapterId}`);
+      setMobilePanel("editor");
+      return;
+    }
+
+    const targetView = SEARCH_TYPE_VIEW[result.type];
+    if (targetView) {
+      onNavigate?.(targetView);
+    }
+  };
+
   const saveChapterTitle = async () => {
     if (!projectTree || !hasValidActiveChapter) {
       return;
@@ -1024,79 +1167,140 @@ export function WorkspaceView({ currentProjectId, vaultPath }: WorkspaceViewProp
             <h2>章节与资料</h2>
             <div className="tree-total-words">{formatWordCount(totalWordCount)}</div>
           </div>
-          <div className="tree-create" ref={createMenuRef}>
+          <div className="tree-head-actions">
+            <button
+              type="button"
+              className={`btn-icon ${searchOpen ? "active" : ""}`}
+              title="搜索"
+              disabled={!vaultSelected}
+              onClick={() => setSearchOpen((open) => !open)}
+            >
+              <Search size={16} strokeWidth={2} />
+            </button>
             <button
               type="button"
               className="btn-icon"
-              title="新建"
-              aria-haspopup="menu"
-              aria-expanded={createMenuOpen}
-              onClick={() => setCreateMenuOpen((open) => !open)}
+              title={indexRefreshing ? "索引更新中" : "重建索引"}
+              disabled={!vaultSelected || indexRefreshing}
+              onClick={() => void rebuildSearchIndex()}
             >
-              +
+              <RefreshCw size={16} strokeWidth={2} className={indexRefreshing ? "spin-icon" : ""} />
             </button>
-            {createMenuOpen ? (
-              <div className="tree-create-menu" role="menu">
-                <button type="button" role="menuitem" onClick={() => void createNovel()}>
-                  新建卷
-                </button>
-                <button type="button" role="menuitem" onClick={() => void createChapterInCurrentNovel()}>
-                  新建章节
-                </button>
-              </div>
-            ) : null}
+            <div className="tree-create" ref={createMenuRef}>
+              <button
+                type="button"
+                className="btn-icon"
+                title="新建"
+                aria-haspopup="menu"
+                aria-expanded={createMenuOpen}
+                onClick={() => setCreateMenuOpen((open) => !open)}
+              >
+                +
+              </button>
+              {createMenuOpen ? (
+                <div className="tree-create-menu" role="menu">
+                  <button type="button" role="menuitem" onClick={() => void createNovel()}>
+                    新建卷
+                  </button>
+                  <button type="button" role="menuitem" onClick={() => void createChapterInCurrentNovel()}>
+                    新建章节
+                  </button>
+                </div>
+              ) : null}
+            </div>
           </div>
         </div>
-        <div className="tree-scroll" onClick={() => setSelectedNovelId(null)}>
-          {treeLoading ? <div className="faint">章节加载中...</div> : null}
-          {treeError ? <div className="err-card">{treeError}</div> : null}
-          {!treeLoading && !treeError && !projectTree ? <div className="faint">还没有项目，去「项目」页新建一本书</div> : null}
-          {!treeLoading && !treeError && projectTree && projectTree.novels.length === 0 ? (
-            <div className="faint">该项目还没有卷</div>
-          ) : null}
-          {!treeLoading && !treeError && projectTree && projectTree.novels.length > 0 && projectTree.novels.every((novel) => novel.chapters.length === 0) ? (
-            <div className="faint">该项目还没有章节，点 + 新建</div>
-          ) : null}
-          <div
-            className={`tree-loose-drop ${dragTargetNovelId === "main" ? "drag-over" : ""}`}
-            onDragOver={(event) => dragChapterOverNovel(event, "main")}
-            onDragLeave={(event) => leaveChapterDropTarget(event, "main")}
-            onDrop={(event) => void dropChapterOnNovel(event, "main")}
-          >
-            {looseNovel?.chapters.map((chapterItem) => (
-              <button
-                key={chapterItem.id}
-                type="button"
-                draggable
-                className={`tree-item ${selectedNovelId === null && activeId === chapterItem.id ? "active" : ""}`}
-                onDragStart={(event) => startChapterDrag(event, "main", chapterItem)}
-                onDragEnd={clearChapterDrag}
-                onClick={(event) => {
-                  event.stopPropagation();
-                  setSelectedNovelId(null);
-                  setActiveId(chapterItem.id);
-                  setMobilePanel("editor");
-                }}
-                onContextMenu={(event) => {
-                  event.preventDefault();
-                  event.stopPropagation();
-                  setSelectedNovelId(null);
-                  setTreeContextMenu({
-                    kind: "chapter",
-                    x: event.clientX,
-                    y: event.clientY,
-                    chapter: chapterItem,
-                    novelId: "main",
-                  });
-                }}
-              >
-                <span className={`dot ${CHAPTER_STATUS_DOT_CLASS[chapterItem.status]}`} />
-                <span className="t-title">{chapterItem.title}</span>
-                <span className="tree-word-count">{formatWordCount(chapterItem.wordCount)}</span>
-              </button>
-            ))}
+        {searchOpen ? (
+          <div className="tree-search-box">
+            <div className="tree-search-field">
+              <Search size={14} strokeWidth={2} />
+              <input
+                value={searchText}
+                placeholder={vaultSelected ? "搜索正文、角色、世界书..." : "请先选择资料库"}
+                disabled={!vaultSelected}
+                onChange={(event) => setSearchText(event.target.value)}
+              />
+            </div>
+            {indexFeedback ? <div className="tree-search-feedback">{indexFeedback}</div> : null}
           </div>
-          {userNovels.map((novel) => (
+        ) : null}
+        <div className="tree-scroll" onClick={() => setSelectedNovelId(null)}>
+          {searchText.trim() ? (
+            <div className="search-results">
+              {searchLoading ? <div className="faint">搜索中...</div> : null}
+              {searchError ? <div className="err-card">{searchError}</div> : null}
+              {!searchLoading && !searchError && searchResults.length === 0 ? (
+                <div className="faint">没有找到匹配的内容</div>
+              ) : null}
+              {searchResults.map((result) => (
+                <button
+                  key={`${result.type}-${result.path}-${result.title}`}
+                  type="button"
+                  className="search-result-item"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    openSearchResult(result);
+                  }}
+                >
+                  <span className="search-result-head">
+                    <span className="search-result-title">{result.title || result.path}</span>
+                    <span className="tag">{SEARCH_TYPE_LABELS[result.type] ?? result.type}</span>
+                  </span>
+                  <span className="search-result-snippet">{summarizeSearchContent(result.content)}</span>
+                </button>
+              ))}
+            </div>
+          ) : (
+            <>
+              {treeLoading ? <div className="faint">章节加载中...</div> : null}
+              {treeError ? <div className="err-card">{treeError}</div> : null}
+              {!treeLoading && !treeError && !projectTree ? <div className="faint">还没有项目，去「项目」页新建一本书</div> : null}
+              {!treeLoading && !treeError && projectTree && projectTree.novels.length === 0 ? (
+                <div className="faint">该项目还没有卷</div>
+              ) : null}
+              {!treeLoading && !treeError && projectTree && projectTree.novels.length > 0 && projectTree.novels.every((novel) => novel.chapters.length === 0) ? (
+                <div className="faint">该项目还没有章节，点 + 新建</div>
+              ) : null}
+              <div
+                className={`tree-loose-drop ${dragTargetNovelId === "main" ? "drag-over" : ""}`}
+                onDragOver={(event) => dragChapterOverNovel(event, "main")}
+                onDragLeave={(event) => leaveChapterDropTarget(event, "main")}
+                onDrop={(event) => void dropChapterOnNovel(event, "main")}
+              >
+                {looseNovel?.chapters.map((chapterItem) => (
+                  <button
+                    key={chapterItem.id}
+                    type="button"
+                    draggable
+                    className={`tree-item ${selectedNovelId === null && activeId === chapterItem.id ? "active" : ""}`}
+                    onDragStart={(event) => startChapterDrag(event, "main", chapterItem)}
+                    onDragEnd={clearChapterDrag}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      setSelectedNovelId(null);
+                      setActiveId(chapterItem.id);
+                      setMobilePanel("editor");
+                    }}
+                    onContextMenu={(event) => {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      setSelectedNovelId(null);
+                      setTreeContextMenu({
+                        kind: "chapter",
+                        x: event.clientX,
+                        y: event.clientY,
+                        chapter: chapterItem,
+                        novelId: "main",
+                      });
+                    }}
+                  >
+                    <span className={`dot ${CHAPTER_STATUS_DOT_CLASS[chapterItem.status]}`} />
+                    <span className="t-title">{chapterItem.title}</span>
+                    <span className="tree-word-count">{formatWordCount(chapterItem.wordCount)}</span>
+                  </button>
+                ))}
+              </div>
+              {userNovels.map((novel) => (
                 <div key={novel.novelId}>
                   <div
                     className={`tree-group-label ${selectedNovelId === novel.novelId ? "active" : ""} ${dragTargetNovelId === novel.novelId ? "drag-over" : ""}`}
@@ -1165,6 +1369,8 @@ export function WorkspaceView({ currentProjectId, vaultPath }: WorkspaceViewProp
                     : null}
                 </div>
               ))}
+            </>
+          )}
         </div>
         {treeContextMenu ? (
           <div

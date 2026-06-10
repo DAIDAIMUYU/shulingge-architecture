@@ -127,6 +127,28 @@ export interface ChapterSummary {
   status: string;
   wordCount: number;
 }
+export interface SearchQuery {
+  text?: string;
+  projectId?: string;
+  type?: string;
+  limit?: number;
+}
+export interface SearchResult {
+  id?: string;
+  type: string;
+  projectId: string;
+  novelId?: string;
+  path: string;
+  title: string;
+  content: string;
+  tags?: string[];
+  score: number;
+}
+export interface RebuildIndexResult {
+  indexedCount: number;
+  indexPath: string;
+  reused?: boolean;
+}
 export interface TextRange {
   start: number;
   end: number;
@@ -410,6 +432,18 @@ export const api = {
   listAgents: async (): Promise<AgentInfo[]> => unwrapList<AgentInfo>(await get("/agents"), "agents"),
   listNotifications: async (): Promise<unknown[]> =>
     unwrapList<unknown>(await get("/notifications"), "notifications"),
+  search: async (query: SearchQuery): Promise<SearchResult[]> =>
+    unwrapList<SearchResult>(
+      await get(withQuery("/search", {
+        q: query.text,
+        project: query.projectId,
+        type: query.type,
+        limit: query.limit === undefined ? undefined : String(query.limit),
+      })),
+      "results",
+    ),
+  rebuildIndex: async (): Promise<RebuildIndexResult> =>
+    post<RebuildIndexResult>("/index/rebuild", {}),
 
   listProjects: async (): Promise<ProjectSummary[]> =>
     unwrapList<ProjectSummary>(await get("/projects"), "projects"),

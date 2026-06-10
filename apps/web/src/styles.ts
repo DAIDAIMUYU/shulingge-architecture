@@ -104,6 +104,7 @@ input, textarea { font-family: inherit; }
 .btn-ghost:hover { background: var(--bg-hover); color: var(--text-primary); }
 .btn-icon { width: 32px; height: 32px; padding: 0; border: 0; background: transparent; color: var(--text-secondary); border-radius: var(--radius-sm); display: grid; place-items: center; transition: background .16s ease, color .16s ease; }
 .btn-icon:hover { background: var(--bg-hover); color: var(--text-primary); }
+.btn-icon.active { background: var(--primary-light); color: var(--primary); }
 .btn:disabled { opacity: .45; cursor: not-allowed; }
 .input { height: 34px; padding: 0 12px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--bg-card); color: var(--text-primary); font-size: 13px; transition: border-color .16s ease, box-shadow .16s ease; outline: none; }
 .input:focus { border-color: var(--primary); box-shadow: 0 0 0 2px var(--primary-light); }
@@ -142,6 +143,14 @@ input, textarea { font-family: inherit; }
 .tree-head { display: flex; align-items: center; justify-content: space-between; padding: 22px 20px 14px; }
 .tree-head h2 { font-size: 15px; font-weight: 600; }
 .tree-total-words { margin-top: 4px; font-size: 12px; color: var(--text-muted); }
+.tree-head-actions { display: flex; align-items: center; gap: 4px; }
+.tree-search-box { padding: 0 12px 10px; }
+.tree-search-field { display: flex; align-items: center; gap: 8px; height: 34px; padding: 0 10px; background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-sm); color: var(--text-muted); }
+.tree-search-field:focus-within { border-color: var(--primary); box-shadow: 0 0 0 2px var(--primary-light); }
+.tree-search-field input { min-width: 0; flex: 1; border: 0; outline: none; background: transparent; color: var(--text-primary); font-size: 13px; }
+.tree-search-field input::placeholder { color: var(--text-muted); }
+.tree-search-feedback { margin-top: 6px; padding: 0 2px; color: var(--text-muted); font-size: 12px; }
+.spin-icon { animation: spin 0.9s linear infinite; }
 .tree-create { position: relative; }
 .tree-create-menu { position: absolute; top: calc(100% + 8px); right: 0; z-index: 20; width: 116px; padding: 6px; background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-sm); box-shadow: var(--shadow-popover); }
 .tree-create-menu button { width: 100%; height: 32px; padding: 0 10px; border: 0; background: transparent; color: var(--text-secondary); border-radius: var(--radius-sm); font-size: 13px; text-align: left; cursor: pointer; transition: background .16s ease, color .16s ease; }
@@ -178,6 +187,12 @@ input, textarea { font-family: inherit; }
 .tree-item .dot.status-archived { background: var(--text-muted); }
 .tree-item .t-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tree-word-count { margin-left: auto; flex: none; color: var(--text-muted); font-size: 12px; font-weight: 400; letter-spacing: 0; }
+.search-results { display: flex; flex-direction: column; gap: 8px; }
+.search-result-item { width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--bg-card); color: var(--text-secondary); text-align: left; transition: background .16s ease, border-color .16s ease; }
+.search-result-item:hover { background: var(--bg-hover); border-color: var(--border-strong); color: var(--text-primary); }
+.search-result-head { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.search-result-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-primary); font-weight: 600; font-size: 13px; }
+.search-result-snippet { display: block; margin-top: 6px; color: var(--text-muted); font-size: 12px; line-height: 1.6; }
 
 /* 第三列：编辑器（纸张，周围留呼吸） */
 .editor-pane { background: var(--bg-app); display: flex; flex-direction: column; min-width: 0; }
