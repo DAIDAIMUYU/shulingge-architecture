@@ -1,13 +1,46 @@
+import { useEffect, useState } from "react";
 import { FolderPlus, Plus } from "lucide-react";
 
+import { api, ApiError, type ProjectSummary } from "../api/client.js";
 import { ViewShell } from "./common.js";
 
-// 项目库：项目列表 API 后续补齐；先展示当前 demo 项目与新建入口。
-const DEMO_PROJECTS = [
-  { id: "demo-series", title: "鬼灭同人系列", sub: "18 章 · 234,567 字" },
-];
+interface ProjectsViewProps {
+  onOpenProject?: (projectId: string) => void;
+}
 
-export function ProjectsView() {
+export function ProjectsView({ onOpenProject }: ProjectsViewProps = {}) {
+  const [projects, setProjects] = useState<ProjectSummary[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+
+    void (async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const list = await api.listProjects();
+        if (alive) {
+          setProjects(list);
+        }
+      } catch (err) {
+        if (alive) {
+          setProjects([]);
+          setError(err instanceof ApiError ? err.message : "项目加载失败");
+        }
+      } finally {
+        if (alive) {
+          setLoading(false);
+        }
+      }
+    })();
+
+    return () => {
+      alive = false;
+    };
+  }, []);
+
   return (
     <ViewShell
       title="项目"
@@ -20,14 +53,22 @@ export function ProjectsView() {
       }
     >
       <div className="card-grid">
-        {DEMO_PROJECTS.map((p) => (
-          <div className="project-card" key={p.id}>
-            <div className="project-cover">{p.title.slice(0, 2)}</div>
+        {loading ? <div className="empty-card">项目加载中...</div> : null}
+        {error ? <div className="err-card">{error}</div> : null}
+        {!loading && !error && projects.length === 0 ? <div className="empty-card">还没有项目。</div> : null}
+        {projects.map((project) => (
+          <button
+            type="button"
+            className="project-card"
+            key={project.projectId}
+            onClick={() => onOpenProject?.(project.projectId)}
+          >
+            <div className="project-cover">{project.title.slice(0, 2)}</div>
             <div className="project-meta">
-              <div className="pm-title">{p.title}</div>
-              <div className="pm-sub">{p.sub}</div>
+              <div className="pm-title">{project.title}</div>
+              <div className="pm-sub">{project.projectId}</div>
             </div>
-          </div>
+          </button>
         ))}
         <button
           type="button"

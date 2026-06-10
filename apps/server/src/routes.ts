@@ -1,5 +1,10 @@
 import {
+  createChapter,
+  createNovel,
+  listChapters,
   loadEditorChapter,
+  listNovels,
+  listProjects,
   saveEditorAnnotations,
   saveEditorChapter,
   saveEditorLocks,
@@ -1078,6 +1083,61 @@ export const routeDefinitions: RouteDefinition[] = [
       const vaultRoot = requireVaultRoot(context);
       void request;
       return await testModelConnection(vaultRoot, request.params.modelId, getModelOptions(context));
+    },
+  },
+  {
+    method: "GET",
+    path: "/api/v1/projects",
+    async handler(_request, context) {
+      const vaultRoot = requireVaultRoot(context);
+      return {
+        projects: await listProjects(vaultRoot),
+      };
+    },
+  },
+  {
+    method: "GET",
+    path: "/api/v1/projects/:projectId/novels",
+    async handler(request, context) {
+      const vaultRoot = requireVaultRoot(context);
+      return {
+        novels: await listNovels(vaultRoot, request.params.projectId),
+      };
+    },
+  },
+  {
+    method: "POST",
+    path: "/api/v1/projects/:projectId/novels",
+    async handler(request, context) {
+      const vaultRoot = requireVaultRoot(context);
+      const body = request.body as { title?: unknown } | undefined;
+      return await createNovel(vaultRoot, {
+        projectId: request.params.projectId,
+        title: body?.title as never,
+      });
+    },
+  },
+  {
+    method: "GET",
+    path: "/api/v1/projects/:projectId/novels/:novelId/chapters",
+    async handler(request, context) {
+      const vaultRoot = requireVaultRoot(context);
+      return {
+        chapters: await listChapters(vaultRoot, request.params.projectId, request.params.novelId),
+      };
+    },
+  },
+  {
+    method: "POST",
+    path: "/api/v1/projects/:projectId/novels/:novelId/chapters",
+    async handler(request, context) {
+      const vaultRoot = requireVaultRoot(context);
+      const body = request.body as { title?: unknown } | undefined;
+      return await createChapter(vaultRoot, {
+        projectId: request.params.projectId,
+        novelId: request.params.novelId,
+        title: body?.title as never,
+      });
     },
   },
   {

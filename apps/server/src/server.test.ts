@@ -1868,6 +1868,83 @@ test("editor save keeps manuscripts pure and externalizes annotations plus locks
   }
 });
 
+test("project tree routes list and create novels and chapters", async () => {
+  const vaultRoot = await createFixtureVault();
+  const server = await startServer({ vaultRoot });
+
+  try {
+    const projectsResponse = await fetch(`${server.baseUrl}/api/v1/projects`);
+    const novelsResponse = await fetch(`${server.baseUrl}/api/v1/projects/demo-series/novels`);
+    const chaptersResponse = await fetch(`${server.baseUrl}/api/v1/projects/demo-series/novels/main/chapters`);
+    const createChapterResponse = await fetch(`${server.baseUrl}/api/v1/projects/demo-series/novels/main/chapters`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ title: "新章节" }),
+    });
+    const createNovelResponse = await fetch(`${server.baseUrl}/api/v1/projects/demo-series/novels`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ title: "番外卷" }),
+    });
+
+    const projectsPayload = (await projectsResponse.json()) as {
+      ok: true;
+      data: { projects: Array<{ projectId: string; title: string }> };
+    };
+    const novelsPayload = (await novelsResponse.json()) as {
+      ok: true;
+      data: { novels: Array<{ novelId: string; title: string }> };
+    };
+    const chaptersPayload = (await chaptersResponse.json()) as {
+      ok: true;
+      data: { chapters: Array<{ chapterId: string; title: string }> };
+    };
+    const createChapterPayload = (await createChapterResponse.json()) as {
+      ok: true;
+      data: { chapterId: string; title: string };
+    };
+    const createNovelPayload = (await createNovelResponse.json()) as {
+      ok: true;
+      data: { novelId: string; title: string };
+    };
+
+    const createdManuscript = await readManuscriptFile(
+      vaultRoot,
+      `projects/demo-series/novels/main/manuscripts/${createChapterPayload.data.chapterId}.md`,
+    );
+    const createdMetadata = await readJsonFile<{ title: string }>(
+      vaultRoot,
+      `projects/demo-series/novels/main/metadata/chapters/${createChapterPayload.data.chapterId}.json`,
+    );
+    const createdNovel = await readJsonFile<{ title: string; name: string }>(
+      vaultRoot,
+      `projects/demo-series/novels/${createNovelPayload.data.novelId}/novel.json`,
+    );
+
+    assert.equal(projectsResponse.status, 200);
+    assert.equal(projectsPayload.data.projects[0]?.projectId, "demo-series");
+    assert.equal(projectsPayload.data.projects[0]?.title, "演示系列");
+    assert.equal(novelsResponse.status, 200);
+    assert.equal(novelsPayload.data.novels[0]?.novelId, "main");
+    assert.equal(novelsPayload.data.novels[0]?.title, "主线");
+    assert.equal(chaptersResponse.status, 200);
+    assert.equal(chaptersPayload.data.chapters[0]?.chapterId, "chapter-001");
+    assert.equal(createChapterResponse.status, 200);
+    assert.equal(createChapterPayload.data.chapterId, "chapter-002");
+    assert.equal(createChapterPayload.data.title, "新章节");
+    assert.equal(createdManuscript, "");
+    assert.equal(createdMetadata.title, "新章节");
+    assert.equal(createNovelResponse.status, 200);
+    assert.equal(createNovelPayload.data.novelId, "novel");
+    assert.equal(createNovelPayload.data.title, "番外卷");
+    assert.equal(createdNovel.title, "番外卷");
+    assert.equal(createdNovel.name, "番外卷");
+  } finally {
+    await server.close();
+    await rm(vaultRoot, { recursive: true, force: true });
+  }
+});
+
 test("editor rejects frontmatter writes to enforce SEC-14", async () => {
   const vaultRoot = await createFixtureVault();
   const server = await startServer({ vaultRoot });

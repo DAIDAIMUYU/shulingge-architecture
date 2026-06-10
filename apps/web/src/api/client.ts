@@ -110,6 +110,18 @@ export interface EditorChapter {
   };
   annotations?: AnnotationRecord[];
 }
+export interface ProjectSummary {
+  projectId: string;
+  title: string;
+}
+export interface NovelSummary {
+  novelId: string;
+  title: string;
+}
+export interface ChapterSummary {
+  chapterId: string;
+  title: string;
+}
 export interface TextRange {
   start: number;
   end: number;
@@ -393,6 +405,23 @@ export const api = {
   listAgents: async (): Promise<AgentInfo[]> => unwrapList<AgentInfo>(await get("/agents"), "agents"),
   listNotifications: async (): Promise<unknown[]> =>
     unwrapList<unknown>(await get("/notifications"), "notifications"),
+
+  listProjects: async (): Promise<ProjectSummary[]> =>
+    unwrapList<ProjectSummary>(await get("/projects"), "projects"),
+  listNovels: async (projectId: string): Promise<NovelSummary[]> =>
+    unwrapList<NovelSummary>(await get(`/projects/${encodeURIComponent(projectId)}/novels`), "novels"),
+  listChapters: async (projectId: string, novelId: string): Promise<ChapterSummary[]> =>
+    unwrapList<ChapterSummary>(
+      await get(`/projects/${encodeURIComponent(projectId)}/novels/${encodeURIComponent(novelId)}/chapters`),
+      "chapters",
+    ),
+  createChapter: async (projectId: string, novelId: string, title: string): Promise<ChapterSummary> =>
+    post<ChapterSummary>(
+      `/projects/${encodeURIComponent(projectId)}/novels/${encodeURIComponent(novelId)}/chapters`,
+      { title },
+    ),
+  createNovel: async (projectId: string, title: string): Promise<NovelSummary> =>
+    post<NovelSummary>(`/projects/${encodeURIComponent(projectId)}/novels`, { title }),
 
   loadChapter: (chapterId: string, projectId: string, novelId: string) =>
     get<EditorChapter>(withQuery(`/editor/chapters/${encodeURIComponent(chapterId)}`, { projectId, novelId })),

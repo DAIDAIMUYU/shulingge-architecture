@@ -1,7 +1,8 @@
+import { mkdir, readdir } from "node:fs/promises";
 import path from "node:path";
 
 import type { Annotation, Chapter, Lock } from "@shulingge/shared";
-import { readJsonFile, readManuscriptFile, writeJsonFile } from "@shulingge/vault-core";
+import { readJsonFile, readManuscriptFile, resolveSafePath, writeJsonFile, writeManuscriptFile } from "@shulingge/vault-core";
 
 import { createHttpError } from "./errors.js";
 import { saveVersionedChapter } from "./versioning.js";
@@ -19,6 +20,21 @@ interface EditorChapterLocator {
   projectId: string;
   novelId: string;
   chapterId: string;
+}
+
+export interface ProjectSummary {
+  projectId: string;
+  title: string;
+}
+
+export interface NovelSummary {
+  novelId: string;
+  title: string;
+}
+
+export interface ChapterSummary {
+  chapterId: string;
+  title: string;
 }
 
 interface SaveChapterInput extends EditorChapterLocator {
@@ -40,6 +56,112 @@ interface ChapterMetadataPatch {
 
 function getNovelRootPath(locator: EditorChapterLocator): string {
   return path.posix.join("projects", locator.projectId, "novels", locator.novelId);
+}
+
+function getNovelRootPathFor(projectId: string, novelId: string): string {
+  return path.posix.join("projects", projectId, "novels", novelId);
+}
+
+function getProjectRelativePath(projectId: string): string {
+  return path.posix.join("projects", projectId);
+}
+
+function assertProjectId(projectId: string | undefined): asserts projectId is string {
+  if (!projectId) {
+    throw createHttpError(400, "EDITOR_INVALID_PROJECT", "projectId is required");
+  }
+}
+
+function assertNovelId(novelId: string | undefined): asserts novelId is string {
+  if (!novelId) {
+    throw createHttpError(400, "EDITOR_INVALID_NOVEL", "novelId is required");
+  }
+}
+
+function assertTitle(title: unknown): asserts title is string {
+  if (typeof title !== "string" || !title.trim()) {
+    throw createHttpError(400, "EDITOR_INVALID_TITLE", "title is required");
+  }
+}
+
+async function listDirectoryNames(vaultRoot: string, relativePath: string): Promise<string[]> {
+  try {
+    const absolutePath = resolveSafePath(vaultRoot, relativePath);
+    const entries = await readdir(absolutePath, { withFileTypes: true });
+    return entries.filter((entry) => entry.isDirectory()).map((entry) => entry.name).sort((a, b) => a.localeCompare(b));
+  } catch {
+    return [];
+  }
+}
+
+async function listMarkdownBaseNames(vaultRoot: string, relativePath: string): Promise<string[]> {
+  try {
+    const absolutePath = resolveSafePath(vaultRoot, relativePath);
+    const entries = await readdir(absolutePath, { withFileTypes: true });
+    return entries
+      .filter((entry) => entry.isFile() && entry.name.endsWith(".md"))
+      .map((entry) => entry.name.slice(0, -3))
+      .sort((a, b) => a.localeCompare(b));
+  } catch {
+    return [];
+  }
+}
+
+async function readOptionalJson<T>(vaultRoot: string, relativePath: string): Promise<T | null> {
+  try {
+    return await readJsonFile<T>(vaultRoot, relativePath);
+  } catch {
+    return null;
+  }
+}
+
+function readTitle(value: unknown, fallback: string): string {
+  if (value && typeof value === "object") {
+    const record = value as Record<string, unknown>;
+    const title = record.title ?? record.name;
+    if (typeof title === "string" && title.trim()) {
+      return title;
+    }
+  }
+  return fallback;
+}
+
+function slugifyTitle(title: string): string {
+  const slug = title
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  return slug || "novel";
+}
+
+function nextNumberedId(prefix: string, existingIds: string[]): string {
+  const pattern = new RegExp(`^${prefix}-(\\d+)$`);
+  const max = existingIds.reduce((current, id) => {
+    const match = id.match(pattern);
+    return match ? Math.max(current, Number(match[1])) : current;
+  }, 0);
+  return `${prefix}-${String(max + 1).padStart(3, "0")}`;
+}
+
+async function ensureNovelDirectories(vaultRoot: string, projectId: string, novelId: string): Promise<void> {
+  const novelRoot = getNovelRootPathFor(projectId, novelId);
+  const directories = [
+    "manuscripts",
+    "metadata/chapters",
+    "summaries",
+    "outline",
+    "states",
+    "runs",
+    "snapshots",
+    "diffs",
+    "annotations",
+    "publish",
+  ];
+
+  await Promise.all(
+    directories.map((directory) => mkdir(resolveSafePath(vaultRoot, path.posix.join(novelRoot, directory)), { recursive: true })),
+  );
 }
 
 function getManuscriptRelativePath(locator: EditorChapterLocator): string {
@@ -83,6 +205,27 @@ function createDefaultMetadata(locator: EditorChapterLocator, manuscriptPath: st
     involvedCharacters: [],
     locks: [],
     annotationsRef: undefined,
+    finalizedAt: null,
+    schemaVersion: 1,
+    createdAt: now,
+    updatedAt: now,
+  };
+}
+
+function createChapterMetadata(locator: EditorChapterLocator, title: string, order: number): Chapter {
+  const now = new Date().toISOString();
+  const manuscriptPath = getManuscriptRelativePath(locator);
+  return {
+    id: locator.chapterId,
+    novelId: locator.novelId,
+    title,
+    order,
+    manuscriptPath,
+    status: "drafting",
+    wordCount: 0,
+    involvedCharacters: [],
+    locks: [],
+    annotationsRef: getAnnotationsRelativePath(locator),
     finalizedAt: null,
     schemaVersion: 1,
     createdAt: now,
@@ -167,6 +310,121 @@ export async function loadEditorChapter(
     content,
     metadata,
     annotations,
+  };
+}
+
+export async function listProjects(vaultRoot: string): Promise<ProjectSummary[]> {
+  const projectIds = await listDirectoryNames(vaultRoot, "projects");
+  return await Promise.all(
+    projectIds.map(async (projectId) => {
+      const metadata =
+        (await readOptionalJson<unknown>(vaultRoot, path.posix.join("projects", projectId, "project.json"))) ??
+        (await readOptionalJson<unknown>(vaultRoot, path.posix.join("projects", projectId, "series.json")));
+      return {
+        projectId,
+        title: readTitle(metadata, projectId),
+      };
+    }),
+  );
+}
+
+export async function listNovels(vaultRoot: string, projectId: string): Promise<NovelSummary[]> {
+  assertProjectId(projectId);
+  const novelIds = await listDirectoryNames(vaultRoot, path.posix.join(getProjectRelativePath(projectId), "novels"));
+  return await Promise.all(
+    novelIds.map(async (novelId) => {
+      const metadata = await readOptionalJson<unknown>(
+        vaultRoot,
+        path.posix.join(getNovelRootPathFor(projectId, novelId), "novel.json"),
+      );
+      return {
+        novelId,
+        title: readTitle(metadata, novelId),
+      };
+    }),
+  );
+}
+
+export async function listChapters(vaultRoot: string, projectId: string, novelId: string): Promise<ChapterSummary[]> {
+  assertProjectId(projectId);
+  assertNovelId(novelId);
+  const manuscriptRoot = path.posix.join(getNovelRootPathFor(projectId, novelId), "manuscripts");
+  const chapterIds = await listMarkdownBaseNames(vaultRoot, manuscriptRoot);
+  return await Promise.all(
+    chapterIds.map(async (chapterId) => {
+      const metadata = await readOptionalJson<Chapter>(
+        vaultRoot,
+        path.posix.join(getNovelRootPathFor(projectId, novelId), "metadata/chapters", `${chapterId}.json`),
+      );
+      return {
+        chapterId,
+        title: readTitle(metadata, chapterId),
+      };
+    }),
+  );
+}
+
+export async function createChapter(
+  vaultRoot: string,
+  input: { projectId: string; novelId: string; title: string },
+): Promise<ChapterSummary> {
+  assertProjectId(input.projectId);
+  assertNovelId(input.novelId);
+  assertTitle(input.title);
+
+  await ensureNovelDirectories(vaultRoot, input.projectId, input.novelId);
+  const existingIds = await listMarkdownBaseNames(
+    vaultRoot,
+    path.posix.join(getNovelRootPathFor(input.projectId, input.novelId), "manuscripts"),
+  );
+  const chapterId = nextNumberedId("chapter", existingIds);
+  const locator = {
+    projectId: input.projectId,
+    novelId: input.novelId,
+    chapterId,
+  };
+  const title = input.title.trim();
+
+  await writeManuscriptFile(vaultRoot, getManuscriptRelativePath(locator), "");
+  await writeJsonFile(vaultRoot, getMetadataRelativePath(locator), createChapterMetadata(locator, title, existingIds.length + 1));
+
+  return {
+    chapterId,
+    title,
+  };
+}
+
+export async function createNovel(
+  vaultRoot: string,
+  input: { projectId: string; title: string },
+): Promise<NovelSummary> {
+  assertProjectId(input.projectId);
+  assertTitle(input.title);
+
+  const existingIds = await listDirectoryNames(vaultRoot, path.posix.join(getProjectRelativePath(input.projectId), "novels"));
+  const baseId = slugifyTitle(input.title);
+  let novelId = baseId;
+  if (existingIds.includes(novelId)) {
+    novelId = nextNumberedId(baseId, existingIds);
+  }
+  const title = input.title.trim();
+
+  await ensureNovelDirectories(vaultRoot, input.projectId, novelId);
+  await writeJsonFile(vaultRoot, path.posix.join(getNovelRootPathFor(input.projectId, novelId), "novel.json"), {
+    id: novelId,
+    name: title,
+    title,
+    projectId: input.projectId,
+    branchType: "main",
+    excludedSharedFiles: [],
+    writingFreedom: "medium",
+    defaultWriteScope: "scene",
+    schemaVersion: 1,
+  });
+
+  return {
+    novelId,
+    title,
   };
 }
 

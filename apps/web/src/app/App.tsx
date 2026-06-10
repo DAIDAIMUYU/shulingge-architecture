@@ -1,4 +1,4 @@
-import { useState, type ComponentType } from "react";
+import { useState, type ReactNode } from "react";
 import {
   Bot,
   Clock,
@@ -45,22 +45,38 @@ const PRIMARY_NAV: NavItem[] = [
 const SETTINGS_NAV: NavItem = { id: "settings", icon: Settings, label: "设置" };
 const NAV = [...PRIMARY_NAV, SETTINGS_NAV];
 
-const VIEWS: Record<string, ComponentType> = {
-  workspace: WorkspaceView,
-  projects: ProjectsView,
-  characters: CharactersView,
-  relations: RelationsView,
-  timeline: TimelineView,
-  worldbook: WorldbookView,
-  agents: AgentsView,
-  skills: SkillsView,
-  rules: RulesView,
-  settings: SettingsView,
+interface AppViewProps {
+  currentProjectId: string | null;
+  onSelectProject: (projectId: string) => void;
+}
+
+const VIEWS: Record<string, (props: AppViewProps) => ReactNode> = {
+  workspace: ({ currentProjectId }) => <WorkspaceView currentProjectId={currentProjectId} />,
+  projects: ({ onSelectProject }) => <ProjectsView onOpenProject={onSelectProject} />,
+  characters: () => <CharactersView />,
+  relations: () => <RelationsView />,
+  timeline: () => <TimelineView />,
+  worldbook: () => <WorldbookView />,
+  agents: () => <AgentsView />,
+  skills: () => <SkillsView />,
+  rules: () => <RulesView />,
+  settings: () => <SettingsView />,
 };
 
 export function App() {
   const [view, setView] = useState("workspace");
-  const Current = VIEWS[view] ?? WorkspaceView;
+  const [currentProjectId, setCurrentProjectId] = useState<string | null>(() => {
+    if (typeof window === "undefined") {
+      return null;
+    }
+    return window.localStorage.getItem("shulingge.web.projectId");
+  });
+  const Current = VIEWS[view] ?? VIEWS.workspace;
+  const onSelectProject = (projectId: string) => {
+    setCurrentProjectId(projectId);
+    window.localStorage.setItem("shulingge.web.projectId", projectId);
+    setView("workspace");
+  };
   const currentLabel = NAV.find((item) => item.id === view)?.label ?? "写作";
 
   return (
@@ -106,7 +122,7 @@ export function App() {
             </div>
           </div>
         </header>
-        <Current />
+        {Current({ currentProjectId, onSelectProject })}
       </div>
 
       <nav className="mobile-nav" aria-label="移动导航">
