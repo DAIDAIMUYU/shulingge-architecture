@@ -21,6 +21,7 @@ import {
 import { rebuildIndex, searchIndex, type IndexDocumentType } from "@shulingge/indexer";
 import { scanRuleConflicts } from "@shulingge/rule-core";
 import type { Rule } from "@shulingge/shared";
+import { initializeVault } from "@shulingge/vault-core";
 import {
   createModel,
   getModel,
@@ -240,7 +241,16 @@ export const routeDefinitions: RouteDefinition[] = [
         throw createHttpError(400, "SERVER_INVALID_VAULT_SELECTION", "rootPath is required");
       }
 
-      context.state.vaultRoot = body.rootPath;
+      try {
+        const initialized = await initializeVault({ rootPath: body.rootPath });
+        context.state.vaultRoot = initialized.rootPath;
+      } catch {
+        throw createHttpError(
+          400,
+          "SERVER_INVALID_VAULT_SELECTION",
+          "无法创建或初始化资料库目录，请检查路径是否合法、是否有写入权限",
+        );
+      }
       await context.services.remote.reloadForVault(context.state.vaultRoot);
       return {
         rootPath: context.state.vaultRoot,

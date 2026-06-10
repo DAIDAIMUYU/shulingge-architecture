@@ -158,6 +158,40 @@ test("health check succeeds and server binds to 127.0.0.1 by default", async () 
   }
 });
 
+test("vault select creates and initializes missing directory", async () => {
+  const parent = await mkdtemp(path.join(os.tmpdir(), "shulingge-vault-select-"));
+  const vaultRoot = path.join(parent, "nested", "new-vault");
+  const server = await startServer();
+
+  try {
+    const selectResponse = await fetch(`${server.baseUrl}/api/v1/vault/select`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ rootPath: vaultRoot }),
+    });
+    const selectPayload = (await selectResponse.json()) as {
+      ok: true;
+      data: { rootPath: string };
+    };
+    const projectsResponse = await fetch(`${server.baseUrl}/api/v1/projects`);
+    const projectsPayload = (await projectsResponse.json()) as {
+      ok: true;
+      data: { projects: unknown[] };
+    };
+    const entries = await readdir(vaultRoot);
+
+    assert.equal(selectResponse.status, 200);
+    assert.equal(selectPayload.data.rootPath, path.resolve(vaultRoot));
+    assert.equal(entries.includes("projects"), true);
+    assert.equal(entries.includes("settings"), true);
+    assert.equal(projectsResponse.status, 200);
+    assert.deepEqual(projectsPayload.data.projects, []);
+  } finally {
+    await server.close();
+    await rm(parent, { recursive: true, force: true });
+  }
+});
+
 test("search and index rebuild routes work against a selected vault", async () => {
   const vaultRoot = await createFixtureVault();
   const server = await startServer({ vaultRoot });
