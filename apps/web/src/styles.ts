@@ -114,7 +114,7 @@ input, textarea { font-family: inherit; }
 
 /* ===== App Shell：四列 64 / 264 / 1fr / 384 ===== */
 .app-shell { display: grid; grid-template-columns: 64px 1fr; height: 100%; }
-.workspace { display: grid; grid-template-columns: 280px minmax(860px,1fr) 360px; height: 100%; min-height: 0; }
+.workspace { display: grid; grid-template-columns: 264px minmax(0,1fr) clamp(320px, 26vw, 380px); height: 100%; min-height: 0; }
 .workspace.focus-mode { grid-template-columns: minmax(0,1fr); }
 .workspace.focus-mode .tree-panel,
 .workspace.focus-mode .chat-pane { display: none; }
@@ -153,13 +153,13 @@ input, textarea { font-family: inherit; }
 .editor-pane { background: var(--bg-app); display: flex; flex-direction: column; min-width: 0; }
 .editor-scroll { flex: 1; overflow: auto; display: flex; justify-content: center; padding: 32px 36px 48px; }
 .paper { width: 100%; max-width: 720px; background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-lg); box-shadow: var(--shadow-paper); display: flex; flex-direction: column; align-self: flex-start; min-height: calc(100% - 0px); }
-.editor-workbench { width: 100%; max-width: 1080px; display: grid; grid-template-columns: minmax(560px, 720px) minmax(260px, 320px); gap: 20px; justify-content: center; align-items: start; }
+.editor-workbench { width: 100%; max-width: 760px; display: grid; grid-template-columns: minmax(0,1fr); gap: 20px; justify-content: center; align-items: start; }
 .editor-workbench.focus-mode { grid-template-columns: minmax(0, 860px); max-width: 860px; }
 .paper-toolbar { display: flex; align-items: center; gap: 2px; height: 52px; padding: 0 16px; border-bottom: 1px solid var(--border); }
 .paper-toolbar .sep { width: 1px; height: 20px; background: var(--border); margin: 0 8px; }
 .paper-toolbar .grow { flex: 1; }
 .toolbar-active { background: var(--primary-light); color: var(--primary); }
-.paper-body { padding: 36px 60px 72px; flex: 1; display: flex; flex-direction: column; }
+.paper-body { padding: 48px 56px 64px; flex: 1; display: flex; flex-direction: column; }
 .chapter-title { font-family: var(--font-serif); font-size: 28px; font-weight: 600; letter-spacing: .01em; line-height: 1.4; }
 .title-rule { width: 40px; height: 2px; background: var(--primary); margin: 18px 0 28px; border-radius: 2px; }
 .manuscript { font-family: var(--font-serif); font-size: 16px; line-height: 1.95; letter-spacing: .02em; color: var(--text-primary); border: 0; outline: none; resize: none; background: transparent; width: 100%; flex: 1; min-height: 320px; }
@@ -168,7 +168,7 @@ input, textarea { font-family: inherit; }
 .editor-statusbar .grow { flex: 1; }
 
 /* Vault 内嵌引导卡 */
-.vault-card { display: flex; align-items: center; gap: 12px; margin: 20px 24px 0; padding: 14px 16px; background: var(--primary-light); border: 1px solid var(--border); border-radius: var(--radius-md); }
+.vault-card { display: flex; align-items: center; gap: 12px; margin: 20px 24px 0; padding: 14px 16px; background: var(--bg-card); border: 1px dashed var(--border-strong); border-radius: var(--radius-md); }
 .vault-card .vc-icon { color: var(--primary); flex: none; }
 .vault-card .vc-text { font-size: 13px; color: var(--text-primary); white-space: nowrap; }
 .vault-card .input { flex: 1; }
@@ -388,9 +388,8 @@ input, textarea { font-family: inherit; }
 @keyframes breathe { 0%,100% { opacity: 1; } 50% { opacity: .4; } }
 
 @media (max-width: 1600px) {
-  .workspace { grid-template-columns: 280px minmax(0,1fr); }
-  .editor-workbench { grid-template-columns: minmax(560px, 720px) minmax(260px, 320px); max-width: 1080px; }
-  .chat-pane { display: none; }
+  .workspace { grid-template-columns: 264px minmax(0,1fr) clamp(320px, 26vw, 380px); }
+  .editor-workbench { grid-template-columns: minmax(0,1fr); max-width: 760px; }
 }
 
 @media (max-width: 1280px) {

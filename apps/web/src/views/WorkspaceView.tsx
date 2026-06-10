@@ -113,6 +113,7 @@ export function WorkspaceView() {
   const [running, setRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [inspectorTab, setInspectorTab] = useState<InspectorTab>(preferences.defaultInspectorTab);
+  const [showInspector] = useState(false);
   const [focusMode, setFocusMode] = useState(preferences.startInFocusMode);
   const [mobilePanel, setMobilePanel] = useState<MobilePanel>("editor");
   const [messages, setMessages] = useState<ChatMessage[]>([
@@ -636,7 +637,7 @@ export function WorkspaceView() {
               </div>
             </div>
 
-            {!focusMode ? (
+            {showInspector && !focusMode ? (
               <aside className="inspector-pane">
                 <section className="info-card">
                   <h3>工作台深化</h3>
