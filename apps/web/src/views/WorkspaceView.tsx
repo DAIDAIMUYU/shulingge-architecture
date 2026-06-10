@@ -219,6 +219,7 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
   const [searchError, setSearchError] = useState<string | null>(null);
   const [indexRefreshing, setIndexRefreshing] = useState(false);
   const [indexFeedback, setIndexFeedback] = useState<string | null>(null);
+  const [outlinePopoverOpen, setOutlinePopoverOpen] = useState(false);
   const [promptRequest, setPromptRequest] = useState<PromptRequest | null>(null);
   const [confirmRequest, setConfirmRequest] = useState<ConfirmRequest | null>(null);
   const [draggedChapter, setDraggedChapter] = useState<{ novelId: string; chapter: ChapterNode } | null>(null);
@@ -261,6 +262,8 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const createMenuRef = useRef<HTMLDivElement | null>(null);
   const treeContextMenuRef = useRef<HTMLDivElement | null>(null);
+  const outlinePopoverRef = useRef<HTMLDivElement | null>(null);
+  const outlineButtonRef = useRef<HTMLButtonElement | null>(null);
   const nextId = () => idRef.current++;
 
   const locator = useMemo(() => parseChapterRef(activeId), [activeId]);
@@ -423,6 +426,32 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
   }, [treeContextMenu]);
 
   useEffect(() => {
+    if (!outlinePopoverOpen) {
+      return;
+    }
+
+    const closeOnOutsidePointer = (event: MouseEvent) => {
+      const target = event.target as Node;
+      if (outlinePopoverRef.current?.contains(target) || outlineButtonRef.current?.contains(target)) {
+        return;
+      }
+      setOutlinePopoverOpen(false);
+    };
+    const closeOnEscape = (event: globalThis.KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setOutlinePopoverOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", closeOnOutsidePointer);
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.removeEventListener("mousedown", closeOnOutsidePointer);
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [outlinePopoverOpen]);
+
+  useEffect(() => {
     const query = searchText.trim();
     if (!query) {
       setSearchResults([]);
@@ -582,6 +611,25 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
       node.setSelectionRange(start, end);
       setSelectionRange({ start, end });
     });
+  };
+
+  const jumpToOutlineItem = (line: number) => {
+    const node = textareaRef.current;
+    if (!node || !hasValidActiveChapter) {
+      return;
+    }
+
+    const targetLine = Math.max(1, line);
+    const lines = draft.split("\n");
+    const offset = lines.slice(0, targetLine - 1).reduce((sum, item) => sum + item.length + 1, 0);
+    const safeOffset = Math.min(offset, draft.length);
+    node.focus();
+    node.setSelectionRange(safeOffset, safeOffset);
+    setSelectionRange({ start: safeOffset, end: safeOffset });
+
+    const lineHeight = Number.parseFloat(window.getComputedStyle(node).lineHeight) || 31;
+    node.scrollTop = Math.max(0, (targetLine - 1) * lineHeight - node.clientHeight * 0.25);
+    setOutlinePopoverOpen(false);
   };
 
   const scheduleSave = useCallback(
@@ -1470,14 +1518,16 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
                     <button
                       type="button"
                       className={`btn-icon ${
-                        (tool.kind === "outline" && inspectorTab === "outline") ||
+                        (tool.kind === "outline" && outlinePopoverOpen) ||
                         (tool.kind === "annotations" && inspectorTab === "annotations") ||
                         (tool.kind === "locks" && inspectorTab === "locks")
                           ? "toolbar-active"
                           : ""
                       }`}
+                      ref={tool.kind === "outline" ? outlineButtonRef : undefined}
                       key={tool.kind}
                       title={tool.label}
+                      disabled={tool.kind === "outline" && !hasValidActiveChapter}
                       onClick={() => {
                         if (tool.kind === "undo") {
                           undo();
@@ -1503,7 +1553,11 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
                           applyTransform((content, start, end) => applyLinePrefix(content, start, end, "- "));
                           return;
                         }
-                        if (tool.kind === "outline" || tool.kind === "annotations" || tool.kind === "locks") {
+                        if (tool.kind === "outline") {
+                          setOutlinePopoverOpen((open) => !open);
+                          return;
+                        }
+                        if (tool.kind === "annotations" || tool.kind === "locks") {
                           setInspectorTab(tool.kind);
                           setMobilePanel("inspector");
                         }
@@ -1523,6 +1577,33 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
                   {focusMode ? "退出专注" : "专注模式"}
                 </button>
               </div>
+              {outlinePopoverOpen ? (
+                <div className="outline-popover" ref={outlinePopoverRef}>
+                  <div className="outline-popover-head">
+                    <span>大纲</span>
+                    <button type="button" className="btn-icon" title="关闭" onClick={() => setOutlinePopoverOpen(false)}>
+                      ×
+                    </button>
+                  </div>
+                  <div className="outline-popover-list">
+                    {outline.length === 0 ? (
+                      <div className="outline-empty">正文还没有可提取的标题。在正文中用 # 开头创建标题即可</div>
+                    ) : (
+                      outline.map((item) => (
+                        <button
+                          type="button"
+                          className="outline-popover-item"
+                          key={item.id}
+                          onClick={() => jumpToOutlineItem(item.line)}
+                        >
+                          <span className="outline-item-title">{item.label}</span>
+                          <span className="outline-item-sub">第 {item.line} 行 · {item.excerpt}</span>
+                        </button>
+                      ))
+                    )}
+                  </div>
+                </div>
+              ) : null}
               {error && <div className="err-card">{error}</div>}
 
               <div className="paper-body">
