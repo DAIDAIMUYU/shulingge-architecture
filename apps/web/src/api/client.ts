@@ -114,6 +114,9 @@ export interface ProjectSummary {
   projectId: string;
   title: string;
 }
+export interface CreatedProject extends ProjectSummary {
+  defaultNovelId: string;
+}
 export interface NovelSummary {
   novelId: string;
   title: string;
@@ -401,13 +404,15 @@ export const api = {
   health: () => get<HealthStatus>("/health"),
   healthReport: () => get<Record<string, unknown>>("/health/report"),
   vaultStatus: () => get<VaultStatus>("/vault"),
-  selectVault: (root: string) => post<VaultStatus>("/vault/select", { root }),
+  selectVault: (rootPath: string) => post<VaultStatus>("/vault/select", { rootPath }),
   listAgents: async (): Promise<AgentInfo[]> => unwrapList<AgentInfo>(await get("/agents"), "agents"),
   listNotifications: async (): Promise<unknown[]> =>
     unwrapList<unknown>(await get("/notifications"), "notifications"),
 
   listProjects: async (): Promise<ProjectSummary[]> =>
     unwrapList<ProjectSummary>(await get("/projects"), "projects"),
+  createProject: async (title: string): Promise<CreatedProject> =>
+    post<CreatedProject>("/projects", { title }),
   listNovels: async (projectId: string): Promise<NovelSummary[]> =>
     unwrapList<NovelSummary>(await get(`/projects/${encodeURIComponent(projectId)}/novels`), "novels"),
   listChapters: async (projectId: string, novelId: string): Promise<ChapterSummary[]> =>

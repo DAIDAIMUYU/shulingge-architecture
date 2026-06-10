@@ -23,6 +23,8 @@ import { SkillsView } from "../views/SkillsView.js";
 import { TimelineView } from "../views/TimelineView.js";
 import { WorkspaceView } from "../views/WorkspaceView.js";
 import { WorldbookView } from "../views/WorldbookView.js";
+import { api } from "../api/client.js";
+import { VaultPickerModal } from "./VaultPickerModal.js";
 
 interface NavItem {
   id: string;
@@ -47,11 +49,14 @@ const NAV = [...PRIMARY_NAV, SETTINGS_NAV];
 
 interface AppViewProps {
   currentProjectId: string | null;
+  vaultPath: string | null;
   onSelectProject: (projectId: string) => void;
+  onSetVault: (path: string) => Promise<void>;
+  onClearVault: () => void;
 }
 
 const VIEWS: Record<string, (props: AppViewProps) => ReactNode> = {
-  workspace: ({ currentProjectId }) => <WorkspaceView currentProjectId={currentProjectId} />,
+  workspace: ({ currentProjectId, vaultPath }) => <WorkspaceView currentProjectId={currentProjectId} vaultPath={vaultPath} />,
   projects: ({ onSelectProject }) => <ProjectsView onOpenProject={onSelectProject} />,
   characters: () => <CharactersView />,
   relations: () => <RelationsView />,
@@ -60,7 +65,9 @@ const VIEWS: Record<string, (props: AppViewProps) => ReactNode> = {
   agents: () => <AgentsView />,
   skills: () => <SkillsView />,
   rules: () => <RulesView />,
-  settings: () => <SettingsView />,
+  settings: ({ vaultPath, onSetVault, onClearVault }) => (
+    <SettingsView vaultPath={vaultPath} onSetVault={onSetVault} onClearVault={onClearVault} />
+  ),
 };
 
 export function App() {
@@ -71,11 +78,30 @@ export function App() {
     }
     return window.localStorage.getItem("shulingge.web.projectId");
   });
+  const [vaultPath, setVaultPath] = useState<string | null>(() => {
+    if (typeof window === "undefined") {
+      return null;
+    }
+    return window.localStorage.getItem("shulingge.web.vaultPath");
+  });
   const Current = VIEWS[view] ?? VIEWS.workspace;
   const onSelectProject = (projectId: string) => {
     setCurrentProjectId(projectId);
     window.localStorage.setItem("shulingge.web.projectId", projectId);
     setView("workspace");
+  };
+  const onSetVault = async (path: string) => {
+    const nextPath = path.trim();
+    if (!nextPath) {
+      throw new Error("请输入 Vault 目录绝对路径");
+    }
+    await api.selectVault(nextPath);
+    window.localStorage.setItem("shulingge.web.vaultPath", nextPath);
+    setVaultPath(nextPath);
+  };
+  const onClearVault = () => {
+    window.localStorage.removeItem("shulingge.web.vaultPath");
+    setVaultPath(null);
   };
   const currentLabel = NAV.find((item) => item.id === view)?.label ?? "写作";
 
@@ -122,7 +148,7 @@ export function App() {
             </div>
           </div>
         </header>
-        {Current({ currentProjectId, onSelectProject })}
+        {Current({ currentProjectId, vaultPath, onSelectProject, onSetVault, onClearVault })}
       </div>
 
       <nav className="mobile-nav" aria-label="移动导航">
@@ -142,6 +168,7 @@ export function App() {
           );
         })}
       </nav>
+      {!vaultPath ? <VaultPickerModal onSelectVault={onSetVault} /> : null}
     </div>
   );
 }

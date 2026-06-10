@@ -1945,6 +1945,84 @@ test("project tree routes list and create novels and chapters", async () => {
   }
 });
 
+test("project create route initializes project and default novel skeleton", async () => {
+  const vaultRoot = await mkdtemp(path.join(os.tmpdir(), "shulingge-empty-vault-"));
+  await initializeVault({ rootPath: vaultRoot });
+  const server = await startServer({ vaultRoot });
+
+  try {
+    const emptyProjectsResponse = await fetch(`${server.baseUrl}/api/v1/projects`);
+    const createProjectResponse = await fetch(`${server.baseUrl}/api/v1/projects`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ title: "新书" }),
+    });
+    const createdPayload = (await createProjectResponse.json()) as {
+      ok: true;
+      data: { projectId: string; title: string; defaultNovelId: string };
+    };
+    const projectsAfterCreateResponse = await fetch(`${server.baseUrl}/api/v1/projects`);
+    const chaptersResponse = await fetch(
+      `${server.baseUrl}/api/v1/projects/${createdPayload.data.projectId}/novels/main/chapters`,
+    );
+
+    const emptyProjectsPayload = (await emptyProjectsResponse.json()) as {
+      ok: true;
+      data: { projects: Array<{ projectId: string }> };
+    };
+    const projectsAfterCreatePayload = (await projectsAfterCreateResponse.json()) as {
+      ok: true;
+      data: { projects: Array<{ projectId: string; title: string }> };
+    };
+    const chaptersPayload = (await chaptersResponse.json()) as {
+      ok: true;
+      data: { chapters: Array<{ chapterId: string }> };
+    };
+    const projectJson = await readJsonFile<{ title: string; defaultNovelId: string }>(
+      vaultRoot,
+      `projects/${createdPayload.data.projectId}/project.json`,
+    );
+    const novelJson = await readJsonFile<{ title: string }>(
+      vaultRoot,
+      `projects/${createdPayload.data.projectId}/novels/main/novel.json`,
+    );
+
+    assert.equal(emptyProjectsResponse.status, 200);
+    assert.deepEqual(emptyProjectsPayload.data.projects, []);
+    assert.equal(createProjectResponse.status, 200);
+    assert.equal(createdPayload.data.title, "新书");
+    assert.equal(createdPayload.data.defaultNovelId, "main");
+    assert.equal(projectJson.title, "新书");
+    assert.equal(projectJson.defaultNovelId, "main");
+    assert.equal(novelJson.title, "未分卷");
+    assert.equal(projectsAfterCreateResponse.status, 200);
+    assert.equal(projectsAfterCreatePayload.data.projects[0]?.title, "新书");
+    assert.equal(chaptersResponse.status, 200);
+    assert.deepEqual(chaptersPayload.data.chapters, []);
+  } finally {
+    await server.close();
+    await rm(vaultRoot, { recursive: true, force: true });
+  }
+});
+
+test("project create route requires selected vault", async () => {
+  const server = await startServer();
+
+  try {
+    const response = await fetch(`${server.baseUrl}/api/v1/projects`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ title: "新书" }),
+    });
+    const payload = (await response.json()) as { ok: false; error: { code: string } };
+
+    assert.equal(response.status, 400);
+    assert.equal(payload.error.code, "SERVER_VAULT_NOT_SELECTED");
+  } finally {
+    await server.close();
+  }
+});
+
 test("editor rejects frontmatter writes to enforce SEC-14", async () => {
   const vaultRoot = await createFixtureVault();
   const server = await startServer({ vaultRoot });

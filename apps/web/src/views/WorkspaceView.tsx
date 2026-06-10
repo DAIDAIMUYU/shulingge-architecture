@@ -10,7 +10,6 @@ import {
   ChevronRight,
   Check,
   FilePenLine,
-  FolderOpen,
   Italic,
   Lightbulb,
   List,
@@ -107,13 +106,12 @@ function createAnnotationFromSelection(start: number, end: number): AnnotationRe
 
 interface WorkspaceViewProps {
   currentProjectId?: string | null;
+  vaultPath?: string | null;
 }
 
-export function WorkspaceView({ currentProjectId }: WorkspaceViewProps = {}) {
+export function WorkspaceView({ currentProjectId, vaultPath }: WorkspaceViewProps = {}) {
   const preferences = useMemo(() => readWebPreferences(), []);
   const watchedAgentIds = useMemo(() => new Set(preferences.watchedAgentIds), [preferences]);
-  const [vaultSelected, setVaultSelected] = useState<boolean | null>(null);
-  const [vaultPath, setVaultPath] = useState("");
   const [agents, setAgents] = useState<AgentInfo[]>(AGENT_FALLBACK);
   const [activeId, setActiveId] = useState("");
   const [projectTree, setProjectTree] = useState<ProjectTree | null>(null);
@@ -169,6 +167,7 @@ export function WorkspaceView({ currentProjectId }: WorkspaceViewProps = {}) {
     () => recentRuns.find((item) => item.id === selectedRunId) ?? (run?.id === selectedRunId ? run : null),
     [recentRuns, run, selectedRunId],
   );
+  const vaultSelected = Boolean(vaultPath);
   const onlyDefaultNovel = projectTree?.novels.length === 1 && projectTree.novels[0]?.novelId === "main";
 
   const loadProjectTree = useCallback(async (preferredProjectId?: string | null): Promise<ProjectTree | null> => {
@@ -218,7 +217,7 @@ export function WorkspaceView({ currentProjectId }: WorkspaceViewProps = {}) {
       return nextTree;
     } catch (err) {
       setProjectTree(null);
-      setTreeError(err instanceof ApiError ? err.message : "Failed to load chapters");
+      setTreeError(err instanceof ApiError ? err.message : "章节树加载失败");
       return null;
     } finally {
       setTreeLoading(false);
@@ -227,12 +226,6 @@ export function WorkspaceView({ currentProjectId }: WorkspaceViewProps = {}) {
 
   useEffect(() => {
     void (async () => {
-      try {
-        const health = await api.health();
-        setVaultSelected(Boolean(health.vaultSelected));
-      } catch {
-        setVaultSelected(false);
-      }
       try {
         const list = await api.listAgents();
         if (list.length) {
@@ -415,33 +408,20 @@ export function WorkspaceView({ currentProjectId }: WorkspaceViewProps = {}) {
     restoreSelection(result.selectionStart, result.selectionEnd);
   };
 
-  const onSelectVault = async () => {
-    const root = vaultPath.trim();
-    if (!root) {
-      return;
-    }
-    try {
-      await api.selectVault(root);
-      setVaultSelected(true);
-      setError(null);
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : "选择 Vault 失败");
-    }
-  };
-
   const createChapterInCurrentNovel = async () => {
     if (!projectTree) {
+      setTreeError("还没有项目，请先去「项目」页新建一本书");
       return;
     }
     const activeNovel =
       projectTree.novels.find((novel) => novel.chapters.some((chapterItem) => chapterItem.id === activeId)) ??
       projectTree.novels[0];
     if (!activeNovel) {
-      setTreeError("Create a novel before adding chapters");
+      setTreeError("当前项目还没有卷，请先新建项目或卷");
       return;
     }
 
-    const title = window.prompt("Chapter title", "New chapter")?.trim();
+    const title = window.prompt("请输入章节标题", "新章节")?.trim();
     if (!title) {
       return;
     }
@@ -453,7 +433,7 @@ export function WorkspaceView({ currentProjectId }: WorkspaceViewProps = {}) {
       setActiveId(`${projectTree.projectId}/${activeNovel.novelId}/${created.chapterId}`);
       setMobilePanel("editor");
     } catch (err) {
-      setTreeError(err instanceof ApiError ? err.message : "Failed to create chapter");
+      setTreeError(err instanceof ApiError ? err.message : "新建章节失败");
     }
   };
 
@@ -469,7 +449,7 @@ export function WorkspaceView({ currentProjectId }: WorkspaceViewProps = {}) {
     pushText("user", text);
 
     if (!vaultSelected) {
-      pushText("ai", "请先在左侧编辑器顶部选择本地 Vault，我才能读写正文并调度 Agent。");
+      pushText("ai", "请先选择资料库 Vault，我才能读写正文并调度 Agent。");
       return;
     }
 
@@ -621,17 +601,17 @@ export function WorkspaceView({ currentProjectId }: WorkspaceViewProps = {}) {
       <aside className="tree-panel">
         <div className="tree-head">
           <h2>章节与资料</h2>
-          <button type="button" className="btn-icon" title="New chapter" onClick={() => void createChapterInCurrentNovel()}>+</button>
+          <button type="button" className="btn-icon" title="新建章节" onClick={() => void createChapterInCurrentNovel()}>+</button>
         </div>
         <div className="tree-scroll">
-          {treeLoading ? <div className="faint">Loading chapters...</div> : null}
+          {treeLoading ? <div className="faint">章节加载中...</div> : null}
           {treeError ? <div className="err-card">{treeError}</div> : null}
-          {!treeLoading && !treeError && !projectTree ? <div className="faint">No projects found.</div> : null}
+          {!treeLoading && !treeError && !projectTree ? <div className="faint">还没有项目，去「项目」页新建一本书</div> : null}
           {!treeLoading && !treeError && projectTree && projectTree.novels.length === 0 ? (
-            <div className="faint">No novels in this project.</div>
+            <div className="faint">该项目还没有卷</div>
           ) : null}
           {!treeLoading && !treeError && projectTree && projectTree.novels.length > 0 && projectTree.novels.every((novel) => novel.chapters.length === 0) ? (
-            <div className="faint">No chapters yet. Click + to create one.</div>
+            <div className="faint">该项目还没有章节，点 + 新建</div>
           ) : null}
           {onlyDefaultNovel
             ? projectTree?.novels[0]?.chapters.map((chapterItem) => (
@@ -745,22 +725,6 @@ export function WorkspaceView({ currentProjectId }: WorkspaceViewProps = {}) {
                   {focusMode ? "退出专注" : "专注模式"}
                 </button>
               </div>
-
-              {vaultSelected === false && (
-                <div className="vault-card">
-                  <FolderOpen className="vc-icon" size={18} strokeWidth={1.75} />
-                  <span className="vc-text">选择本地 Vault 后即可读写正文</span>
-                  <input
-                    className="input"
-                    placeholder="输入 Vault 目录绝对路径，例如 C:\\书灵阁Vault"
-                    value={vaultPath}
-                    onChange={(event) => setVaultPath(event.target.value)}
-                  />
-                  <button type="button" className="btn btn-primary" onClick={() => void onSelectVault()}>
-                    选用
-                  </button>
-                </div>
-              )}
               {error && <div className="err-card">{error}</div>}
 
               <div className="paper-body">

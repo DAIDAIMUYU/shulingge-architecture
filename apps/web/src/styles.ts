@@ -174,6 +174,14 @@ input, textarea { font-family: inherit; }
 .vault-card .input { flex: 1; }
 .err-card { margin: 14px 24px 0; padding: 11px 16px; background: var(--bg-card); border: 1px solid var(--border-strong); border-left: 3px solid var(--danger); border-radius: var(--radius-sm); font-size: 13px; color: var(--danger); }
 
+.vault-modal-backdrop { position: fixed; inset: 0; z-index: 100; display: grid; place-items: center; padding: 24px; background: rgba(43,43,40,0.34); backdrop-filter: blur(10px); }
+.vault-modal { width: min(520px, 100%); background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-lg); box-shadow: var(--shadow-popover); padding: 30px 32px; }
+.vault-modal-mark { width: 44px; height: 44px; display: grid; place-items: center; color: var(--primary); background: var(--primary-light); border-radius: var(--radius-md); margin-bottom: 16px; }
+.vault-modal h2 { margin: 0; font-family: var(--font-serif); font-size: 25px; line-height: 1.3; }
+.vault-modal p { margin: 10px 0 20px; color: var(--text-secondary); }
+.vault-modal .err-card { margin: 14px 0 0; }
+.vault-modal-actions { display: flex; justify-content: flex-end; margin-top: 18px; }
+
 .save-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--success); display: inline-block; margin-right: 7px; vertical-align: middle; }
 .save-dot.dirty, .save-dot.saving { background: var(--warning); }
 .save-dot.saving { animation: breathe 1.6s ease-in-out infinite; }

@@ -27,6 +27,10 @@ export interface ProjectSummary {
   title: string;
 }
 
+export interface CreatedProject extends ProjectSummary {
+  defaultNovelId: string;
+}
+
 export interface NovelSummary {
   novelId: string;
   title: string;
@@ -84,12 +88,19 @@ function assertTitle(title: unknown): asserts title is string {
   }
 }
 
+function isMissingDirectoryError(error: unknown): boolean {
+  return Boolean(error && typeof error === "object" && (error as { code?: unknown }).code === "ENOENT");
+}
+
 async function listDirectoryNames(vaultRoot: string, relativePath: string): Promise<string[]> {
   try {
     const absolutePath = resolveSafePath(vaultRoot, relativePath);
     const entries = await readdir(absolutePath, { withFileTypes: true });
     return entries.filter((entry) => entry.isDirectory()).map((entry) => entry.name).sort((a, b) => a.localeCompare(b));
-  } catch {
+  } catch (error) {
+    if (!isMissingDirectoryError(error)) {
+      throw error;
+    }
     return [];
   }
 }
@@ -102,7 +113,10 @@ async function listMarkdownBaseNames(vaultRoot: string, relativePath: string): P
       .filter((entry) => entry.isFile() && entry.name.endsWith(".md"))
       .map((entry) => entry.name.slice(0, -3))
       .sort((a, b) => a.localeCompare(b));
-  } catch {
+  } catch (error) {
+    if (!isMissingDirectoryError(error)) {
+      throw error;
+    }
     return [];
   }
 }
@@ -326,6 +340,59 @@ export async function listProjects(vaultRoot: string): Promise<ProjectSummary[]>
       };
     }),
   );
+}
+
+export async function createProject(vaultRoot: string, input: { title: string }): Promise<CreatedProject> {
+  assertTitle(input.title);
+
+  const title = input.title.trim();
+  const existingIds = await listDirectoryNames(vaultRoot, "projects");
+  const baseId = slugifyTitle(title) || "project";
+  let projectId = baseId;
+  if (existingIds.includes(projectId)) {
+    projectId = nextNumberedId(baseId, existingIds);
+  }
+  const defaultNovelId = "main";
+
+  const projectRoot = getProjectRelativePath(projectId);
+  await mkdir(resolveSafePath(vaultRoot, projectRoot), { recursive: true });
+  await ensureNovelDirectories(vaultRoot, projectId, defaultNovelId);
+  await writeJsonFile(vaultRoot, path.posix.join(projectRoot, "project.json"), {
+    id: projectId,
+    projectId,
+    title,
+    defaultNovelId,
+    schemaVersion: 1,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  });
+  await writeJsonFile(vaultRoot, path.posix.join(projectRoot, "series.json"), {
+    id: projectId,
+    name: title,
+    title,
+    type: "original",
+    defaultNovelId,
+    sharedPath: "shared",
+    readPolicyPath: "shared/read-policy.json",
+    schemaVersion: 1,
+  });
+  await writeJsonFile(vaultRoot, path.posix.join(getNovelRootPathFor(projectId, defaultNovelId), "novel.json"), {
+    id: defaultNovelId,
+    name: "未分卷",
+    title: "未分卷",
+    projectId,
+    branchType: "main",
+    excludedSharedFiles: [],
+    writingFreedom: "medium",
+    defaultWriteScope: "scene",
+    schemaVersion: 1,
+  });
+
+  return {
+    projectId,
+    title,
+    defaultNovelId,
+  };
 }
 
 export async function listNovels(vaultRoot: string, projectId: string): Promise<NovelSummary[]> {

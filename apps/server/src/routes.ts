@@ -1,6 +1,7 @@
 import {
   createChapter,
   createNovel,
+  createProject,
   listChapters,
   loadEditorChapter,
   listNovels,
@@ -1093,6 +1094,17 @@ export const routeDefinitions: RouteDefinition[] = [
       return {
         projects: await listProjects(vaultRoot),
       };
+    },
+  },
+  {
+    method: "POST",
+    path: "/api/v1/projects",
+    async handler(request, context) {
+      const vaultRoot = requireVaultRoot(context);
+      const body = request.body as { title?: unknown } | undefined;
+      return await createProject(vaultRoot, {
+        title: body?.title as never,
+      });
     },
   },
   {

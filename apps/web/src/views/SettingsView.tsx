@@ -593,11 +593,20 @@ function ShortcutsPanel({
   );
 }
 
-export function SettingsView() {
+interface SettingsViewProps {
+  vaultPath?: string | null;
+  onSetVault?: (path: string) => Promise<void>;
+  onClearVault?: () => void;
+}
+
+export function SettingsView({ vaultPath, onSetVault, onClearVault }: SettingsViewProps = {}) {
   const [sec, setSec] = useState<Section>("外观");
   const [theme, setTheme] = useState<"light" | "dark">(currentTheme);
   const [preferences, setPreferences] = useState<WebPreferences>(() => readWebPreferences());
   const [preferencesFeedback, setPreferencesFeedback] = useState<string | null>(null);
+  const [vaultDraft, setVaultDraft] = useState(vaultPath ?? "");
+  const [vaultFeedback, setVaultFeedback] = useState<string | null>(null);
+  const [vaultSaving, setVaultSaving] = useState(false);
 
   const [models, setModels] = useState<ModelConfig[]>([]);
   const [selectedModelId, setSelectedModelId] = useState<string | null>(null);
@@ -679,6 +688,43 @@ export function SettingsView() {
   }, [preferences.preferredLanguage]);
 
   useEffect(() => {
+    setVaultDraft(vaultPath ?? "");
+  }, [vaultPath]);
+
+  const changeVault = async () => {
+    if (!onSetVault) {
+      return;
+    }
+    const nextPath = vaultDraft.trim();
+    if (!nextPath) {
+      setVaultFeedback("请输入 Vault 目录绝对路径");
+      return;
+    }
+
+    setVaultSaving(true);
+    setVaultFeedback(null);
+    try {
+      await onSetVault(nextPath);
+      setVaultFeedback("资料库位置已更新");
+    } catch (error) {
+      setVaultFeedback(error instanceof Error ? error.message : "资料库位置更新失败");
+    } finally {
+      setVaultSaving(false);
+    }
+  };
+
+  const clearVault = () => {
+    if (!onClearVault) {
+      return;
+    }
+    if (!window.confirm("确定清除当前资料库位置吗？下次进入应用会重新选择。")) {
+      return;
+    }
+    onClearVault();
+    setVaultFeedback("资料库位置已清除");
+  };
+
+  useEffect(() => {
     if (!selectedModel) {
       setModelDraft(createModelDraft());
       setModelMode("create");
@@ -701,6 +747,35 @@ export function SettingsView() {
         </div>
 
         <div>
+          <section className="editor-card">
+            <div className="editor-card-head">
+              <div>
+                <h2>资料库位置</h2>
+                <p className="view-sub">当前 Vault：{vaultPath || "尚未选择"}</p>
+              </div>
+            </div>
+            <div className="form-grid form-grid-2">
+              <label className="form-block">
+                <span>Vault 目录</span>
+                <input
+                  className="input"
+                  value={vaultDraft}
+                  onChange={(event) => setVaultDraft(event.target.value)}
+                  placeholder={"输入 Vault 目录绝对路径，例如 C:\\书灵阁Vault"}
+                />
+              </label>
+              <div className="model-actions-row">
+                <button type="button" className="btn btn-primary" disabled={vaultSaving} onClick={() => void changeVault()}>
+                  {vaultSaving ? "更换中..." : "更换"}
+                </button>
+                <button type="button" className="btn" onClick={clearVault}>
+                  清除
+                </button>
+              </div>
+            </div>
+            {vaultFeedback ? <div className="inspector-feedback">{vaultFeedback}</div> : null}
+          </section>
+
           {sec === "外观" ? (
             <div className="info-card">
               <h3>主题</h3>
