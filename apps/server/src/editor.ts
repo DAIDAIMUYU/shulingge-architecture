@@ -1,7 +1,7 @@
 import { mkdir, readdir, rm } from "node:fs/promises";
 import path from "node:path";
 
-import type { Annotation, Chapter, Lock } from "@shulingge/shared";
+import { CHAPTER_STATUS_VALUES, type Annotation, type Chapter, type ChapterStatus, type Lock } from "@shulingge/shared";
 import { readJsonFile, readManuscriptFile, resolveSafePath, writeJsonFile, writeManuscriptFile } from "@shulingge/vault-core";
 
 import { createHttpError } from "./errors.js";
@@ -39,6 +39,8 @@ export interface NovelSummary {
 export interface ChapterSummary {
   chapterId: string;
   title: string;
+  status: ChapterStatus;
+  wordCount: number;
 }
 
 interface SaveChapterInput extends EditorChapterLocator {
@@ -85,6 +87,12 @@ function assertNovelId(novelId: string | undefined): asserts novelId is string {
 function assertTitle(title: unknown): asserts title is string {
   if (typeof title !== "string" || !title.trim()) {
     throw createHttpError(400, "EDITOR_INVALID_TITLE", "title is required");
+  }
+}
+
+function assertChapterStatus(status: unknown): asserts status is ChapterStatus {
+  if (typeof status !== "string" || !CHAPTER_STATUS_VALUES.includes(status as ChapterStatus)) {
+    throw createHttpError(400, "EDITOR_INVALID_STATUS", "章节状态无效");
   }
 }
 
@@ -426,6 +434,8 @@ export async function listChapters(vaultRoot: string, projectId: string, novelId
       return {
         chapterId,
         title: readTitle(metadata, chapterId),
+        status: metadata?.status ?? "drafting",
+        wordCount: metadata?.wordCount ?? 0,
       };
     }),
   );
@@ -458,27 +468,38 @@ export async function createChapter(
   return {
     chapterId,
     title,
+    status: "drafting",
+    wordCount: 0,
   };
 }
 
 export async function renameChapter(
   vaultRoot: string,
-  input: { projectId: string; novelId: string; chapterId: string; title: string },
+  input: { projectId: string; novelId: string; chapterId: string; title?: unknown; status?: unknown },
 ): Promise<ChapterSummary> {
   assertLocator(input);
-  assertTitle(input.title);
+  if (input.title !== undefined) {
+    assertTitle(input.title);
+  }
+  if (input.status !== undefined) {
+    assertChapterStatus(input.status);
+  }
 
-  const title = input.title.trim();
   const metadata = await readChapterMetadata(vaultRoot, input);
+  const title = typeof input.title === "string" ? input.title.trim() : metadata.title;
+  const status = input.status !== undefined ? input.status : metadata.status;
   await writeJsonFile(vaultRoot, getMetadataRelativePath(input), {
     ...metadata,
     title,
+    status,
     updatedAt: new Date().toISOString(),
   });
 
   return {
     chapterId: input.chapterId,
     title,
+    status,
+    wordCount: metadata.wordCount ?? 0,
   };
 }
 

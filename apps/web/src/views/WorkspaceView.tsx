@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { KeyboardEvent as ReactKeyboardEvent, FormEvent } from "react";
+import type { DragEvent as ReactDragEvent, KeyboardEvent as ReactKeyboardEvent } from "react";
 import {
   AlertCircle,
   ArrowUp,
@@ -33,6 +33,8 @@ import {
   type RunRecord,
 } from "../api/client.js";
 import { readWebPreferences } from "../app/preferences.js";
+import { ConfirmModal, InputModal } from "../app/Modals.js";
+import { CHAPTER_STATUS_VALUES, type ChapterStatus } from "@shulingge/shared";
 import {
   applyInlineWrap,
   applyLinePrefix,
@@ -57,11 +59,20 @@ type PromptRequest = {
   confirmText?: string;
   onConfirm(value: string): void | Promise<void>;
 };
+type ConfirmRequest = {
+  title: string;
+  message: string;
+  confirmText?: string;
+  danger?: boolean;
+  onConfirm(): void | Promise<void>;
+};
 
 interface ChapterNode {
   id: string;
   chapterId: string;
   title: string;
+  status: ChapterStatus;
+  wordCount: number;
 }
 
 interface NovelNode {
@@ -74,74 +85,6 @@ interface ProjectTree {
   projectId: string;
   title: string;
   novels: NovelNode[];
-}
-
-interface InputModalProps extends PromptRequest {
-  onCancel(): void;
-}
-
-function InputModal({
-  title,
-  placeholder,
-  defaultValue,
-  confirmText = "确定",
-  onConfirm,
-  onCancel,
-}: InputModalProps) {
-  const [value, setValue] = useState(defaultValue);
-  const inputRef = useRef<HTMLInputElement | null>(null);
-
-  useEffect(() => {
-    const node = inputRef.current;
-    node?.focus();
-    node?.select();
-  }, []);
-
-  useEffect(() => {
-    const onKeyDown = (event: globalThis.KeyboardEvent) => {
-      if (event.key === "Escape") {
-        onCancel();
-      }
-    };
-    document.addEventListener("keydown", onKeyDown);
-    return () => document.removeEventListener("keydown", onKeyDown);
-  }, [onCancel]);
-
-  const submit = (event?: FormEvent) => {
-    event?.preventDefault();
-    const nextValue = value.trim() || defaultValue.trim();
-    if (!nextValue) {
-      return;
-    }
-    void onConfirm(nextValue);
-  };
-
-  return (
-    <div className="vault-modal-backdrop" onMouseDown={onCancel}>
-      <form
-        className="vault-modal input-modal"
-        onSubmit={submit}
-        onMouseDown={(event) => event.stopPropagation()}
-      >
-        <h2>{title}</h2>
-        <input
-          ref={inputRef}
-          className="input"
-          value={value}
-          placeholder={placeholder}
-          onChange={(event) => setValue(event.target.value)}
-        />
-        <div className="vault-modal-actions">
-          <button type="button" className="btn btn-ghost" onClick={onCancel}>
-            取消
-          </button>
-          <button type="submit" className="btn btn-primary">
-            {confirmText}
-          </button>
-        </div>
-      </form>
-    </div>
-  );
 }
 
 const AGENT_FALLBACK: AgentInfo[] = [
@@ -170,6 +113,36 @@ const TOOLS = [
   { kind: "locks" as const, Icon: Lock, label: "锁定面板" },
   { kind: "run" as const, Icon: Bot, label: "运行详情" },
 ];
+
+const CHAPTER_STATUS_LABELS: Record<ChapterStatus, string> = {
+  "not-started": "未开始",
+  planning: "规划中",
+  drafting: "写作中",
+  checking: "校对中",
+  repairing: "修订中",
+  "await-human": "待确认",
+  finalized: "已完成",
+  archived: "归档",
+};
+
+const CHAPTER_STATUS_DOT_CLASS: Record<ChapterStatus, string> = {
+  "not-started": "status-not-started",
+  planning: "status-planning",
+  drafting: "status-drafting",
+  checking: "status-checking",
+  repairing: "status-repairing",
+  "await-human": "status-await-human",
+  finalized: "status-finalized",
+  archived: "status-archived",
+};
+
+function formatWordCount(value: number): string {
+  return `${Math.max(0, value).toLocaleString("zh-CN")} 字`;
+}
+
+function normalizeChapterStatus(status: string): ChapterStatus {
+  return CHAPTER_STATUS_VALUES.includes(status as ChapterStatus) ? (status as ChapterStatus) : "drafting";
+}
 
 function createAnnotationFromSelection(start: number, end: number): AnnotationRecord {
   const safeStart = Math.max(0, Math.min(start, end));
@@ -200,6 +173,9 @@ export function WorkspaceView({ currentProjectId, vaultPath }: WorkspaceViewProp
   const [createMenuOpen, setCreateMenuOpen] = useState(false);
   const [treeContextMenu, setTreeContextMenu] = useState<TreeContextMenu | null>(null);
   const [promptRequest, setPromptRequest] = useState<PromptRequest | null>(null);
+  const [confirmRequest, setConfirmRequest] = useState<ConfirmRequest | null>(null);
+  const [draggedChapter, setDraggedChapter] = useState<{ novelId: string; chapter: ChapterNode } | null>(null);
+  const [dragTargetNovelId, setDragTargetNovelId] = useState<string | null>(null);
   const [chapterTitleDraft, setChapterTitleDraft] = useState("");
   const [chapter, setChapter] = useState<EditorChapter | null>(null);
   const [draft, setDraft] = useState("");
@@ -258,6 +234,7 @@ export function WorkspaceView({ currentProjectId, vaultPath }: WorkspaceViewProp
   const allChapters = projectTree?.novels.flatMap((novel) => novel.chapters) ?? [];
   const hasAnyChapter = allChapters.length > 0;
   const hasValidActiveChapter = Boolean(activeId && chapter && allChapters.some((chapterItem) => chapterItem.id === activeId));
+  const totalWordCount = allChapters.reduce((sum, chapterItem) => sum + chapterItem.wordCount, 0);
 
   const openPrompt = (request: PromptRequest) => {
     setPromptRequest(request);
@@ -265,6 +242,14 @@ export function WorkspaceView({ currentProjectId, vaultPath }: WorkspaceViewProp
 
   const closePrompt = () => {
     setPromptRequest(null);
+  };
+
+  const openConfirm = (request: ConfirmRequest) => {
+    setConfirmRequest(request);
+  };
+
+  const closeConfirm = () => {
+    setConfirmRequest(null);
   };
 
   const loadProjectTree = useCallback(async (preferredProjectId?: string | null): Promise<ProjectTree | null> => {
@@ -297,6 +282,8 @@ export function WorkspaceView({ currentProjectId, vaultPath }: WorkspaceViewProp
                 id: `${selectedProject.projectId}/${novel.novelId}/${chapterItem.chapterId}`,
                 chapterId: chapterItem.chapterId,
                 title: chapterItem.title,
+                status: normalizeChapterStatus(chapterItem.status),
+                wordCount: chapterItem.wordCount ?? 0,
               })),
             };
           }),
@@ -659,29 +646,34 @@ export function WorkspaceView({ currentProjectId, vaultPath }: WorkspaceViewProp
       return;
     }
     setTreeContextMenu(null);
-    if (!window.confirm(`确定删除章节「${chapterItem.title}」吗？此操作不可恢复`)) {
-      return;
-    }
-
-    try {
-      setTreeError(null);
-      const deletedActiveChapter = activeId === chapterItem.id;
-      await api.deleteChapter(projectTree.projectId, novelId, chapterItem.chapterId);
-      await loadProjectTree(projectTree.projectId);
-      if (deletedActiveChapter) {
-        setActiveId("");
-        setSelectedNovelId(null);
-        setChapter(null);
-        setDraft("");
-        setHistory([]);
-        setFuture([]);
-        setAnnotations([]);
-        setLocks([]);
-        setSaveState("idle");
-      }
-    } catch (err) {
-      setTreeError(err instanceof ApiError ? err.message : "删除章节失败");
-    }
+    openConfirm({
+      title: "删除章节",
+      message: `确定删除章节「${chapterItem.title}」吗？此操作不可恢复`,
+      confirmText: "删除",
+      danger: true,
+      onConfirm: async () => {
+        closeConfirm();
+        try {
+          setTreeError(null);
+          const deletedActiveChapter = activeId === chapterItem.id;
+          await api.deleteChapter(projectTree.projectId, novelId, chapterItem.chapterId);
+          await loadProjectTree(projectTree.projectId);
+          if (deletedActiveChapter) {
+            setActiveId("");
+            setSelectedNovelId(null);
+            setChapter(null);
+            setDraft("");
+            setHistory([]);
+            setFuture([]);
+            setAnnotations([]);
+            setLocks([]);
+            setSaveState("idle");
+          }
+        } catch (err) {
+          setTreeError(err instanceof ApiError ? err.message : "删除章节失败");
+        }
+      },
+    });
   };
 
   const moveChapter = async (novelId: string, chapterItem: ChapterNode, targetNovelId: string) => {
@@ -705,6 +697,68 @@ export function WorkspaceView({ currentProjectId, vaultPath }: WorkspaceViewProp
     } catch (err) {
       setTreeError(err instanceof ApiError ? err.message : "移动章节失败");
     }
+  };
+
+  const setChapterStatus = async (novelId: string, chapterItem: ChapterNode, status: ChapterStatus) => {
+    if (!projectTree) {
+      return;
+    }
+    setTreeContextMenu(null);
+
+    try {
+      setTreeError(null);
+      await api.setChapterStatus(projectTree.projectId, novelId, chapterItem.chapterId, status);
+      await loadProjectTree(projectTree.projectId);
+      if (activeId === chapterItem.id) {
+        setChapter((current) =>
+          current ? { ...current, metadata: { ...current.metadata, status } } : current,
+        );
+      }
+    } catch (err) {
+      setTreeError(err instanceof ApiError ? err.message : "设置章节状态失败");
+    }
+  };
+
+  const startChapterDrag = (event: ReactDragEvent<HTMLButtonElement>, novelId: string, chapterItem: ChapterNode) => {
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData("text/plain", chapterItem.id);
+    setDraggedChapter({ novelId, chapter: chapterItem });
+    setTreeContextMenu(null);
+  };
+
+  const clearChapterDrag = () => {
+    setDraggedChapter(null);
+    setDragTargetNovelId(null);
+  };
+
+  const canDropChapterOnNovel = (targetNovelId: string) =>
+    Boolean(draggedChapter && draggedChapter.novelId !== targetNovelId);
+
+  const dragChapterOverNovel = (event: ReactDragEvent<HTMLElement>, targetNovelId: string) => {
+    if (!canDropChapterOnNovel(targetNovelId)) {
+      return;
+    }
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "move";
+    setDragTargetNovelId(targetNovelId);
+  };
+
+  const leaveChapterDropTarget = (event: ReactDragEvent<HTMLElement>, targetNovelId: string) => {
+    const nextTarget = event.relatedTarget;
+    if (nextTarget instanceof Node && event.currentTarget.contains(nextTarget)) {
+      return;
+    }
+    setDragTargetNovelId((current) => (current === targetNovelId ? null : current));
+  };
+
+  const dropChapterOnNovel = async (event: ReactDragEvent<HTMLElement>, targetNovelId: string) => {
+    event.preventDefault();
+    const dropped = draggedChapter;
+    clearChapterDrag();
+    if (!dropped || dropped.novelId === targetNovelId) {
+      return;
+    }
+    await moveChapter(dropped.novelId, dropped.chapter, targetNovelId);
   };
 
   const saveChapterTitle = async () => {
@@ -770,31 +824,36 @@ export function WorkspaceView({ currentProjectId, vaultPath }: WorkspaceViewProp
       return;
     }
     setTreeContextMenu(null);
-    if (!window.confirm(`确定删除卷「${novel.title}」及其下所有章节吗？此操作不可恢复`)) {
-      return;
-    }
-
-    try {
-      setTreeError(null);
-      const deletedActiveChapter = novel.chapters.some((chapterItem) => chapterItem.id === activeId);
-      await api.deleteNovel(projectTree.projectId, novel.novelId);
-      await loadProjectTree(projectTree.projectId);
-      if (selectedNovelId === novel.novelId) {
-        setSelectedNovelId(null);
-      }
-      if (deletedActiveChapter) {
-        setActiveId("");
-        setChapter(null);
-        setDraft("");
-        setHistory([]);
-        setFuture([]);
-        setAnnotations([]);
-        setLocks([]);
-        setSaveState("idle");
-      }
-    } catch (err) {
-      setTreeError(err instanceof ApiError ? err.message : "删除卷失败");
-    }
+    openConfirm({
+      title: "删除卷",
+      message: `确定删除卷「${novel.title}」及其下所有章节吗？此操作不可恢复`,
+      confirmText: "删除卷",
+      danger: true,
+      onConfirm: async () => {
+        closeConfirm();
+        try {
+          setTreeError(null);
+          const deletedActiveChapter = novel.chapters.some((chapterItem) => chapterItem.id === activeId);
+          await api.deleteNovel(projectTree.projectId, novel.novelId);
+          await loadProjectTree(projectTree.projectId);
+          if (selectedNovelId === novel.novelId) {
+            setSelectedNovelId(null);
+          }
+          if (deletedActiveChapter) {
+            setActiveId("");
+            setChapter(null);
+            setDraft("");
+            setHistory([]);
+            setFuture([]);
+            setAnnotations([]);
+            setLocks([]);
+            setSaveState("idle");
+          }
+        } catch (err) {
+          setTreeError(err instanceof ApiError ? err.message : "删除卷失败");
+        }
+      },
+    });
   };
 
   const pushText = (role: "ai" | "user", text: string) =>
@@ -961,7 +1020,10 @@ export function WorkspaceView({ currentProjectId, vaultPath }: WorkspaceViewProp
       </div>
       <aside className="tree-panel">
         <div className="tree-head">
-          <h2>章节与资料</h2>
+          <div>
+            <h2>章节与资料</h2>
+            <div className="tree-total-words">{formatWordCount(totalWordCount)}</div>
+          </div>
           <div className="tree-create" ref={createMenuRef}>
             <button
               type="button"
@@ -995,38 +1057,52 @@ export function WorkspaceView({ currentProjectId, vaultPath }: WorkspaceViewProp
           {!treeLoading && !treeError && projectTree && projectTree.novels.length > 0 && projectTree.novels.every((novel) => novel.chapters.length === 0) ? (
             <div className="faint">该项目还没有章节，点 + 新建</div>
           ) : null}
-          {looseNovel?.chapters.map((chapterItem) => (
-            <button
-              key={chapterItem.id}
-              type="button"
-              className={`tree-item ${selectedNovelId === null && activeId === chapterItem.id ? "active" : ""}`}
-              onClick={(event) => {
-                event.stopPropagation();
-                setSelectedNovelId(null);
-                setActiveId(chapterItem.id);
-                setMobilePanel("editor");
-              }}
-              onContextMenu={(event) => {
-                event.preventDefault();
-                event.stopPropagation();
-                setSelectedNovelId(null);
-                setTreeContextMenu({
-                  kind: "chapter",
-                  x: event.clientX,
-                  y: event.clientY,
-                  chapter: chapterItem,
-                  novelId: "main",
-                });
-              }}
-            >
-              <span className="dot" />
-              <span className="t-title">{chapterItem.title}</span>
-            </button>
-          ))}
+          <div
+            className={`tree-loose-drop ${dragTargetNovelId === "main" ? "drag-over" : ""}`}
+            onDragOver={(event) => dragChapterOverNovel(event, "main")}
+            onDragLeave={(event) => leaveChapterDropTarget(event, "main")}
+            onDrop={(event) => void dropChapterOnNovel(event, "main")}
+          >
+            {looseNovel?.chapters.map((chapterItem) => (
+              <button
+                key={chapterItem.id}
+                type="button"
+                draggable
+                className={`tree-item ${selectedNovelId === null && activeId === chapterItem.id ? "active" : ""}`}
+                onDragStart={(event) => startChapterDrag(event, "main", chapterItem)}
+                onDragEnd={clearChapterDrag}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  setSelectedNovelId(null);
+                  setActiveId(chapterItem.id);
+                  setMobilePanel("editor");
+                }}
+                onContextMenu={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  setSelectedNovelId(null);
+                  setTreeContextMenu({
+                    kind: "chapter",
+                    x: event.clientX,
+                    y: event.clientY,
+                    chapter: chapterItem,
+                    novelId: "main",
+                  });
+                }}
+              >
+                <span className={`dot ${CHAPTER_STATUS_DOT_CLASS[chapterItem.status]}`} />
+                <span className="t-title">{chapterItem.title}</span>
+                <span className="tree-word-count">{formatWordCount(chapterItem.wordCount)}</span>
+              </button>
+            ))}
+          </div>
           {userNovels.map((novel) => (
                 <div key={novel.novelId}>
                   <div
-                    className={`tree-group-label ${selectedNovelId === novel.novelId ? "active" : ""}`}
+                    className={`tree-group-label ${selectedNovelId === novel.novelId ? "active" : ""} ${dragTargetNovelId === novel.novelId ? "drag-over" : ""}`}
+                    onDragOver={(event) => dragChapterOverNovel(event, novel.novelId)}
+                    onDragLeave={(event) => leaveChapterDropTarget(event, novel.novelId)}
+                    onDrop={(event) => void dropChapterOnNovel(event, novel.novelId)}
                     onClick={(event) => {
                       event.stopPropagation();
                       setSelectedNovelId(novel.novelId);
@@ -1051,13 +1127,17 @@ export function WorkspaceView({ currentProjectId, vaultPath }: WorkspaceViewProp
                       {expandedNovels[novel.novelId] ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
                       <span>{novel.title}</span>
                     </button>
+                    <span className="tree-word-count">{formatWordCount(novel.chapters.reduce((sum, chapterItem) => sum + chapterItem.wordCount, 0))}</span>
                   </div>
                   {expandedNovels[novel.novelId]
                     ? novel.chapters.map((chapterItem) => (
                         <button
                           key={chapterItem.id}
                           type="button"
+                          draggable
                           className={`tree-item ${selectedNovelId === null && activeId === chapterItem.id ? "active" : ""}`}
+                          onDragStart={(event) => startChapterDrag(event, novel.novelId, chapterItem)}
+                          onDragEnd={clearChapterDrag}
                           onClick={(event) => {
                             event.stopPropagation();
                             setSelectedNovelId(null);
@@ -1077,8 +1157,9 @@ export function WorkspaceView({ currentProjectId, vaultPath }: WorkspaceViewProp
                             });
                           }}
                         >
-                          <span className="dot" />
+                          <span className={`dot ${CHAPTER_STATUS_DOT_CLASS[chapterItem.status]}`} />
                           <span className="t-title">{chapterItem.title}</span>
+                          <span className="tree-word-count">{formatWordCount(chapterItem.wordCount)}</span>
                         </button>
                       ))
                     : null}
@@ -1127,6 +1208,19 @@ export function WorkspaceView({ currentProjectId, vaultPath }: WorkspaceViewProp
                 >
                   删除
                 </button>
+                <div className="tree-context-submenu" role="group" aria-label="设置章节状态">
+                  <div className="tree-context-submenu-title">设置状态</div>
+                  {CHAPTER_STATUS_VALUES.map((status) => (
+                    <button
+                      key={status}
+                      type="button"
+                      role="menuitem"
+                      onClick={() => void setChapterStatus(treeContextMenu.novelId, treeContextMenu.chapter, status)}
+                    >
+                      {CHAPTER_STATUS_LABELS[status]}
+                    </button>
+                  ))}
+                </div>
               </>
             ) : (
               <>
@@ -1667,6 +1761,12 @@ export function WorkspaceView({ currentProjectId, vaultPath }: WorkspaceViewProp
       <InputModal
         {...promptRequest}
         onCancel={closePrompt}
+      />
+    ) : null}
+    {confirmRequest ? (
+      <ConfirmModal
+        {...confirmRequest}
+        onCancel={closeConfirm}
       />
     ) : null}
     </>

@@ -124,6 +124,8 @@ export interface NovelSummary {
 export interface ChapterSummary {
   chapterId: string;
   title: string;
+  status: string;
+  wordCount: number;
 }
 export interface TextRange {
   start: number;
@@ -429,6 +431,11 @@ export const api = {
     patch<ChapterSummary>(
       `/projects/${encodeURIComponent(projectId)}/novels/${encodeURIComponent(novelId)}/chapters/${encodeURIComponent(chapterId)}`,
       { title },
+    ),
+  setChapterStatus: async (projectId: string, novelId: string, chapterId: string, status: string): Promise<ChapterSummary> =>
+    patch<ChapterSummary>(
+      `/projects/${encodeURIComponent(projectId)}/novels/${encodeURIComponent(novelId)}/chapters/${encodeURIComponent(chapterId)}`,
+      { status },
     ),
   deleteChapter: async (projectId: string, novelId: string, chapterId: string): Promise<{ ok: true }> =>
     request<{ ok: true }>(

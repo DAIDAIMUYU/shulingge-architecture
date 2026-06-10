@@ -1216,12 +1216,13 @@ export const routeDefinitions: RouteDefinition[] = [
     path: "/api/v1/projects/:projectId/novels/:novelId/chapters/:chapterId",
     async handler(request, context) {
       const vaultRoot = requireVaultRoot(context);
-      const body = request.body as { title?: unknown } | undefined;
+      const body = request.body as { title?: unknown; status?: unknown } | undefined;
       return await renameChapter(vaultRoot, {
         projectId: request.params.projectId,
         novelId: request.params.novelId,
         chapterId: request.params.chapterId,
         title: body?.title as never,
+        status: body?.status as never,
       });
     },
   },

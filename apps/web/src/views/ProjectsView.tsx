@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { FolderPlus, Plus } from "lucide-react";
 
 import { api, ApiError, type ProjectSummary } from "../api/client.js";
+import { InputModal } from "../app/Modals.js";
 import { ViewShell } from "./common.js";
 
 interface ProjectsViewProps {
@@ -13,6 +14,7 @@ export function ProjectsView({ onOpenProject }: ProjectsViewProps = {}) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
+  const [showCreateModal, setShowCreateModal] = useState(false);
 
   const loadProjects = async () => {
     setLoading(true);
@@ -28,12 +30,8 @@ export function ProjectsView({ onOpenProject }: ProjectsViewProps = {}) {
     }
   };
 
-  const createProject = async () => {
-    const title = window.prompt("请输入项目名称")?.trim();
-    if (!title) {
-      return;
-    }
-
+  const createProject = async (title: string) => {
+    setShowCreateModal(false);
     setCreating(true);
     setError(null);
     try {
@@ -56,7 +54,7 @@ export function ProjectsView({ onOpenProject }: ProjectsViewProps = {}) {
       title="项目"
       subtitle="管理你的系列与小说项目，每个项目独立维护正文、规则与资料"
       actions={
-        <button type="button" className="btn btn-primary" disabled={creating} onClick={() => void createProject()}>
+        <button type="button" className="btn btn-primary" disabled={creating} onClick={() => setShowCreateModal(true)}>
           <FolderPlus size={15} strokeWidth={2} />
           {creating ? "新建中..." : "新建项目"}
         </button>
@@ -83,7 +81,7 @@ export function ProjectsView({ onOpenProject }: ProjectsViewProps = {}) {
         <button
           type="button"
           className="project-card"
-          onClick={() => void createProject()}
+          onClick={() => setShowCreateModal(true)}
           style={{ display: "grid", placeItems: "center", minHeight: 196, color: "var(--text-muted)" }}
         >
           <span style={{ display: "grid", placeItems: "center", gap: 8 }}>
@@ -92,6 +90,15 @@ export function ProjectsView({ onOpenProject }: ProjectsViewProps = {}) {
           </span>
         </button>
       </div>
+      {showCreateModal ? (
+        <InputModal
+          title="新建项目"
+          placeholder="请输入项目名称"
+          defaultValue="新项目"
+          onConfirm={(title) => void createProject(title)}
+          onCancel={() => setShowCreateModal(false)}
+        />
+      ) : null}
     </ViewShell>
   );
 }

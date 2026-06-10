@@ -98,6 +98,8 @@ input, textarea { font-family: inherit; }
 .btn:hover { background: var(--bg-hover); }
 .btn-primary { background: var(--primary); border-color: var(--primary); color: var(--text-on-primary); }
 .btn-primary:hover { background: var(--primary-hover); border-color: var(--primary-hover); }
+.btn-danger { background: var(--danger); border-color: var(--danger); color: #fff; }
+.btn-danger:hover { background: var(--danger); border-color: var(--danger); filter: brightness(.95); }
 .btn-ghost { background: transparent; border-color: transparent; color: var(--text-secondary); }
 .btn-ghost:hover { background: var(--bg-hover); color: var(--text-primary); }
 .btn-icon { width: 32px; height: 32px; padding: 0; border: 0; background: transparent; color: var(--text-secondary); border-radius: var(--radius-sm); display: grid; place-items: center; transition: background .16s ease, color .16s ease; }
@@ -139,11 +141,12 @@ input, textarea { font-family: inherit; }
 .tree-panel { background: var(--bg-panel); border-right: 1px solid var(--border); display: flex; flex-direction: column; min-height: 0; }
 .tree-head { display: flex; align-items: center; justify-content: space-between; padding: 22px 20px 14px; }
 .tree-head h2 { font-size: 15px; font-weight: 600; }
+.tree-total-words { margin-top: 4px; font-size: 12px; color: var(--text-muted); }
 .tree-create { position: relative; }
 .tree-create-menu { position: absolute; top: calc(100% + 8px); right: 0; z-index: 20; width: 116px; padding: 6px; background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-sm); box-shadow: var(--shadow-popover); }
 .tree-create-menu button { width: 100%; height: 32px; padding: 0 10px; border: 0; background: transparent; color: var(--text-secondary); border-radius: var(--radius-sm); font-size: 13px; text-align: left; cursor: pointer; transition: background .16s ease, color .16s ease; }
 .tree-create-menu button:hover { background: var(--bg-hover); color: var(--text-primary); }
-.tree-context-menu { position: fixed; z-index: 100; width: 156px; padding: 6px; background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-sm); box-shadow: var(--shadow-popover); }
+.tree-context-menu { position: fixed; z-index: 100; width: 176px; padding: 6px; background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-sm); box-shadow: var(--shadow-popover); }
 .tree-context-menu button { width: 100%; height: 32px; padding: 0 10px; border: 0; background: transparent; color: var(--text-secondary); border-radius: var(--radius-sm); font-size: 13px; text-align: left; cursor: pointer; transition: background .16s ease, color .16s ease; }
 .tree-context-menu button:hover { background: var(--bg-hover); color: var(--text-primary); }
 .tree-context-menu button.danger { color: var(--danger); }
@@ -151,9 +154,12 @@ input, textarea { font-family: inherit; }
 .tree-context-submenu { max-height: 180px; overflow: auto; margin: 4px 0; padding: 4px 0; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
 .tree-context-submenu-title { padding: 3px 10px 5px; color: var(--text-muted); font-size: 12px; }
 .tree-scroll { overflow: auto; padding: 4px 12px 20px; }
+.tree-loose-drop { min-height: 12px; border-radius: var(--radius-sm); transition: background .16s ease, box-shadow .16s ease; }
+.tree-loose-drop.drag-over { background: var(--primary-light); box-shadow: inset 0 0 0 1px var(--primary); }
 .tree-group-label { display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%; font-size: 12px; font-weight: 500; color: var(--text-muted); padding: 16px 12px 8px; letter-spacing: .03em; border-radius: var(--radius-sm); transition: background .16s ease, color .16s ease; }
 .tree-group-label:hover { background: var(--bg-hover); color: var(--text-secondary); }
 .tree-group-label.active { background: var(--bg-active); color: var(--primary); }
+.tree-group-label.drag-over { background: var(--primary-light); color: var(--primary); box-shadow: inset 0 0 0 1px var(--primary); }
 .tree-group-toggle { min-width: 0; flex: 1; display: flex; align-items: center; gap: 6px; border: 0; background: transparent; color: inherit; font: inherit; letter-spacing: inherit; padding: 0; text-align: left; cursor: pointer; }
 .tree-group-toggle span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tree-item { display: flex; align-items: center; gap: 10px; width: 100%; height: 40px; padding: 0 12px; margin-bottom: 3px; border: 0; background: transparent; color: var(--text-secondary); font-size: 13.5px; border-radius: var(--radius-sm); cursor: pointer; text-align: left; transition: background .16s ease, color .16s ease; position: relative; }
@@ -162,7 +168,16 @@ input, textarea { font-family: inherit; }
 .tree-item.active::before { content: ""; position: absolute; left: 0; top: 9px; bottom: 9px; width: 3px; border-radius: 0 3px 3px 0; background: var(--primary); }
 .tree-item .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--agent-idle); flex: none; }
 .tree-item.active .dot { background: var(--primary); }
-.tree-item .t-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tree-item .dot.status-not-started { background: var(--agent-idle); }
+.tree-item .dot.status-planning { background: var(--info); }
+.tree-item .dot.status-drafting { background: var(--agent-running); }
+.tree-item .dot.status-checking { background: var(--warning); }
+.tree-item .dot.status-repairing { background: var(--danger); }
+.tree-item .dot.status-await-human { background: var(--warning); }
+.tree-item .dot.status-finalized { background: var(--agent-done); }
+.tree-item .dot.status-archived { background: var(--text-muted); }
+.tree-item .t-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tree-word-count { margin-left: auto; flex: none; color: var(--text-muted); font-size: 12px; font-weight: 400; letter-spacing: 0; }
 
 /* 第三列：编辑器（纸张，周围留呼吸） */
 .editor-pane { background: var(--bg-app); display: flex; flex-direction: column; min-width: 0; }
@@ -200,7 +215,9 @@ input, textarea { font-family: inherit; }
 .vault-modal .err-card { margin: 14px 0 0; }
 .vault-modal-actions { display: flex; justify-content: flex-end; margin-top: 18px; }
 .input-modal { display: grid; gap: 18px; }
+.confirm-modal { display: grid; gap: 16px; }
 .input-modal .vault-modal-actions { gap: 8px; margin-top: 0; }
+.confirm-modal .vault-modal-actions { gap: 8px; margin-top: 0; }
 
 .save-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--success); display: inline-block; margin-right: 7px; vertical-align: middle; }
 .save-dot.dirty, .save-dot.saving { background: var(--warning); }

@@ -2001,11 +2001,11 @@ test("project tree routes list and create novels and chapters", async () => {
     };
     const chaptersPayload = (await chaptersResponse.json()) as {
       ok: true;
-      data: { chapters: Array<{ chapterId: string; title: string }> };
+      data: { chapters: Array<{ chapterId: string; title: string; status: string; wordCount: number }> };
     };
     const createChapterPayload = (await createChapterResponse.json()) as {
       ok: true;
-      data: { chapterId: string; title: string };
+      data: { chapterId: string; title: string; status: string; wordCount: number };
     };
     const createNovelPayload = (await createNovelResponse.json()) as {
       ok: true;
@@ -2079,8 +2079,24 @@ test("project tree routes list and create novels and chapters", async () => {
     );
     const renameChapterPayload = (await renameChapterResponse.json()) as {
       ok: true;
-      data: { chapterId: string; title: string };
+      data: { chapterId: string; title: string; status: string; wordCount: number };
     };
+    const setChapterStatusResponse = await fetch(
+      `${server.baseUrl}/api/v1/projects/demo-series/novels/${createNovelPayload.data.novelId}/chapters/${createChapterPayload.data.chapterId}`,
+      {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ status: "finalized" }),
+      },
+    );
+    const setChapterStatusPayload = (await setChapterStatusResponse.json()) as {
+      ok: true;
+      data: { chapterId: string; title: string; status: string; wordCount: number };
+    };
+    const statusMetadata = await readJsonFile<{ status: string }>(
+      vaultRoot,
+      `projects/demo-series/novels/${createNovelPayload.data.novelId}/metadata/chapters/${createChapterPayload.data.chapterId}.json`,
+    );
     const renamedMetadata = await readJsonFile<{ title: string }>(
       vaultRoot,
       `projects/demo-series/novels/${createNovelPayload.data.novelId}/metadata/chapters/${createChapterPayload.data.chapterId}.json`,
@@ -2141,9 +2157,13 @@ test("project tree routes list and create novels and chapters", async () => {
     assert.equal(novelsPayload.data.novels[0]?.title, "主线");
     assert.equal(chaptersResponse.status, 200);
     assert.equal(chaptersPayload.data.chapters[0]?.chapterId, "chapter-001");
+    assert.equal(chaptersPayload.data.chapters[0]?.status, "drafting");
+    assert.equal(chaptersPayload.data.chapters[0]?.wordCount, 0);
     assert.equal(createChapterResponse.status, 200);
     assert.equal(createChapterPayload.data.chapterId, "chapter-002");
     assert.equal(createChapterPayload.data.title, "新章节");
+    assert.equal(createChapterPayload.data.status, "drafting");
+    assert.equal(createChapterPayload.data.wordCount, 0);
     assert.equal(createdManuscript, "");
     assert.equal(createdMetadata.title, "新章节");
     assert.equal(createNovelResponse.status, 200);
@@ -2166,7 +2186,12 @@ test("project tree routes list and create novels and chapters", async () => {
     assert.equal(renameChapterResponse.status, 200);
     assert.equal(renameChapterPayload.data.chapterId, createChapterPayload.data.chapterId);
     assert.equal(renameChapterPayload.data.title, "改名章节");
+    assert.equal(renameChapterPayload.data.status, "drafting");
     assert.equal(renamedMetadata.title, "改名章节");
+    assert.equal(setChapterStatusResponse.status, 200);
+    assert.equal(setChapterStatusPayload.data.chapterId, createChapterPayload.data.chapterId);
+    assert.equal(setChapterStatusPayload.data.status, "finalized");
+    assert.equal(statusMetadata.status, "finalized");
     assert.equal(renameNovelResponse.status, 200);
     assert.equal(renameNovelPayload.data.novelId, createNovelPayload.data.novelId);
     assert.equal(renameNovelPayload.data.title, "改名卷");

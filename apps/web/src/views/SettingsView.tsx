@@ -27,6 +27,7 @@ import {
   type ModelConfigInput,
   type RemoteGatewayStatus,
 } from "../api/client.js";
+import { ConfirmModal } from "../app/Modals.js";
 import { ViewShell } from "./common.js";
 
 const SECTIONS = ["外观", "模型与 API", "远程访问", "通用", "Agent", "快捷键", "关于"] as const;
@@ -607,6 +608,7 @@ export function SettingsView({ vaultPath, onSetVault, onClearVault }: SettingsVi
   const [vaultDraft, setVaultDraft] = useState(vaultPath ?? "");
   const [vaultFeedback, setVaultFeedback] = useState<string | null>(null);
   const [vaultSaving, setVaultSaving] = useState(false);
+  const [confirmClearVault, setConfirmClearVault] = useState(false);
 
   const [models, setModels] = useState<ModelConfig[]>([]);
   const [selectedModelId, setSelectedModelId] = useState<string | null>(null);
@@ -717,11 +719,9 @@ export function SettingsView({ vaultPath, onSetVault, onClearVault }: SettingsVi
     if (!onClearVault) {
       return;
     }
-    if (!window.confirm("确定清除当前资料库位置吗？下次进入应用会重新选择。")) {
-      return;
-    }
     onClearVault();
     setVaultFeedback("资料库位置已清除");
+    setConfirmClearVault(false);
   };
 
   useEffect(() => {
@@ -768,7 +768,7 @@ export function SettingsView({ vaultPath, onSetVault, onClearVault }: SettingsVi
                 <button type="button" className="btn btn-primary" disabled={vaultSaving} onClick={() => void changeVault()}>
                   {vaultSaving ? "更换中..." : "更换"}
                 </button>
-                <button type="button" className="btn" onClick={clearVault}>
+                <button type="button" className="btn" onClick={() => setConfirmClearVault(true)}>
                   清除
                 </button>
               </div>
@@ -1049,6 +1049,16 @@ export function SettingsView({ vaultPath, onSetVault, onClearVault }: SettingsVi
           ) : null}
         </div>
       </div>
+      {confirmClearVault ? (
+        <ConfirmModal
+          title="清除资料库位置"
+          message="确定清除当前资料库位置吗？下次进入应用会重新选择。"
+          confirmText="清除"
+          danger
+          onConfirm={clearVault}
+          onCancel={() => setConfirmClearVault(false)}
+        />
+      ) : null}
     </ViewShell>
   );
 }
