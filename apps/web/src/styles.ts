@@ -152,8 +152,8 @@ input, textarea { font-family: inherit; }
 /* 第三列：编辑器（纸张，周围留呼吸） */
 .editor-pane { background: var(--bg-app); display: flex; flex-direction: column; min-width: 0; }
 .editor-scroll { flex: 1; overflow: auto; display: flex; justify-content: center; padding: 32px 36px 48px; }
-.paper { width: 100%; max-width: 720px; background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-lg); box-shadow: var(--shadow-paper); display: flex; flex-direction: column; align-self: flex-start; min-height: calc(100% - 0px); }
-.editor-workbench { width: 100%; max-width: 760px; display: grid; grid-template-columns: minmax(0,1fr); gap: 20px; justify-content: center; align-items: start; }
+.paper { width: 100%; max-width: 820px; background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-lg); box-shadow: var(--shadow-paper); display: flex; flex-direction: column; align-self: flex-start; min-height: calc(100% - 0px); }
+.editor-workbench { width: 100%; max-width: 860px; display: grid; grid-template-columns: minmax(0,1fr); gap: 20px; justify-content: center; align-items: start; }
 .editor-workbench.focus-mode { grid-template-columns: minmax(0, 860px); max-width: 860px; }
 .paper-toolbar { display: flex; align-items: center; gap: 2px; height: 52px; padding: 0 16px; border-bottom: 1px solid var(--border); }
 .paper-toolbar .sep { width: 1px; height: 20px; background: var(--border); margin: 0 8px; }
@@ -389,12 +389,12 @@ input, textarea { font-family: inherit; }
 
 @media (max-width: 1600px) {
   .workspace { grid-template-columns: 264px minmax(0,1fr) clamp(320px, 26vw, 380px); }
-  .editor-workbench { grid-template-columns: minmax(0,1fr); max-width: 760px; }
+  .editor-workbench { grid-template-columns: minmax(0,1fr); max-width: 860px; }
 }
 
 @media (max-width: 1280px) {
   .workspace { grid-template-columns: 264px minmax(0,1fr); }
-  .editor-workbench { grid-template-columns: minmax(0,1fr); max-width: 760px; }
+  .editor-workbench { grid-template-columns: minmax(0,1fr); max-width: 860px; }
   .chat-pane { display: none; }
 }
 @media (max-width: 1024px) {
