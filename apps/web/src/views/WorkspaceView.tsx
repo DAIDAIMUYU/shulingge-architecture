@@ -9,7 +9,9 @@ import {
   ChevronDown,
   ChevronRight,
   Check,
+  FilePlus,
   FilePenLine,
+  FolderPlus,
   Italic,
   Lightbulb,
   List,
@@ -408,12 +410,13 @@ export function WorkspaceView({ currentProjectId, vaultPath }: WorkspaceViewProp
     restoreSelection(result.selectionStart, result.selectionEnd);
   };
 
-  const createChapterInCurrentNovel = async () => {
+  const createChapterInNovel = async (targetNovelId?: string) => {
     if (!projectTree) {
       setTreeError("还没有项目，请先去「项目」页新建一本书");
       return;
     }
     const activeNovel =
+      projectTree.novels.find((novel) => novel.novelId === targetNovelId) ??
       projectTree.novels.find((novel) => novel.chapters.some((chapterItem) => chapterItem.id === activeId)) ??
       projectTree.novels[0];
     if (!activeNovel) {
@@ -434,6 +437,31 @@ export function WorkspaceView({ currentProjectId, vaultPath }: WorkspaceViewProp
       setMobilePanel("editor");
     } catch (err) {
       setTreeError(err instanceof ApiError ? err.message : "新建章节失败");
+    }
+  };
+
+  const createChapterInCurrentNovel = async () => {
+    await createChapterInNovel();
+  };
+
+  const createNovel = async () => {
+    if (!projectTree) {
+      setTreeError("还没有项目，请先去「项目」页新建一本书");
+      return;
+    }
+
+    const title = window.prompt("请输入卷名称")?.trim();
+    if (!title) {
+      return;
+    }
+
+    try {
+      setTreeError(null);
+      const created = await api.createNovel(projectTree.projectId, title);
+      await loadProjectTree(projectTree.projectId);
+      setExpandedNovels((current) => ({ ...current, [created.novelId]: true }));
+    } catch (err) {
+      setTreeError(err instanceof ApiError ? err.message : "新建卷失败");
     }
   };
 
@@ -601,7 +629,14 @@ export function WorkspaceView({ currentProjectId, vaultPath }: WorkspaceViewProp
       <aside className="tree-panel">
         <div className="tree-head">
           <h2>章节与资料</h2>
-          <button type="button" className="btn-icon" title="新建章节" onClick={() => void createChapterInCurrentNovel()}>+</button>
+          <div className="tree-head-actions">
+            <button type="button" className="btn-icon" title="新建卷" onClick={() => void createNovel()}>
+              <FolderPlus size={17} />
+            </button>
+            <button type="button" className="btn-icon" title="新建章节" onClick={() => void createChapterInCurrentNovel()}>
+              <FilePlus size={17} />
+            </button>
+          </div>
         </div>
         <div className="tree-scroll">
           {treeLoading ? <div className="faint">章节加载中...</div> : null}
@@ -630,15 +665,27 @@ export function WorkspaceView({ currentProjectId, vaultPath }: WorkspaceViewProp
               ))
             : projectTree?.novels.map((novel) => (
                 <div key={novel.novelId}>
-                  <button
-                    type="button"
-                    className="tree-group-label"
-                    onClick={() => setExpandedNovels((current) => ({ ...current, [novel.novelId]: !current[novel.novelId] }))}
-                    style={{ display: "flex", alignItems: "center", gap: 6, width: "100%", border: 0, background: "transparent" }}
-                  >
-                    {expandedNovels[novel.novelId] ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-                    <span>{novel.title}</span>
-                  </button>
+                  <div className="tree-group-label">
+                    <button
+                      type="button"
+                      className="tree-group-toggle"
+                      onClick={() => setExpandedNovels((current) => ({ ...current, [novel.novelId]: !current[novel.novelId] }))}
+                    >
+                      {expandedNovels[novel.novelId] ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                      <span>{novel.title}</span>
+                    </button>
+                    <button
+                      type="button"
+                      className="tree-group-add"
+                      title="在该卷下新建章节"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        void createChapterInNovel(novel.novelId);
+                      }}
+                    >
+                      <FilePlus size={14} />
+                    </button>
+                  </div>
                   {expandedNovels[novel.novelId]
                     ? novel.chapters.map((chapterItem) => (
                         <button
