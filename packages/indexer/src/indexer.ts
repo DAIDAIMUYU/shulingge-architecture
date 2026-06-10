@@ -43,6 +43,20 @@ async function listMarkdownFiles(dirPath: string): Promise<string[]> {
   }
 }
 
+async function readChapterTitleForManuscript(
+  vaultRoot: string,
+  novelRoot: string,
+  chapterId: string,
+): Promise<string> {
+  try {
+    const metadataPath = path.join(novelRoot, "metadata", "chapters", `${chapterId}.json`);
+    const metadata = await readJsonFile<Pick<Chapter, "title">>(vaultRoot, relativeVaultPath(vaultRoot, metadataPath));
+    return metadata.title?.trim() || chapterId;
+  } catch {
+    return chapterId;
+  }
+}
+
 function relativeVaultPath(vaultRoot: string, absolutePath: string): string {
   return toPosixPath(path.relative(vaultRoot, absolutePath));
 }
@@ -385,16 +399,17 @@ async function collectNovelDocuments(
 
     for (const filePath of await listMarkdownFiles(path.join(novelRoot, "manuscripts"))) {
       const content = await readManuscriptFile(vaultRoot, relativeVaultPath(vaultRoot, filePath));
-      const title = path.basename(filePath, ".md");
+      const chapterId = path.basename(filePath, ".md");
+      const title = await readChapterTitleForManuscript(vaultRoot, novelRoot, chapterId);
       documents.push({
-        id: `manuscript:${projectId}:${novelId}:${title}`,
+        id: `manuscript:${projectId}:${novelId}:${chapterId}`,
         type: "manuscript",
         projectId,
         novelId,
         path: relativeVaultPath(vaultRoot, filePath),
         title,
         content,
-        tags: tokenize("manuscript", novelId, title),
+        tags: tokenize("manuscript", novelId, chapterId, title),
       });
     }
 

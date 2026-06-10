@@ -23,6 +23,7 @@ import {
   Search,
   Trash2,
   Undo2,
+  X,
 } from "lucide-react";
 
 import {
@@ -904,6 +905,13 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
     }
   };
 
+  const clearSearch = () => {
+    setSearchText("");
+    setSearchResults([]);
+    setSearchError(null);
+    setIndexFeedback(null);
+  };
+
   const saveChapterTitle = async () => {
     if (!projectTree || !hasValidActiveChapter) {
       return;
@@ -1220,6 +1228,11 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
                 disabled={!vaultSelected}
                 onChange={(event) => setSearchText(event.target.value)}
               />
+              {searchText ? (
+                <button type="button" className="tree-search-clear" title="清除搜索" onClick={clearSearch}>
+                  <X size={14} strokeWidth={2} />
+                </button>
+              ) : null}
             </div>
             {indexFeedback ? <div className="tree-search-feedback">{indexFeedback}</div> : null}
           </div>

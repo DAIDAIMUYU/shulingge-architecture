@@ -149,6 +149,8 @@ input, textarea { font-family: inherit; }
 .tree-search-field:focus-within { border-color: var(--primary); box-shadow: 0 0 0 2px var(--primary-light); }
 .tree-search-field input { min-width: 0; flex: 1; border: 0; outline: none; background: transparent; color: var(--text-primary); font-size: 13px; }
 .tree-search-field input::placeholder { color: var(--text-muted); }
+.tree-search-clear { width: 24px; height: 24px; display: grid; place-items: center; flex: none; border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--text-muted); transition: background .16s ease, color .16s ease; }
+.tree-search-clear:hover { background: var(--bg-hover); color: var(--text-primary); }
 .tree-search-feedback { margin-top: 6px; padding: 0 2px; color: var(--text-muted); font-size: 12px; }
 .spin-icon { animation: spin 0.9s linear infinite; }
 .tree-create { position: relative; }
