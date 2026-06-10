@@ -112,6 +112,14 @@ import {
 import { createHttpError } from "./errors.js";
 import type { RouteDefinition, SearchRequestQuery, ServerContext } from "./types.js";
 
+function formatErrorReason(error: unknown): string {
+  if (error instanceof Error && error.message) {
+    return error.message;
+  }
+
+  return String(error);
+}
+
 function requireVaultRoot(context: ServerContext): string {
   if (!context.state.vaultRoot) {
     throw createHttpError(400, "SERVER_VAULT_NOT_SELECTED", "No vault has been selected");
@@ -241,19 +249,31 @@ export const routeDefinitions: RouteDefinition[] = [
         throw createHttpError(400, "SERVER_INVALID_VAULT_SELECTION", "rootPath is required");
       }
 
+      let selectedRootPath: string;
       try {
         const initialized = await initializeVault({ rootPath: body.rootPath });
+        selectedRootPath = initialized.rootPath;
         context.state.vaultRoot = initialized.rootPath;
-      } catch {
+      } catch (error) {
         throw createHttpError(
           400,
           "SERVER_INVALID_VAULT_SELECTION",
-          "无法创建或初始化资料库目录，请检查路径是否合法、是否有写入权限",
+          `无法创建或初始化资料库目录，请检查路径是否合法、是否有写入权限。具体原因：${formatErrorReason(error)}`,
         );
       }
-      await context.services.remote.reloadForVault(context.state.vaultRoot);
+
+      try {
+        await context.services.remote.reloadForVault(selectedRootPath);
+      } catch (error) {
+        throw createHttpError(
+          500,
+          "SERVER_VAULT_REMOTE_RELOAD_FAILED",
+          `资料库已初始化，但刷新远程服务失败。具体原因：${formatErrorReason(error)}`,
+        );
+      }
+
       return {
-        rootPath: context.state.vaultRoot,
+        rootPath: selectedRootPath,
       };
     },
   },

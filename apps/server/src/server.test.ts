@@ -20,7 +20,10 @@ import {
   writeManuscriptFile,
 } from "@shulingge/vault-core";
 
+import { toErrorPayload } from "./errors.js";
 import { startServer } from "./index.js";
+import { routeDefinitions } from "./routes.js";
+import type { RouteRequest, ServerContext } from "./types.js";
 
 async function createFixtureVault() {
   const root = await mkdtemp(path.join(os.tmpdir(), "shulingge-server-"));
@@ -188,6 +191,73 @@ test("vault select creates and initializes missing directory", async () => {
     assert.deepEqual(projectsPayload.data.projects, []);
   } finally {
     await server.close();
+    await rm(parent, { recursive: true, force: true });
+  }
+});
+
+test("vault select reports remote reload failures with a concrete message", async () => {
+  const parent = await mkdtemp(path.join(os.tmpdir(), "shulingge-vault-select-reload-"));
+  const vaultRoot = path.join(parent, "reload-failure-vault");
+  const route = routeDefinitions.find(
+    (definition) => definition.method === "POST" && definition.path === "/api/v1/vault/select",
+  );
+  assert.ok(route);
+
+  const context = {
+    state: {
+      vaultRoot: null,
+      workflowRuns: new Map(),
+    },
+    services: {
+      credentialService: new CredentialService(new InMemoryCredentialStore()),
+      remote: {
+        getStatus: () => ({
+          enabled: false,
+          autoStart: false,
+          port: 0,
+          requestedPort: 0,
+          passwordConfigured: false,
+        }),
+        enable: async () => {
+          throw new Error("not implemented");
+        },
+        disable: async () => {
+          throw new Error("not implemented");
+        },
+        updatePassword: async () => {
+          throw new Error("not implemented");
+        },
+        verifyPassword: async () => false,
+        reloadForVault: async () => {
+          throw new Error("simulated reload failure");
+        },
+        close: async () => undefined,
+      },
+    },
+  } satisfies ServerContext;
+
+  try {
+    await assert.rejects(
+      route.handler(
+        {
+          method: "POST",
+          url: new URL("http://127.0.0.1/api/v1/vault/select"),
+          params: {},
+          query: new URLSearchParams(),
+          body: { rootPath: vaultRoot },
+        } as RouteRequest,
+        context,
+      ),
+      (error) => {
+        const payload = toErrorPayload(error);
+        assert.equal(payload.statusCode, 500);
+        assert.equal(payload.body.error.code, "SERVER_VAULT_REMOTE_RELOAD_FAILED");
+        assert.match(payload.body.error.message, /资料库已初始化，但刷新远程服务失败/);
+        assert.match(payload.body.error.message, /simulated reload failure/);
+        return true;
+      },
+    );
+  } finally {
     await rm(parent, { recursive: true, force: true });
   }
 });
