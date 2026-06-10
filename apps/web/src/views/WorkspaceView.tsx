@@ -47,6 +47,9 @@ type MobilePanel = "chapters" | "editor" | "inspector" | "chat";
 type ChatMessage =
   | { id: number; kind: "text"; role: "ai" | "user"; text: string }
   | { id: number; kind: "run" };
+type TreeContextMenu =
+  | { kind: "chapter"; x: number; y: number; chapter: ChapterNode; novelId: string }
+  | { kind: "novel"; x: number; y: number; novel: NovelNode };
 
 interface ChapterNode {
   id: string;
@@ -120,6 +123,7 @@ export function WorkspaceView({ currentProjectId, vaultPath }: WorkspaceViewProp
   const [expandedNovels, setExpandedNovels] = useState<Record<string, boolean>>({});
   const [selectedNovelId, setSelectedNovelId] = useState<string | null>(null);
   const [createMenuOpen, setCreateMenuOpen] = useState(false);
+  const [treeContextMenu, setTreeContextMenu] = useState<TreeContextMenu | null>(null);
   const [chapter, setChapter] = useState<EditorChapter | null>(null);
   const [draft, setDraft] = useState("");
   const [saveState, setSaveState] = useState<SaveState>("idle");
@@ -156,6 +160,7 @@ export function WorkspaceView({ currentProjectId, vaultPath }: WorkspaceViewProp
   const chatEndRef = useRef<HTMLDivElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const createMenuRef = useRef<HTMLDivElement | null>(null);
+  const treeContextMenuRef = useRef<HTMLDivElement | null>(null);
   const nextId = () => idRef.current++;
 
   const locator = useMemo(() => parseChapterRef(activeId), [activeId]);
@@ -269,6 +274,31 @@ export function WorkspaceView({ currentProjectId, vaultPath }: WorkspaceViewProp
     document.addEventListener("mousedown", closeOnOutsidePointer);
     return () => document.removeEventListener("mousedown", closeOnOutsidePointer);
   }, [createMenuOpen]);
+
+  useEffect(() => {
+    if (!treeContextMenu) {
+      return;
+    }
+
+    const closeOnOutsidePointer = (event: MouseEvent) => {
+      if (treeContextMenuRef.current?.contains(event.target as Node)) {
+        return;
+      }
+      setTreeContextMenu(null);
+    };
+    const closeOnEscape = (event: globalThis.KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setTreeContextMenu(null);
+      }
+    };
+
+    document.addEventListener("mousedown", closeOnOutsidePointer);
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.removeEventListener("mousedown", closeOnOutsidePointer);
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [treeContextMenu]);
 
   useEffect(() => {
     if (!vaultSelected || !activeId) {
@@ -434,21 +464,24 @@ export function WorkspaceView({ currentProjectId, vaultPath }: WorkspaceViewProp
     restoreSelection(result.selectionStart, result.selectionEnd);
   };
 
-  const createChapterInCurrentNovel = async () => {
+  const createChapterInNovel = async (targetNovelIdOverride?: string) => {
     if (!projectTree) {
       setCreateMenuOpen(false);
+      setTreeContextMenu(null);
       setTreeError("还没有项目，请先去「项目」页新建一本书");
       return;
     }
-    const targetNovelId = selectedNovelId ?? "main";
+    const targetNovelId = targetNovelIdOverride ?? selectedNovelId ?? "main";
     const targetNovel = projectTree.novels.find((novel) => novel.novelId === targetNovelId);
     if (!targetNovel) {
       setCreateMenuOpen(false);
+      setTreeContextMenu(null);
       setTreeError("当前项目还没有散章区，请先新建项目");
       return;
     }
 
     setCreateMenuOpen(false);
+    setTreeContextMenu(null);
     const title = window.prompt("请输入章节标题", "新章节")?.trim();
     if (!title) {
       return;
@@ -465,14 +498,20 @@ export function WorkspaceView({ currentProjectId, vaultPath }: WorkspaceViewProp
     }
   };
 
+  const createChapterInCurrentNovel = async () => {
+    await createChapterInNovel();
+  };
+
   const createNovel = async () => {
     if (!projectTree) {
       setCreateMenuOpen(false);
+      setTreeContextMenu(null);
       setTreeError("还没有项目，请先去「项目」页新建一本书");
       return;
     }
 
     setCreateMenuOpen(false);
+    setTreeContextMenu(null);
     const title = window.prompt("请输入卷名称")?.trim();
     if (!title) {
       return;
@@ -486,6 +525,106 @@ export function WorkspaceView({ currentProjectId, vaultPath }: WorkspaceViewProp
       setSelectedNovelId(created.novelId);
     } catch (err) {
       setTreeError(err instanceof ApiError ? err.message : "新建卷失败");
+    }
+  };
+
+  const renameChapter = async (novelId: string, chapterItem: ChapterNode) => {
+    if (!projectTree) {
+      return;
+    }
+    setTreeContextMenu(null);
+    const title = window.prompt("请输入章节标题", chapterItem.title)?.trim();
+    if (!title) {
+      return;
+    }
+
+    try {
+      setTreeError(null);
+      await api.renameChapter(projectTree.projectId, novelId, chapterItem.chapterId, title);
+      await loadProjectTree(projectTree.projectId);
+    } catch (err) {
+      setTreeError(err instanceof ApiError ? err.message : "重命名章节失败");
+    }
+  };
+
+  const deleteChapter = async (novelId: string, chapterItem: ChapterNode) => {
+    if (!projectTree) {
+      return;
+    }
+    setTreeContextMenu(null);
+    if (!window.confirm(`确定删除章节「${chapterItem.title}」吗？此操作不可恢复`)) {
+      return;
+    }
+
+    try {
+      setTreeError(null);
+      const deletedActiveChapter = activeId === chapterItem.id;
+      await api.deleteChapter(projectTree.projectId, novelId, chapterItem.chapterId);
+      await loadProjectTree(projectTree.projectId);
+      if (deletedActiveChapter) {
+        setActiveId("");
+        setSelectedNovelId(null);
+        setChapter(null);
+        setDraft("");
+        setHistory([]);
+        setFuture([]);
+        setAnnotations([]);
+        setLocks([]);
+        setSaveState("idle");
+      }
+    } catch (err) {
+      setTreeError(err instanceof ApiError ? err.message : "删除章节失败");
+    }
+  };
+
+  const renameNovel = async (novel: NovelNode) => {
+    if (!projectTree) {
+      return;
+    }
+    setTreeContextMenu(null);
+    const title = window.prompt("请输入卷名称", novel.title)?.trim();
+    if (!title) {
+      return;
+    }
+
+    try {
+      setTreeError(null);
+      await api.renameNovel(projectTree.projectId, novel.novelId, title);
+      await loadProjectTree(projectTree.projectId);
+    } catch (err) {
+      setTreeError(err instanceof ApiError ? err.message : "重命名卷失败");
+    }
+  };
+
+  const deleteNovel = async (novel: NovelNode) => {
+    if (!projectTree) {
+      return;
+    }
+    setTreeContextMenu(null);
+    if (!window.confirm(`确定删除卷「${novel.title}」及其下所有章节吗？此操作不可恢复`)) {
+      return;
+    }
+
+    try {
+      setTreeError(null);
+      const deletedActiveChapter = novel.chapters.some((chapterItem) => chapterItem.id === activeId);
+      await api.deleteNovel(projectTree.projectId, novel.novelId);
+      await loadProjectTree(projectTree.projectId);
+      if (selectedNovelId === novel.novelId) {
+        setSelectedNovelId(null);
+      }
+      if (deletedActiveChapter) {
+        setActiveId("");
+        setChapter(null);
+        setDraft("");
+        setHistory([]);
+        setFuture([]);
+        setAnnotations([]);
+        setLocks([]);
+        setSaveState("idle");
+      }
+    } catch (err) {
+      setTreeError(err instanceof ApiError ? err.message : "删除卷失败");
     }
   };
 
@@ -690,12 +829,24 @@ export function WorkspaceView({ currentProjectId, vaultPath }: WorkspaceViewProp
             <button
               key={chapterItem.id}
               type="button"
-              className={`tree-item ${activeId === chapterItem.id ? "active" : ""}`}
+              className={`tree-item ${selectedNovelId === null && activeId === chapterItem.id ? "active" : ""}`}
               onClick={(event) => {
                 event.stopPropagation();
                 setSelectedNovelId(null);
                 setActiveId(chapterItem.id);
                 setMobilePanel("editor");
+              }}
+              onContextMenu={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                setSelectedNovelId(null);
+                setTreeContextMenu({
+                  kind: "chapter",
+                  x: event.clientX,
+                  y: event.clientY,
+                  chapter: chapterItem,
+                  novelId: "main",
+                });
               }}
             >
               <span className="dot" />
@@ -711,6 +862,17 @@ export function WorkspaceView({ currentProjectId, vaultPath }: WorkspaceViewProp
                       setSelectedNovelId(novel.novelId);
                       setExpandedNovels((current) => ({ ...current, [novel.novelId]: !current[novel.novelId] }));
                     }}
+                    onContextMenu={(event) => {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      setSelectedNovelId(novel.novelId);
+                      setTreeContextMenu({
+                        kind: "novel",
+                        x: event.clientX,
+                        y: event.clientY,
+                        novel,
+                      });
+                    }}
                   >
                     <button
                       type="button"
@@ -725,11 +887,24 @@ export function WorkspaceView({ currentProjectId, vaultPath }: WorkspaceViewProp
                         <button
                           key={chapterItem.id}
                           type="button"
-                          className={`tree-item ${activeId === chapterItem.id ? "active" : ""}`}
+                          className={`tree-item ${selectedNovelId === null && activeId === chapterItem.id ? "active" : ""}`}
                           onClick={(event) => {
                             event.stopPropagation();
+                            setSelectedNovelId(null);
                             setActiveId(chapterItem.id);
                             setMobilePanel("editor");
+                          }}
+                          onContextMenu={(event) => {
+                            event.preventDefault();
+                            event.stopPropagation();
+                            setSelectedNovelId(null);
+                            setTreeContextMenu({
+                              kind: "chapter",
+                              x: event.clientX,
+                              y: event.clientY,
+                              chapter: chapterItem,
+                              novelId: novel.novelId,
+                            });
                           }}
                         >
                           <span className="dot" />
@@ -740,6 +915,46 @@ export function WorkspaceView({ currentProjectId, vaultPath }: WorkspaceViewProp
                 </div>
               ))}
         </div>
+        {treeContextMenu ? (
+          <div
+            ref={treeContextMenuRef}
+            className="tree-context-menu"
+            style={{ left: treeContextMenu.x, top: treeContextMenu.y }}
+            role="menu"
+          >
+            {treeContextMenu.kind === "chapter" ? (
+              <>
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => void renameChapter(treeContextMenu.novelId, treeContextMenu.chapter)}
+                >
+                  重命名
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="danger"
+                  onClick={() => void deleteChapter(treeContextMenu.novelId, treeContextMenu.chapter)}
+                >
+                  删除
+                </button>
+              </>
+            ) : (
+              <>
+                <button type="button" role="menuitem" onClick={() => void renameNovel(treeContextMenu.novel)}>
+                  重命名
+                </button>
+                <button type="button" role="menuitem" onClick={() => void createChapterInNovel(treeContextMenu.novel.novelId)}>
+                  新建章节
+                </button>
+                <button type="button" role="menuitem" className="danger" onClick={() => void deleteNovel(treeContextMenu.novel)}>
+                  删除卷
+                </button>
+              </>
+            )}
+          </div>
+        ) : null}
       </aside>
 
       <section className="editor-pane">

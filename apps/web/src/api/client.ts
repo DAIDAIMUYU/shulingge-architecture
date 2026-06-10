@@ -425,8 +425,24 @@ export const api = {
       `/projects/${encodeURIComponent(projectId)}/novels/${encodeURIComponent(novelId)}/chapters`,
       { title },
     ),
+  renameChapter: async (projectId: string, novelId: string, chapterId: string, title: string): Promise<ChapterSummary> =>
+    patch<ChapterSummary>(
+      `/projects/${encodeURIComponent(projectId)}/novels/${encodeURIComponent(novelId)}/chapters/${encodeURIComponent(chapterId)}`,
+      { title },
+    ),
+  deleteChapter: async (projectId: string, novelId: string, chapterId: string): Promise<{ ok: true }> =>
+    request<{ ok: true }>(
+      `/projects/${encodeURIComponent(projectId)}/novels/${encodeURIComponent(novelId)}/chapters/${encodeURIComponent(chapterId)}`,
+      { method: "DELETE" },
+    ),
   createNovel: async (projectId: string, title: string): Promise<NovelSummary> =>
     post<NovelSummary>(`/projects/${encodeURIComponent(projectId)}/novels`, { title }),
+  renameNovel: async (projectId: string, novelId: string, title: string): Promise<NovelSummary> =>
+    patch<NovelSummary>(`/projects/${encodeURIComponent(projectId)}/novels/${encodeURIComponent(novelId)}`, { title }),
+  deleteNovel: async (projectId: string, novelId: string): Promise<{ ok: true }> =>
+    request<{ ok: true }>(`/projects/${encodeURIComponent(projectId)}/novels/${encodeURIComponent(novelId)}`, {
+      method: "DELETE",
+    }),
 
   loadChapter: (chapterId: string, projectId: string, novelId: string) =>
     get<EditorChapter>(withQuery(`/editor/chapters/${encodeURIComponent(chapterId)}`, { projectId, novelId })),

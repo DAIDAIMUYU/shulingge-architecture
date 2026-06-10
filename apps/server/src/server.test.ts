@@ -2024,6 +2024,67 @@ test("project tree routes list and create novels and chapters", async () => {
       vaultRoot,
       `projects/demo-series/novels/${createNovelPayload.data.novelId}/novel.json`,
     );
+    const renameChapterResponse = await fetch(
+      `${server.baseUrl}/api/v1/projects/demo-series/novels/main/chapters/${createChapterPayload.data.chapterId}`,
+      {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ title: "改名章节" }),
+      },
+    );
+    const renameChapterPayload = (await renameChapterResponse.json()) as {
+      ok: true;
+      data: { chapterId: string; title: string };
+    };
+    const renamedMetadata = await readJsonFile<{ title: string }>(
+      vaultRoot,
+      `projects/demo-series/novels/main/metadata/chapters/${createChapterPayload.data.chapterId}.json`,
+    );
+    const renameNovelResponse = await fetch(
+      `${server.baseUrl}/api/v1/projects/demo-series/novels/${createNovelPayload.data.novelId}`,
+      {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ title: "改名卷" }),
+      },
+    );
+    const renameNovelPayload = (await renameNovelResponse.json()) as {
+      ok: true;
+      data: { novelId: string; title: string };
+    };
+    const renamedNovel = await readJsonFile<{ title: string; name: string }>(
+      vaultRoot,
+      `projects/demo-series/novels/${createNovelPayload.data.novelId}/novel.json`,
+    );
+    const deleteChapterResponse = await fetch(
+      `${server.baseUrl}/api/v1/projects/demo-series/novels/main/chapters/${createChapterPayload.data.chapterId}`,
+      {
+        method: "DELETE",
+      },
+    );
+    const chaptersAfterDeleteResponse = await fetch(`${server.baseUrl}/api/v1/projects/demo-series/novels/main/chapters`);
+    const chaptersAfterDeletePayload = (await chaptersAfterDeleteResponse.json()) as {
+      ok: true;
+      data: { chapters: Array<{ chapterId: string }> };
+    };
+    const deleteMainNovelResponse = await fetch(`${server.baseUrl}/api/v1/projects/demo-series/novels/main`, {
+      method: "DELETE",
+    });
+    const deleteMainNovelPayload = (await deleteMainNovelResponse.json()) as {
+      ok: false;
+      error: { code: string; message: string };
+    };
+    const deleteNovelResponse = await fetch(
+      `${server.baseUrl}/api/v1/projects/demo-series/novels/${createNovelPayload.data.novelId}`,
+      {
+        method: "DELETE",
+      },
+    );
+    const novelsAfterDeleteResponse = await fetch(`${server.baseUrl}/api/v1/projects/demo-series/novels`);
+    const novelsAfterDeletePayload = (await novelsAfterDeleteResponse.json()) as {
+      ok: true;
+      data: { novels: Array<{ novelId: string }> };
+    };
 
     assert.equal(projectsResponse.status, 200);
     assert.equal(projectsPayload.data.projects[0]?.projectId, "demo-series");
@@ -2043,6 +2104,23 @@ test("project tree routes list and create novels and chapters", async () => {
     assert.equal(createNovelPayload.data.title, "番外卷");
     assert.equal(createdNovel.title, "番外卷");
     assert.equal(createdNovel.name, "番外卷");
+    assert.equal(renameChapterResponse.status, 200);
+    assert.equal(renameChapterPayload.data.chapterId, createChapterPayload.data.chapterId);
+    assert.equal(renameChapterPayload.data.title, "改名章节");
+    assert.equal(renamedMetadata.title, "改名章节");
+    assert.equal(renameNovelResponse.status, 200);
+    assert.equal(renameNovelPayload.data.novelId, createNovelPayload.data.novelId);
+    assert.equal(renameNovelPayload.data.title, "改名卷");
+    assert.equal(renamedNovel.title, "改名卷");
+    assert.equal(renamedNovel.name, "改名卷");
+    assert.equal(deleteChapterResponse.status, 200);
+    assert.equal(chaptersAfterDeleteResponse.status, 200);
+    assert.equal(chaptersAfterDeletePayload.data.chapters.some((chapter) => chapter.chapterId === createChapterPayload.data.chapterId), false);
+    assert.equal(deleteMainNovelResponse.status, 400);
+    assert.equal(deleteMainNovelPayload.error.message, "散章区不可删除");
+    assert.equal(deleteNovelResponse.status, 200);
+    assert.equal(novelsAfterDeleteResponse.status, 200);
+    assert.equal(novelsAfterDeletePayload.data.novels.some((novel) => novel.novelId === createNovelPayload.data.novelId), false);
   } finally {
     await server.close();
     await rm(vaultRoot, { recursive: true, force: true });

@@ -2,10 +2,14 @@ import {
   createChapter,
   createNovel,
   createProject,
+  deleteChapter,
+  deleteNovel,
   listChapters,
   loadEditorChapter,
   listNovels,
   listProjects,
+  renameChapter,
+  renameNovel,
   saveEditorAnnotations,
   saveEditorChapter,
   saveEditorLocks,
@@ -1160,6 +1164,30 @@ export const routeDefinitions: RouteDefinition[] = [
     },
   },
   {
+    method: "PATCH",
+    path: "/api/v1/projects/:projectId/novels/:novelId",
+    async handler(request, context) {
+      const vaultRoot = requireVaultRoot(context);
+      const body = request.body as { title?: unknown } | undefined;
+      return await renameNovel(vaultRoot, {
+        projectId: request.params.projectId,
+        novelId: request.params.novelId,
+        title: body?.title as never,
+      });
+    },
+  },
+  {
+    method: "DELETE",
+    path: "/api/v1/projects/:projectId/novels/:novelId",
+    async handler(request, context) {
+      const vaultRoot = requireVaultRoot(context);
+      return await deleteNovel(vaultRoot, {
+        projectId: request.params.projectId,
+        novelId: request.params.novelId,
+      });
+    },
+  },
+  {
     method: "GET",
     path: "/api/v1/projects/:projectId/novels/:novelId/chapters",
     async handler(request, context) {
@@ -1179,6 +1207,32 @@ export const routeDefinitions: RouteDefinition[] = [
         projectId: request.params.projectId,
         novelId: request.params.novelId,
         title: body?.title as never,
+      });
+    },
+  },
+  {
+    method: "PATCH",
+    path: "/api/v1/projects/:projectId/novels/:novelId/chapters/:chapterId",
+    async handler(request, context) {
+      const vaultRoot = requireVaultRoot(context);
+      const body = request.body as { title?: unknown } | undefined;
+      return await renameChapter(vaultRoot, {
+        projectId: request.params.projectId,
+        novelId: request.params.novelId,
+        chapterId: request.params.chapterId,
+        title: body?.title as never,
+      });
+    },
+  },
+  {
+    method: "DELETE",
+    path: "/api/v1/projects/:projectId/novels/:novelId/chapters/:chapterId",
+    async handler(request, context) {
+      const vaultRoot = requireVaultRoot(context);
+      return await deleteChapter(vaultRoot, {
+        projectId: request.params.projectId,
+        novelId: request.params.novelId,
+        chapterId: request.params.chapterId,
       });
     },
   },

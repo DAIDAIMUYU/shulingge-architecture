@@ -1,4 +1,4 @@
-import { mkdir, readdir } from "node:fs/promises";
+import { mkdir, readdir, rm } from "node:fs/promises";
 import path from "node:path";
 
 import type { Annotation, Chapter, Lock } from "@shulingge/shared";
@@ -461,6 +461,44 @@ export async function createChapter(
   };
 }
 
+export async function renameChapter(
+  vaultRoot: string,
+  input: { projectId: string; novelId: string; chapterId: string; title: string },
+): Promise<ChapterSummary> {
+  assertLocator(input);
+  assertTitle(input.title);
+
+  const title = input.title.trim();
+  const metadata = await readChapterMetadata(vaultRoot, input);
+  await writeJsonFile(vaultRoot, getMetadataRelativePath(input), {
+    ...metadata,
+    title,
+    updatedAt: new Date().toISOString(),
+  });
+
+  return {
+    chapterId: input.chapterId,
+    title,
+  };
+}
+
+export async function deleteChapter(
+  vaultRoot: string,
+  input: { projectId: string; novelId: string; chapterId: string },
+): Promise<{ ok: true }> {
+  assertLocator(input);
+
+  await Promise.all(
+    [
+      getManuscriptRelativePath(input),
+      getMetadataRelativePath(input),
+      getAnnotationsRelativePath(input),
+    ].map((relativePath) => rm(resolveSafePath(vaultRoot, relativePath), { force: true })),
+  );
+
+  return { ok: true };
+}
+
 export async function createNovel(
   vaultRoot: string,
   input: { projectId: string; title: string },
@@ -493,6 +531,51 @@ export async function createNovel(
     novelId,
     title,
   };
+}
+
+export async function renameNovel(
+  vaultRoot: string,
+  input: { projectId: string; novelId: string; title: string },
+): Promise<NovelSummary> {
+  assertProjectId(input.projectId);
+  assertNovelId(input.novelId);
+  assertTitle(input.title);
+
+  const title = input.title.trim();
+  const novelPath = path.posix.join(getNovelRootPathFor(input.projectId, input.novelId), "novel.json");
+  const metadata = await readOptionalJson<Record<string, unknown>>(vaultRoot, novelPath);
+  await writeJsonFile(vaultRoot, novelPath, {
+    ...(metadata ?? {}),
+    id: input.novelId,
+    novelId: input.novelId,
+    projectId: input.projectId,
+    title,
+    name: title,
+    updatedAt: new Date().toISOString(),
+  });
+
+  return {
+    novelId: input.novelId,
+    title,
+  };
+}
+
+export async function deleteNovel(
+  vaultRoot: string,
+  input: { projectId: string; novelId: string },
+): Promise<{ ok: true }> {
+  assertProjectId(input.projectId);
+  assertNovelId(input.novelId);
+  if (input.novelId === "main") {
+    throw createHttpError(400, "EDITOR_DEFAULT_NOVEL_DELETE_FORBIDDEN", "散章区不可删除");
+  }
+
+  await rm(resolveSafePath(vaultRoot, getNovelRootPathFor(input.projectId, input.novelId)), {
+    recursive: true,
+    force: true,
+  });
+
+  return { ok: true };
 }
 
 export async function saveEditorChapter(
