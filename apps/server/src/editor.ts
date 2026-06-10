@@ -499,6 +499,60 @@ export async function deleteChapter(
   return { ok: true };
 }
 
+export async function moveChapter(
+  vaultRoot: string,
+  input: { projectId: string; novelId: string; chapterId: string; targetNovelId: string },
+): Promise<{ chapterId: string; novelId: string }> {
+  assertLocator(input);
+  assertNovelId(input.targetNovelId);
+
+  if (input.targetNovelId === input.novelId) {
+    return {
+      chapterId: input.chapterId,
+      novelId: input.targetNovelId,
+    };
+  }
+
+  const targetNovelPath = path.posix.join(getNovelRootPathFor(input.projectId, input.targetNovelId), "novel.json");
+  const targetNovel = await readOptionalJson<unknown>(vaultRoot, targetNovelPath);
+  if (!targetNovel) {
+    throw createHttpError(400, "EDITOR_TARGET_NOVEL_NOT_FOUND", "目标卷不存在");
+  }
+
+  const sourceLocator = {
+    projectId: input.projectId,
+    novelId: input.novelId,
+    chapterId: input.chapterId,
+  };
+  const targetLocator = {
+    projectId: input.projectId,
+    novelId: input.targetNovelId,
+    chapterId: input.chapterId,
+  };
+  const [content, metadata, annotations] = await Promise.all([
+    readManuscriptFile(vaultRoot, getManuscriptRelativePath(sourceLocator)).catch(() => ""),
+    readChapterMetadata(vaultRoot, sourceLocator),
+    readChapterAnnotations(vaultRoot, sourceLocator),
+  ]);
+
+  await ensureNovelDirectories(vaultRoot, input.projectId, input.targetNovelId);
+  await writeManuscriptFile(vaultRoot, getManuscriptRelativePath(targetLocator), content);
+  await writeJsonFile(vaultRoot, getMetadataRelativePath(targetLocator), {
+    ...metadata,
+    novelId: input.targetNovelId,
+    manuscriptPath: getManuscriptRelativePath(targetLocator),
+    annotationsRef: getAnnotationsRelativePath(targetLocator),
+    updatedAt: new Date().toISOString(),
+  });
+  await writeJsonFile(vaultRoot, getAnnotationsRelativePath(targetLocator), annotations);
+  await deleteChapter(vaultRoot, sourceLocator);
+
+  return {
+    chapterId: input.chapterId,
+    novelId: input.targetNovelId,
+  };
+}
+
 export async function createNovel(
   vaultRoot: string,
   input: { projectId: string; title: string },

@@ -435,6 +435,16 @@ export const api = {
       `/projects/${encodeURIComponent(projectId)}/novels/${encodeURIComponent(novelId)}/chapters/${encodeURIComponent(chapterId)}`,
       { method: "DELETE" },
     ),
+  moveChapter: async (
+    projectId: string,
+    novelId: string,
+    chapterId: string,
+    targetNovelId: string,
+  ): Promise<{ chapterId: string; novelId: string }> =>
+    post<{ chapterId: string; novelId: string }>(
+      `/projects/${encodeURIComponent(projectId)}/novels/${encodeURIComponent(novelId)}/chapters/${encodeURIComponent(chapterId)}/move`,
+      { targetNovelId },
+    ),
   createNovel: async (projectId: string, title: string): Promise<NovelSummary> =>
     post<NovelSummary>(`/projects/${encodeURIComponent(projectId)}/novels`, { title }),
   renameNovel: async (projectId: string, novelId: string, title: string): Promise<NovelSummary> =>

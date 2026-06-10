@@ -2024,8 +2024,53 @@ test("project tree routes list and create novels and chapters", async () => {
       vaultRoot,
       `projects/demo-series/novels/${createNovelPayload.data.novelId}/novel.json`,
     );
+    const moveChapterResponse = await fetch(
+      `${server.baseUrl}/api/v1/projects/demo-series/novels/main/chapters/${createChapterPayload.data.chapterId}/move`,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ targetNovelId: createNovelPayload.data.novelId }),
+      },
+    );
+    const moveChapterPayload = (await moveChapterResponse.json()) as {
+      ok: true;
+      data: { chapterId: string; novelId: string };
+    };
+    const movedMetadata = await readJsonFile<{ title: string; novelId: string; manuscriptPath: string }>(
+      vaultRoot,
+      `projects/demo-series/novels/${createNovelPayload.data.novelId}/metadata/chapters/${createChapterPayload.data.chapterId}.json`,
+    );
+    const movedManuscript = await readManuscriptFile(
+      vaultRoot,
+      `projects/demo-series/novels/${createNovelPayload.data.novelId}/manuscripts/${createChapterPayload.data.chapterId}.md`,
+    );
+    const sourceChaptersAfterMoveResponse = await fetch(`${server.baseUrl}/api/v1/projects/demo-series/novels/main/chapters`);
+    const sourceChaptersAfterMovePayload = (await sourceChaptersAfterMoveResponse.json()) as {
+      ok: true;
+      data: { chapters: Array<{ chapterId: string }> };
+    };
+    const moveToSameNovelResponse = await fetch(
+      `${server.baseUrl}/api/v1/projects/demo-series/novels/${createNovelPayload.data.novelId}/chapters/${createChapterPayload.data.chapterId}/move`,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ targetNovelId: createNovelPayload.data.novelId }),
+      },
+    );
+    const moveToMissingNovelResponse = await fetch(
+      `${server.baseUrl}/api/v1/projects/demo-series/novels/${createNovelPayload.data.novelId}/chapters/${createChapterPayload.data.chapterId}/move`,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ targetNovelId: "missing-novel" }),
+      },
+    );
+    const moveToMissingNovelPayload = (await moveToMissingNovelResponse.json()) as {
+      ok: false;
+      error: { message: string };
+    };
     const renameChapterResponse = await fetch(
-      `${server.baseUrl}/api/v1/projects/demo-series/novels/main/chapters/${createChapterPayload.data.chapterId}`,
+      `${server.baseUrl}/api/v1/projects/demo-series/novels/${createNovelPayload.data.novelId}/chapters/${createChapterPayload.data.chapterId}`,
       {
         method: "PATCH",
         headers: { "content-type": "application/json" },
@@ -2038,7 +2083,7 @@ test("project tree routes list and create novels and chapters", async () => {
     };
     const renamedMetadata = await readJsonFile<{ title: string }>(
       vaultRoot,
-      `projects/demo-series/novels/main/metadata/chapters/${createChapterPayload.data.chapterId}.json`,
+      `projects/demo-series/novels/${createNovelPayload.data.novelId}/metadata/chapters/${createChapterPayload.data.chapterId}.json`,
     );
     const renameNovelResponse = await fetch(
       `${server.baseUrl}/api/v1/projects/demo-series/novels/${createNovelPayload.data.novelId}`,
@@ -2057,12 +2102,14 @@ test("project tree routes list and create novels and chapters", async () => {
       `projects/demo-series/novels/${createNovelPayload.data.novelId}/novel.json`,
     );
     const deleteChapterResponse = await fetch(
-      `${server.baseUrl}/api/v1/projects/demo-series/novels/main/chapters/${createChapterPayload.data.chapterId}`,
+      `${server.baseUrl}/api/v1/projects/demo-series/novels/${createNovelPayload.data.novelId}/chapters/${createChapterPayload.data.chapterId}`,
       {
         method: "DELETE",
       },
     );
-    const chaptersAfterDeleteResponse = await fetch(`${server.baseUrl}/api/v1/projects/demo-series/novels/main/chapters`);
+    const chaptersAfterDeleteResponse = await fetch(
+      `${server.baseUrl}/api/v1/projects/demo-series/novels/${createNovelPayload.data.novelId}/chapters`,
+    );
     const chaptersAfterDeletePayload = (await chaptersAfterDeleteResponse.json()) as {
       ok: true;
       data: { chapters: Array<{ chapterId: string }> };
@@ -2104,6 +2151,18 @@ test("project tree routes list and create novels and chapters", async () => {
     assert.equal(createNovelPayload.data.title, "番外卷");
     assert.equal(createdNovel.title, "番外卷");
     assert.equal(createdNovel.name, "番外卷");
+    assert.equal(moveChapterResponse.status, 200);
+    assert.equal(moveChapterPayload.data.chapterId, createChapterPayload.data.chapterId);
+    assert.equal(moveChapterPayload.data.novelId, createNovelPayload.data.novelId);
+    assert.equal(movedMetadata.title, "新章节");
+    assert.equal(movedMetadata.novelId, createNovelPayload.data.novelId);
+    assert.equal(movedMetadata.manuscriptPath, `projects/demo-series/novels/${createNovelPayload.data.novelId}/manuscripts/${createChapterPayload.data.chapterId}.md`);
+    assert.equal(movedManuscript, "");
+    assert.equal(sourceChaptersAfterMoveResponse.status, 200);
+    assert.equal(sourceChaptersAfterMovePayload.data.chapters.some((chapter) => chapter.chapterId === createChapterPayload.data.chapterId), false);
+    assert.equal(moveToSameNovelResponse.status, 200);
+    assert.equal(moveToMissingNovelResponse.status, 400);
+    assert.equal(moveToMissingNovelPayload.error.message, "目标卷不存在");
     assert.equal(renameChapterResponse.status, 200);
     assert.equal(renameChapterPayload.data.chapterId, createChapterPayload.data.chapterId);
     assert.equal(renameChapterPayload.data.title, "改名章节");

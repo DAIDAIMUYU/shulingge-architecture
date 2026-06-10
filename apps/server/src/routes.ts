@@ -8,6 +8,7 @@ import {
   loadEditorChapter,
   listNovels,
   listProjects,
+  moveChapter,
   renameChapter,
   renameNovel,
   saveEditorAnnotations,
@@ -1233,6 +1234,20 @@ export const routeDefinitions: RouteDefinition[] = [
         projectId: request.params.projectId,
         novelId: request.params.novelId,
         chapterId: request.params.chapterId,
+      });
+    },
+  },
+  {
+    method: "POST",
+    path: "/api/v1/projects/:projectId/novels/:novelId/chapters/:chapterId/move",
+    async handler(request, context) {
+      const vaultRoot = requireVaultRoot(context);
+      const body = request.body as { targetNovelId?: string } | undefined;
+      return await moveChapter(vaultRoot, {
+        projectId: request.params.projectId,
+        novelId: request.params.novelId,
+        chapterId: request.params.chapterId,
+        targetNovelId: body?.targetNovelId as never,
       });
     },
   },

@@ -143,11 +143,13 @@ input, textarea { font-family: inherit; }
 .tree-create-menu { position: absolute; top: calc(100% + 8px); right: 0; z-index: 20; width: 116px; padding: 6px; background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-sm); box-shadow: var(--shadow-popover); }
 .tree-create-menu button { width: 100%; height: 32px; padding: 0 10px; border: 0; background: transparent; color: var(--text-secondary); border-radius: var(--radius-sm); font-size: 13px; text-align: left; cursor: pointer; transition: background .16s ease, color .16s ease; }
 .tree-create-menu button:hover { background: var(--bg-hover); color: var(--text-primary); }
-.tree-context-menu { position: fixed; z-index: 100; width: 132px; padding: 6px; background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-sm); box-shadow: var(--shadow-popover); }
+.tree-context-menu { position: fixed; z-index: 100; width: 156px; padding: 6px; background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-sm); box-shadow: var(--shadow-popover); }
 .tree-context-menu button { width: 100%; height: 32px; padding: 0 10px; border: 0; background: transparent; color: var(--text-secondary); border-radius: var(--radius-sm); font-size: 13px; text-align: left; cursor: pointer; transition: background .16s ease, color .16s ease; }
 .tree-context-menu button:hover { background: var(--bg-hover); color: var(--text-primary); }
 .tree-context-menu button.danger { color: var(--danger); }
 .tree-context-menu button.danger:hover { background: var(--bg-hover); color: var(--danger); }
+.tree-context-submenu { max-height: 180px; overflow: auto; margin: 4px 0; padding: 4px 0; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+.tree-context-submenu-title { padding: 3px 10px 5px; color: var(--text-muted); font-size: 12px; }
 .tree-scroll { overflow: auto; padding: 4px 12px 20px; }
 .tree-group-label { display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%; font-size: 12px; font-weight: 500; color: var(--text-muted); padding: 16px 12px 8px; letter-spacing: .03em; border-radius: var(--radius-sm); transition: background .16s ease, color .16s ease; }
 .tree-group-label:hover { background: var(--bg-hover); color: var(--text-secondary); }

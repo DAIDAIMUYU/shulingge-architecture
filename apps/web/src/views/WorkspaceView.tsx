@@ -577,6 +577,29 @@ export function WorkspaceView({ currentProjectId, vaultPath }: WorkspaceViewProp
     }
   };
 
+  const moveChapter = async (novelId: string, chapterItem: ChapterNode, targetNovelId: string) => {
+    if (!projectTree) {
+      return;
+    }
+    setTreeContextMenu(null);
+
+    try {
+      setTreeError(null);
+      const movedActiveChapter = activeId === chapterItem.id;
+      const result = await api.moveChapter(projectTree.projectId, novelId, chapterItem.chapterId, targetNovelId);
+      await loadProjectTree(projectTree.projectId);
+      if (targetNovelId !== "main") {
+        setExpandedNovels((current) => ({ ...current, [targetNovelId]: true }));
+      }
+      if (movedActiveChapter) {
+        setSelectedNovelId(null);
+        setActiveId(`${projectTree.projectId}/${result.novelId}/${result.chapterId}`);
+      }
+    } catch (err) {
+      setTreeError(err instanceof ApiError ? err.message : "移动章节失败");
+    }
+  };
+
   const renameNovel = async (novel: NovelNode) => {
     if (!projectTree) {
       return;
@@ -931,6 +954,24 @@ export function WorkspaceView({ currentProjectId, vaultPath }: WorkspaceViewProp
                 >
                   重命名
                 </button>
+                <div className="tree-context-submenu" role="group" aria-label="移动章节目标">
+                  <div className="tree-context-submenu-title">移动到...</div>
+                  {[
+                    ...(treeContextMenu.novelId === "main" ? [] : [{ novelId: "main", title: "散章区" }]),
+                    ...userNovels
+                      .filter((novel) => novel.novelId !== treeContextMenu.novelId)
+                      .map((novel) => ({ novelId: novel.novelId, title: novel.title })),
+                  ].map((target) => (
+                    <button
+                      key={target.novelId}
+                      type="button"
+                      role="menuitem"
+                      onClick={() => void moveChapter(treeContextMenu.novelId, treeContextMenu.chapter, target.novelId)}
+                    >
+                      {target.title}
+                    </button>
+                  ))}
+                </div>
                 <button
                   type="button"
                   role="menuitem"
