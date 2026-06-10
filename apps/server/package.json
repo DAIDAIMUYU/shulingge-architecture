@@ -1,0 +1,26 @@
+{
+  "name": "@shulingge/server",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "dependencies": {
+    "@shulingge/agent-core": "workspace:*",
+    "@shulingge/import-export": "workspace:*",
+    "@shulingge/indexer": "workspace:*",
+    "@shulingge/provider-adapters": "workspace:*",
+    "@shulingge/security": "workspace:*",
+    "@shulingge/shared": "workspace:*",
+    "@shulingge/skill-core": "workspace:*",
+    "@shulingge/vault-core": "workspace:*",
+    "isomorphic-git": "^1.38.4",
+    "ws": "^8.18.3"
+  },
+  "scripts": {
+    "build": "tsc --noEmit -p tsconfig.json",
+    "lint": "tsc --noEmit -p tsconfig.json",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "tsx --test src/**/*.test.ts",
+    "start": "tsx src/main.ts",
+    "dev": "tsx watch src/main.ts"
+  }
+}

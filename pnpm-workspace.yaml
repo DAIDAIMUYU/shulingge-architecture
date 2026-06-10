@@ -1,0 +1,9 @@
+packages:
+  - apps/*
+  - packages/*
+
+# pnpm 10：依赖的安装脚本默认被忽略，这里显式允许 electron/esbuild 执行。
+# electron 需要其安装脚本下载二进制，以支持本地 `pnpm --filter @shulingge/desktop start`（electron .）。
+onlyBuiltDependencies:
+  - electron
+  - esbuild

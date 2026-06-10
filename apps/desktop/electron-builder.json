@@ -1,0 +1,60 @@
+{
+  "appId": "com.shulingge.desktop",
+  "productName": "书灵阁",
+  "artifactName": "${productName}-${version}-${channel}-${arch}.${ext}",
+  "directories": {
+    "output": "dist/release",
+    "buildResources": "resources"
+  },
+  "files": [
+    "dist/main.mjs",
+    "package.json"
+  ],
+  "extraResources": [
+    {
+      "from": "../web/dist",
+      "to": "web-dist",
+      "filter": [
+        "**/*"
+      ]
+    }
+  ],
+  "asar": true,
+  "asarUnpack": [
+    "node_modules/sql.js/**",
+    "node_modules/hash-wasm/**"
+  ],
+  "npmRebuild": false,
+  "publish": [
+    {
+      "provider": "generic",
+      "url": "https://downloads.shulingge.local/stable",
+      "channel": "stable"
+    }
+  ],
+  "win": {
+    "icon": "resources/icon.png",
+    "signAndEditExecutable": false,
+    "forceCodeSigning": false,
+    "target": [
+      {
+        "target": "nsis",
+        "arch": [
+          "x64"
+        ]
+      },
+      {
+        "target": "portable",
+        "arch": [
+          "x64"
+        ]
+      }
+    ],
+    "verifyUpdateCodeSignature": false
+  },
+  "nsis": {
+    "oneClick": false,
+    "allowToChangeInstallationDirectory": true,
+    "artifactName": "${productName}-Setup-${version}-${channel}-${arch}.${ext}"
+  }
+}

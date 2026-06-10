@@ -1,0 +1,21 @@
+{
+  "name": "@shulingge/import-export",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "jszip": "^3.10.1",
+    "@shulingge/security": "workspace:*",
+    "@shulingge/shared": "workspace:*",
+    "@shulingge/vault-core": "workspace:*"
+  },
+  "scripts": {
+    "build": "tsc --noEmit -p tsconfig.json",
+    "lint": "tsc --noEmit -p tsconfig.json",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "tsx --test src/**/*.test.ts"
+  }
+}

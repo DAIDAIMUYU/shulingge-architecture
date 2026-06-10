@@ -1,0 +1,56 @@
+﻿# Dependencies
+node_modules/
+.pnpm-store/
+
+# Local-only docs archive
+_local_docs_archive/
+
+# Planning docs kept out of the public code repo
+00_*/
+01_*/
+02_*/
+03_*/
+04_*/
+05_*/
+06_*/
+07_*/
+08_*/
+docs/
+scaffold/
+TESTING.md
+书灵阁_需求计划书.md
+
+# Build output
+dist/
+build/
+out/
+*.tsbuildinfo
+apps/desktop/out/
+release/
+
+# Logs & coverage
+*.log
+coverage/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.claude/
+.vscode/*
+!.vscode/extensions.json
+
+# Secrets — 永不提交
+.env
+.env.*
+*.local
+
+# Vault 用户数据（运行时外部目录，不进仓库）
+/ShulingVault/
+**/*.vault/
+.index/
+*.sqlite
+
+# Preview / 截图产物
+.playwright-mcp/
+workspace-*.png

@@ -1,0 +1,30 @@
+{
+  "version": 1,
+  "updatedAt": "2026-06-09T00:00:00.000Z",
+  "templates": [
+    {
+      "id": "blank-longform-zh",
+      "name": "中文长篇空白模板",
+      "kind": "project",
+      "source": "builtin-community",
+      "description": "适合原创连载的最小项目骨架，预置章节、摘要与世界书目录。",
+      "tags": ["zh", "blank", "longform"]
+    },
+    {
+      "id": "doujin-character-arc",
+      "name": "同人角色弧模板",
+      "kind": "workflow",
+      "source": "builtin-community",
+      "description": "偏重角色声线、关系推进与 canon 校对的同人创作模板。",
+      "tags": ["fanfic", "character", "canon"]
+    },
+    {
+      "id": "web-serial-launch",
+      "name": "网文首发模板",
+      "kind": "publish",
+      "source": "builtin-community",
+      "description": "面向平台首发的章节发布模板，包含简介、标签与发布备注建议。",
+      "tags": ["publish", "serial", "platform"]
+    }
+  ]
+}

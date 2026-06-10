@@ -1,0 +1,10 @@
+{
+  "name": "书灵阁断点续作主计划包",
+  "version": "0.2",
+  "goal_shape": "design_plus_scaffold",
+  "current_step": "S01",
+  "phases": 4,
+  "steps": 28,
+  "confirmation_required_each_step": true,
+  "generated": "2026-06-08"
+}

@@ -1,0 +1,49 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "strict": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "baseUrl": ".",
+    "paths": {
+      "@shulingge/shared": [
+        "packages/shared/src/index.ts"
+      ],
+      "@shulingge/vault-core": [
+        "packages/vault-core/src/index.ts"
+      ],
+      "@shulingge/indexer": [
+        "packages/indexer/src/index.ts"
+      ],
+      "@shulingge/agent-core": [
+        "packages/agent-core/src/index.ts"
+      ],
+      "@shulingge/rule-core": [
+        "packages/rule-core/src/index.ts"
+      ],
+      "@shulingge/skill-core": [
+        "packages/skill-core/src/index.ts"
+      ],
+      "@shulingge/provider-adapters": [
+        "packages/provider-adapters/src/index.ts"
+      ],
+      "@shulingge/security": [
+        "packages/security/src/index.ts"
+      ],
+      "@shulingge/theme": [
+        "packages/theme/src/index.ts"
+      ],
+      "@shulingge/import-export": [
+        "packages/import-export/src/index.ts"
+      ],
+      "@shulingge/cli": [
+        "packages/cli/src/index.ts"
+      ]
+    }
+  }
+}
