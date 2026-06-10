@@ -9,9 +9,7 @@ import {
   ChevronDown,
   ChevronRight,
   Check,
-  FilePlus,
   FilePenLine,
-  FolderPlus,
   Italic,
   Lightbulb,
   List,
@@ -120,6 +118,8 @@ export function WorkspaceView({ currentProjectId, vaultPath }: WorkspaceViewProp
   const [treeLoading, setTreeLoading] = useState(false);
   const [treeError, setTreeError] = useState<string | null>(null);
   const [expandedNovels, setExpandedNovels] = useState<Record<string, boolean>>({});
+  const [selectedNovelId, setSelectedNovelId] = useState<string | null>(null);
+  const [createMenuOpen, setCreateMenuOpen] = useState(false);
   const [chapter, setChapter] = useState<EditorChapter | null>(null);
   const [draft, setDraft] = useState("");
   const [saveState, setSaveState] = useState<SaveState>("idle");
@@ -155,6 +155,7 @@ export function WorkspaceView({ currentProjectId, vaultPath }: WorkspaceViewProp
   const idRef = useRef(1);
   const chatEndRef = useRef<HTMLDivElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const createMenuRef = useRef<HTMLDivElement | null>(null);
   const nextId = () => idRef.current++;
 
   const locator = useMemo(() => parseChapterRef(activeId), [activeId]);
@@ -170,7 +171,8 @@ export function WorkspaceView({ currentProjectId, vaultPath }: WorkspaceViewProp
     [recentRuns, run, selectedRunId],
   );
   const vaultSelected = Boolean(vaultPath);
-  const onlyDefaultNovel = projectTree?.novels.length === 1 && projectTree.novels[0]?.novelId === "main";
+  const looseNovel = projectTree?.novels.find((novel) => novel.novelId === "main") ?? null;
+  const userNovels = projectTree?.novels.filter((novel) => novel.novelId !== "main") ?? [];
 
   const loadProjectTree = useCallback(async (preferredProjectId?: string | null): Promise<ProjectTree | null> => {
     setTreeLoading(true);
@@ -184,6 +186,7 @@ export function WorkspaceView({ currentProjectId, vaultPath }: WorkspaceViewProp
       if (!selectedProject) {
         setProjectTree(null);
         setActiveId("");
+        setSelectedNovelId(null);
         return null;
       }
 
@@ -216,6 +219,11 @@ export function WorkspaceView({ currentProjectId, vaultPath }: WorkspaceViewProp
           ? current
           : nextTree.novels.flatMap((novel) => novel.chapters)[0]?.id ?? "",
       );
+      setSelectedNovelId((current) =>
+        current && nextTree.novels.some((novel) => novel.novelId === current && novel.novelId !== "main")
+          ? current
+          : null,
+      );
       return nextTree;
     } catch (err) {
       setProjectTree(null);
@@ -245,6 +253,22 @@ export function WorkspaceView({ currentProjectId, vaultPath }: WorkspaceViewProp
     }
     void loadProjectTree(currentProjectId);
   }, [currentProjectId, loadProjectTree, vaultSelected]);
+
+  useEffect(() => {
+    if (!createMenuOpen) {
+      return;
+    }
+
+    const closeOnOutsidePointer = (event: MouseEvent) => {
+      if (createMenuRef.current?.contains(event.target as Node)) {
+        return;
+      }
+      setCreateMenuOpen(false);
+    };
+
+    document.addEventListener("mousedown", closeOnOutsidePointer);
+    return () => document.removeEventListener("mousedown", closeOnOutsidePointer);
+  }, [createMenuOpen]);
 
   useEffect(() => {
     if (!vaultSelected || !activeId) {
@@ -410,20 +434,21 @@ export function WorkspaceView({ currentProjectId, vaultPath }: WorkspaceViewProp
     restoreSelection(result.selectionStart, result.selectionEnd);
   };
 
-  const createChapterInNovel = async (targetNovelId?: string) => {
+  const createChapterInCurrentNovel = async () => {
     if (!projectTree) {
+      setCreateMenuOpen(false);
       setTreeError("还没有项目，请先去「项目」页新建一本书");
       return;
     }
-    const activeNovel =
-      projectTree.novels.find((novel) => novel.novelId === targetNovelId) ??
-      projectTree.novels.find((novel) => novel.chapters.some((chapterItem) => chapterItem.id === activeId)) ??
-      projectTree.novels[0];
-    if (!activeNovel) {
-      setTreeError("当前项目还没有卷，请先新建项目或卷");
+    const targetNovelId = selectedNovelId ?? "main";
+    const targetNovel = projectTree.novels.find((novel) => novel.novelId === targetNovelId);
+    if (!targetNovel) {
+      setCreateMenuOpen(false);
+      setTreeError("当前项目还没有散章区，请先新建项目");
       return;
     }
 
+    setCreateMenuOpen(false);
     const title = window.prompt("请输入章节标题", "新章节")?.trim();
     if (!title) {
       return;
@@ -431,25 +456,23 @@ export function WorkspaceView({ currentProjectId, vaultPath }: WorkspaceViewProp
 
     try {
       setTreeError(null);
-      const created = await api.createChapter(projectTree.projectId, activeNovel.novelId, title);
+      const created = await api.createChapter(projectTree.projectId, targetNovel.novelId, title);
       await loadProjectTree(projectTree.projectId);
-      setActiveId(`${projectTree.projectId}/${activeNovel.novelId}/${created.chapterId}`);
+      setActiveId(`${projectTree.projectId}/${targetNovel.novelId}/${created.chapterId}`);
       setMobilePanel("editor");
     } catch (err) {
       setTreeError(err instanceof ApiError ? err.message : "新建章节失败");
     }
   };
 
-  const createChapterInCurrentNovel = async () => {
-    await createChapterInNovel();
-  };
-
   const createNovel = async () => {
     if (!projectTree) {
+      setCreateMenuOpen(false);
       setTreeError("还没有项目，请先去「项目」页新建一本书");
       return;
     }
 
+    setCreateMenuOpen(false);
     const title = window.prompt("请输入卷名称")?.trim();
     if (!title) {
       return;
@@ -460,6 +483,7 @@ export function WorkspaceView({ currentProjectId, vaultPath }: WorkspaceViewProp
       const created = await api.createNovel(projectTree.projectId, title);
       await loadProjectTree(projectTree.projectId);
       setExpandedNovels((current) => ({ ...current, [created.novelId]: true }));
+      setSelectedNovelId(created.novelId);
     } catch (err) {
       setTreeError(err instanceof ApiError ? err.message : "新建卷失败");
     }
@@ -629,16 +653,30 @@ export function WorkspaceView({ currentProjectId, vaultPath }: WorkspaceViewProp
       <aside className="tree-panel">
         <div className="tree-head">
           <h2>章节与资料</h2>
-          <div className="tree-head-actions">
-            <button type="button" className="btn-icon" title="新建卷" onClick={() => void createNovel()}>
-              <FolderPlus size={17} />
+          <div className="tree-create" ref={createMenuRef}>
+            <button
+              type="button"
+              className="btn-icon"
+              title="新建"
+              aria-haspopup="menu"
+              aria-expanded={createMenuOpen}
+              onClick={() => setCreateMenuOpen((open) => !open)}
+            >
+              +
             </button>
-            <button type="button" className="btn-icon" title="新建章节" onClick={() => void createChapterInCurrentNovel()}>
-              <FilePlus size={17} />
-            </button>
+            {createMenuOpen ? (
+              <div className="tree-create-menu" role="menu">
+                <button type="button" role="menuitem" onClick={() => void createNovel()}>
+                  新建卷
+                </button>
+                <button type="button" role="menuitem" onClick={() => void createChapterInCurrentNovel()}>
+                  新建章节
+                </button>
+              </div>
+            ) : null}
           </div>
         </div>
-        <div className="tree-scroll">
+        <div className="tree-scroll" onClick={() => setSelectedNovelId(null)}>
           {treeLoading ? <div className="faint">章节加载中...</div> : null}
           {treeError ? <div className="err-card">{treeError}</div> : null}
           {!treeLoading && !treeError && !projectTree ? <div className="faint">还没有项目，去「项目」页新建一本书</div> : null}
@@ -648,42 +686,38 @@ export function WorkspaceView({ currentProjectId, vaultPath }: WorkspaceViewProp
           {!treeLoading && !treeError && projectTree && projectTree.novels.length > 0 && projectTree.novels.every((novel) => novel.chapters.length === 0) ? (
             <div className="faint">该项目还没有章节，点 + 新建</div>
           ) : null}
-          {onlyDefaultNovel
-            ? projectTree?.novels[0]?.chapters.map((chapterItem) => (
-                <button
-                  key={chapterItem.id}
-                  type="button"
-                  className={`tree-item ${activeId === chapterItem.id ? "active" : ""}`}
-                  onClick={() => {
-                    setActiveId(chapterItem.id);
-                    setMobilePanel("editor");
-                  }}
-                >
-                  <span className="dot" />
-                  <span className="t-title">{chapterItem.title}</span>
-                </button>
-              ))
-            : projectTree?.novels.map((novel) => (
+          {looseNovel?.chapters.map((chapterItem) => (
+            <button
+              key={chapterItem.id}
+              type="button"
+              className={`tree-item ${activeId === chapterItem.id ? "active" : ""}`}
+              onClick={(event) => {
+                event.stopPropagation();
+                setSelectedNovelId(null);
+                setActiveId(chapterItem.id);
+                setMobilePanel("editor");
+              }}
+            >
+              <span className="dot" />
+              <span className="t-title">{chapterItem.title}</span>
+            </button>
+          ))}
+          {userNovels.map((novel) => (
                 <div key={novel.novelId}>
-                  <div className="tree-group-label">
+                  <div
+                    className={`tree-group-label ${selectedNovelId === novel.novelId ? "active" : ""}`}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      setSelectedNovelId(novel.novelId);
+                      setExpandedNovels((current) => ({ ...current, [novel.novelId]: !current[novel.novelId] }));
+                    }}
+                  >
                     <button
                       type="button"
                       className="tree-group-toggle"
-                      onClick={() => setExpandedNovels((current) => ({ ...current, [novel.novelId]: !current[novel.novelId] }))}
                     >
                       {expandedNovels[novel.novelId] ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
                       <span>{novel.title}</span>
-                    </button>
-                    <button
-                      type="button"
-                      className="tree-group-add"
-                      title="在该卷下新建章节"
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        void createChapterInNovel(novel.novelId);
-                      }}
-                    >
-                      <FilePlus size={14} />
                     </button>
                   </div>
                   {expandedNovels[novel.novelId]
@@ -692,7 +726,8 @@ export function WorkspaceView({ currentProjectId, vaultPath }: WorkspaceViewProp
                           key={chapterItem.id}
                           type="button"
                           className={`tree-item ${activeId === chapterItem.id ? "active" : ""}`}
-                          onClick={() => {
+                          onClick={(event) => {
+                            event.stopPropagation();
                             setActiveId(chapterItem.id);
                             setMobilePanel("editor");
                           }}
