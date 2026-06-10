@@ -176,9 +176,12 @@ input, textarea { font-family: inherit; }
 .toolbar-active { background: var(--primary-light); color: var(--primary); }
 .paper-body { padding: 48px 56px 64px; flex: 1; display: flex; flex-direction: column; }
 .chapter-title { font-family: var(--font-serif); font-size: 28px; font-weight: 600; letter-spacing: .01em; line-height: 1.4; }
+.chapter-title-input { width: 100%; padding: 0 0 4px; border: 0; border-bottom: 1px solid transparent; outline: none; background: transparent; color: var(--text-primary); }
+.chapter-title-input:focus { border-bottom-color: var(--border-strong); }
 .title-rule { width: 40px; height: 2px; background: var(--primary); margin: 18px 0 28px; border-radius: 2px; }
 .manuscript { font-family: var(--font-serif); font-size: 16px; line-height: 1.95; letter-spacing: .02em; color: var(--text-primary); border: 0; outline: none; resize: none; background: transparent; width: 100%; flex: 1; min-height: 320px; }
 .manuscript::placeholder { color: var(--text-muted); }
+.editor-empty { flex: 1; min-height: 420px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; color: var(--text-muted); text-align: center; }
 .editor-statusbar { display: flex; align-items: center; gap: 20px; padding: 11px 28px; border-top: 1px solid var(--border); background: var(--bg-panel); font-size: 12px; color: var(--text-secondary); }
 .editor-statusbar .grow { flex: 1; }
 
@@ -196,6 +199,8 @@ input, textarea { font-family: inherit; }
 .vault-modal p { margin: 10px 0 20px; color: var(--text-secondary); }
 .vault-modal .err-card { margin: 14px 0 0; }
 .vault-modal-actions { display: flex; justify-content: flex-end; margin-top: 18px; }
+.input-modal { display: grid; gap: 18px; }
+.input-modal .vault-modal-actions { gap: 8px; margin-top: 0; }
 
 .save-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--success); display: inline-block; margin-right: 7px; vertical-align: middle; }
 .save-dot.dirty, .save-dot.saving { background: var(--warning); }

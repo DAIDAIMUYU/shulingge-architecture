@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { KeyboardEvent as ReactKeyboardEvent } from "react";
+import type { KeyboardEvent as ReactKeyboardEvent, FormEvent } from "react";
 import {
   AlertCircle,
   ArrowUp,
@@ -50,6 +50,13 @@ type ChatMessage =
 type TreeContextMenu =
   | { kind: "chapter"; x: number; y: number; chapter: ChapterNode; novelId: string }
   | { kind: "novel"; x: number; y: number; novel: NovelNode };
+type PromptRequest = {
+  title: string;
+  placeholder?: string;
+  defaultValue: string;
+  confirmText?: string;
+  onConfirm(value: string): void | Promise<void>;
+};
 
 interface ChapterNode {
   id: string;
@@ -67,6 +74,74 @@ interface ProjectTree {
   projectId: string;
   title: string;
   novels: NovelNode[];
+}
+
+interface InputModalProps extends PromptRequest {
+  onCancel(): void;
+}
+
+function InputModal({
+  title,
+  placeholder,
+  defaultValue,
+  confirmText = "确定",
+  onConfirm,
+  onCancel,
+}: InputModalProps) {
+  const [value, setValue] = useState(defaultValue);
+  const inputRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    const node = inputRef.current;
+    node?.focus();
+    node?.select();
+  }, []);
+
+  useEffect(() => {
+    const onKeyDown = (event: globalThis.KeyboardEvent) => {
+      if (event.key === "Escape") {
+        onCancel();
+      }
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [onCancel]);
+
+  const submit = (event?: FormEvent) => {
+    event?.preventDefault();
+    const nextValue = value.trim() || defaultValue.trim();
+    if (!nextValue) {
+      return;
+    }
+    void onConfirm(nextValue);
+  };
+
+  return (
+    <div className="vault-modal-backdrop" onMouseDown={onCancel}>
+      <form
+        className="vault-modal input-modal"
+        onSubmit={submit}
+        onMouseDown={(event) => event.stopPropagation()}
+      >
+        <h2>{title}</h2>
+        <input
+          ref={inputRef}
+          className="input"
+          value={value}
+          placeholder={placeholder}
+          onChange={(event) => setValue(event.target.value)}
+        />
+        <div className="vault-modal-actions">
+          <button type="button" className="btn btn-ghost" onClick={onCancel}>
+            取消
+          </button>
+          <button type="submit" className="btn btn-primary">
+            {confirmText}
+          </button>
+        </div>
+      </form>
+    </div>
+  );
 }
 
 const AGENT_FALLBACK: AgentInfo[] = [
@@ -124,6 +199,8 @@ export function WorkspaceView({ currentProjectId, vaultPath }: WorkspaceViewProp
   const [selectedNovelId, setSelectedNovelId] = useState<string | null>(null);
   const [createMenuOpen, setCreateMenuOpen] = useState(false);
   const [treeContextMenu, setTreeContextMenu] = useState<TreeContextMenu | null>(null);
+  const [promptRequest, setPromptRequest] = useState<PromptRequest | null>(null);
+  const [chapterTitleDraft, setChapterTitleDraft] = useState("");
   const [chapter, setChapter] = useState<EditorChapter | null>(null);
   const [draft, setDraft] = useState("");
   const [saveState, setSaveState] = useState<SaveState>("idle");
@@ -178,6 +255,17 @@ export function WorkspaceView({ currentProjectId, vaultPath }: WorkspaceViewProp
   const vaultSelected = Boolean(vaultPath);
   const looseNovel = projectTree?.novels.find((novel) => novel.novelId === "main") ?? null;
   const userNovels = projectTree?.novels.filter((novel) => novel.novelId !== "main") ?? [];
+  const allChapters = projectTree?.novels.flatMap((novel) => novel.chapters) ?? [];
+  const hasAnyChapter = allChapters.length > 0;
+  const hasValidActiveChapter = Boolean(activeId && chapter && allChapters.some((chapterItem) => chapterItem.id === activeId));
+
+  const openPrompt = (request: PromptRequest) => {
+    setPromptRequest(request);
+  };
+
+  const closePrompt = () => {
+    setPromptRequest(null);
+  };
 
   const loadProjectTree = useCallback(async (preferredProjectId?: string | null): Promise<ProjectTree | null> => {
     setTreeLoading(true);
@@ -341,6 +429,10 @@ export function WorkspaceView({ currentProjectId, vaultPath }: WorkspaceViewProp
   }, [activeId, locator, vaultSelected]);
 
   useEffect(() => {
+    setChapterTitleDraft(activeTitle);
+  }, [activeTitle]);
+
+  useEffect(() => {
     if (!vaultSelected || !activeId) {
       return;
     }
@@ -482,20 +574,23 @@ export function WorkspaceView({ currentProjectId, vaultPath }: WorkspaceViewProp
 
     setCreateMenuOpen(false);
     setTreeContextMenu(null);
-    const title = window.prompt("请输入章节标题", "新章节")?.trim();
-    if (!title) {
-      return;
-    }
-
-    try {
-      setTreeError(null);
-      const created = await api.createChapter(projectTree.projectId, targetNovel.novelId, title);
-      await loadProjectTree(projectTree.projectId);
-      setActiveId(`${projectTree.projectId}/${targetNovel.novelId}/${created.chapterId}`);
-      setMobilePanel("editor");
-    } catch (err) {
-      setTreeError(err instanceof ApiError ? err.message : "新建章节失败");
-    }
+    openPrompt({
+      title: "新建章节",
+      defaultValue: "新章节",
+      placeholder: "请输入章节标题",
+      onConfirm: async (title) => {
+        closePrompt();
+        try {
+          setTreeError(null);
+          const created = await api.createChapter(projectTree.projectId, targetNovel.novelId, title);
+          await loadProjectTree(projectTree.projectId);
+          setActiveId(`${projectTree.projectId}/${targetNovel.novelId}/${created.chapterId}`);
+          setMobilePanel("editor");
+        } catch (err) {
+          setTreeError(err instanceof ApiError ? err.message : "新建章节失败");
+        }
+      },
+    });
   };
 
   const createChapterInCurrentNovel = async () => {
@@ -512,20 +607,23 @@ export function WorkspaceView({ currentProjectId, vaultPath }: WorkspaceViewProp
 
     setCreateMenuOpen(false);
     setTreeContextMenu(null);
-    const title = window.prompt("请输入卷名称")?.trim();
-    if (!title) {
-      return;
-    }
-
-    try {
-      setTreeError(null);
-      const created = await api.createNovel(projectTree.projectId, title);
-      await loadProjectTree(projectTree.projectId);
-      setExpandedNovels((current) => ({ ...current, [created.novelId]: true }));
-      setSelectedNovelId(created.novelId);
-    } catch (err) {
-      setTreeError(err instanceof ApiError ? err.message : "新建卷失败");
-    }
+    openPrompt({
+      title: "新建卷",
+      defaultValue: `第${userNovels.length + 1}卷`,
+      placeholder: "请输入卷名称",
+      onConfirm: async (title) => {
+        closePrompt();
+        try {
+          setTreeError(null);
+          const created = await api.createNovel(projectTree.projectId, title);
+          await loadProjectTree(projectTree.projectId);
+          setExpandedNovels((current) => ({ ...current, [created.novelId]: true }));
+          setSelectedNovelId(created.novelId);
+        } catch (err) {
+          setTreeError(err instanceof ApiError ? err.message : "新建卷失败");
+        }
+      },
+    });
   };
 
   const renameChapter = async (novelId: string, chapterItem: ChapterNode) => {
@@ -533,18 +631,27 @@ export function WorkspaceView({ currentProjectId, vaultPath }: WorkspaceViewProp
       return;
     }
     setTreeContextMenu(null);
-    const title = window.prompt("请输入章节标题", chapterItem.title)?.trim();
-    if (!title) {
-      return;
-    }
-
-    try {
-      setTreeError(null);
-      await api.renameChapter(projectTree.projectId, novelId, chapterItem.chapterId, title);
-      await loadProjectTree(projectTree.projectId);
-    } catch (err) {
-      setTreeError(err instanceof ApiError ? err.message : "重命名章节失败");
-    }
+    openPrompt({
+      title: "重命名",
+      defaultValue: chapterItem.title,
+      placeholder: "请输入章节标题",
+      onConfirm: async (title) => {
+        closePrompt();
+        try {
+          setTreeError(null);
+          await api.renameChapter(projectTree.projectId, novelId, chapterItem.chapterId, title);
+          await loadProjectTree(projectTree.projectId);
+          if (activeId === chapterItem.id) {
+            setChapter((current) =>
+              current ? { ...current, metadata: { ...current.metadata, title } } : current,
+            );
+            setChapterTitleDraft(title);
+          }
+        } catch (err) {
+          setTreeError(err instanceof ApiError ? err.message : "重命名章节失败");
+        }
+      },
+    });
   };
 
   const deleteChapter = async (novelId: string, chapterItem: ChapterNode) => {
@@ -600,23 +707,62 @@ export function WorkspaceView({ currentProjectId, vaultPath }: WorkspaceViewProp
     }
   };
 
-  const renameNovel = async (novel: NovelNode) => {
-    if (!projectTree) {
+  const saveChapterTitle = async () => {
+    if (!projectTree || !hasValidActiveChapter) {
       return;
     }
-    setTreeContextMenu(null);
-    const title = window.prompt("请输入卷名称", novel.title)?.trim();
-    if (!title) {
+    const nextTitle = chapterTitleDraft.trim() || activeTitle || "新章节";
+    if (nextTitle === activeTitle) {
+      setChapterTitleDraft(activeTitle);
       return;
     }
 
     try {
       setTreeError(null);
-      await api.renameNovel(projectTree.projectId, novel.novelId, title);
-      await loadProjectTree(projectTree.projectId);
+      await api.renameChapter(locator.projectId, locator.novelId, locator.chapterId, nextTitle);
+      setChapter((current) =>
+        current ? { ...current, metadata: { ...current.metadata, title: nextTitle } } : current,
+      );
+      setProjectTree((current) =>
+        current
+          ? {
+              ...current,
+              novels: current.novels.map((novel) => ({
+                ...novel,
+                chapters: novel.chapters.map((chapterItem) =>
+                  chapterItem.id === activeId ? { ...chapterItem, title: nextTitle } : chapterItem,
+                ),
+              })),
+            }
+          : current,
+      );
+      setChapterTitleDraft(nextTitle);
     } catch (err) {
-      setTreeError(err instanceof ApiError ? err.message : "重命名卷失败");
+      setTreeError(err instanceof ApiError ? err.message : "重命名章节失败");
+      setChapterTitleDraft(activeTitle);
     }
+  };
+
+  const renameNovel = async (novel: NovelNode) => {
+    if (!projectTree) {
+      return;
+    }
+    setTreeContextMenu(null);
+    openPrompt({
+      title: "重命名",
+      defaultValue: novel.title,
+      placeholder: "请输入卷名称",
+      onConfirm: async (title) => {
+        closePrompt();
+        try {
+          setTreeError(null);
+          await api.renameNovel(projectTree.projectId, novel.novelId, title);
+          await loadProjectTree(projectTree.projectId);
+        } catch (err) {
+          setTreeError(err instanceof ApiError ? err.message : "重命名卷失败");
+        }
+      },
+    });
   };
 
   const deleteNovel = async (novel: NovelNode) => {
@@ -781,6 +927,7 @@ export function WorkspaceView({ currentProjectId, vaultPath }: WorkspaceViewProp
   };
 
   return (
+    <>
     <div className={`workspace mobile-panel-${mobilePanel}${focusMode ? " focus-mode" : ""}`}>
       <div className="workspace-mobile-header">
         <div className="workspace-mobile-summary">
@@ -1066,18 +1213,41 @@ export function WorkspaceView({ currentProjectId, vaultPath }: WorkspaceViewProp
               {error && <div className="err-card">{error}</div>}
 
               <div className="paper-body">
-                <h1 className="chapter-title">{activeTitle}</h1>
-                <div className="title-rule" />
-                <textarea
-                  ref={textareaRef}
-                  className="manuscript"
-                  value={draft}
-                  placeholder={vaultSelected ? "在此续写正文……" : "选择 Vault 后即可读写正文。"}
-                  onChange={(event) => onEdit(event.target.value)}
-                  onSelect={syncSelection}
-                  onKeyUp={syncSelection}
-                  onMouseUp={syncSelection}
-                />
+                {hasValidActiveChapter ? (
+                  <>
+                    <input
+                      className="chapter-title chapter-title-input"
+                      value={chapterTitleDraft}
+                      aria-label="章节标题"
+                      onChange={(event) => setChapterTitleDraft(event.target.value)}
+                      onBlur={() => void saveChapterTitle()}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter") {
+                          event.preventDefault();
+                          event.currentTarget.blur();
+                        }
+                      }}
+                    />
+                    <div className="title-rule" />
+                    <textarea
+                      ref={textareaRef}
+                      className="manuscript"
+                      value={draft}
+                      placeholder={vaultSelected ? "在此续写正文……" : "选择 Vault 后即可读写正文。"}
+                      onChange={(event) => onEdit(event.target.value)}
+                      onSelect={syncSelection}
+                      onKeyUp={syncSelection}
+                      onMouseUp={syncSelection}
+                    />
+                  </>
+                ) : (
+                  <div className="editor-empty">
+                    <div className="empty-icon">
+                      <FilePenLine size={30} strokeWidth={1.6} />
+                    </div>
+                    <div>{projectTree ? "还没有章节，点左上角 + 新建章节" : "还没有项目，去「项目」页新建一本书"}</div>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -1493,6 +1663,13 @@ export function WorkspaceView({ currentProjectId, vaultPath }: WorkspaceViewProp
         </div>
       </aside>
     </div>
+    {promptRequest ? (
+      <InputModal
+        {...promptRequest}
+        onCancel={closePrompt}
+      />
+    ) : null}
+    </>
   );
 }
 
