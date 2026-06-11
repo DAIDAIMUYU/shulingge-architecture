@@ -428,10 +428,20 @@ export const relationSchema = entitySchema.extend({
   sourceChapters: stringArraySchema,
 });
 
+export const timelineCustomFieldSchema = z.object({
+  label: z.string().optional(),
+  value: z.string().optional(),
+});
+
 export const timelineEventSchema = entitySchema.extend({
   title: z.string().min(1),
   line: z.enum(TIMELINE_LINE_VALUES),
   order: z.number().int().nonnegative(),
+  eventDate: z.string().optional(),
+  summary: z.string().optional(),
+  description: z.string().optional(),
+  location: z.string().optional(),
+  custom: z.array(timelineCustomFieldSchema).optional(),
   boundChapters: stringArraySchema,
   participants: stringArraySchema,
   stateSnapshotRef: z.string().min(1).nullable().optional(),

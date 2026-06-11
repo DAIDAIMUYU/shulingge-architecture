@@ -369,6 +369,11 @@ export interface TimelineEvent {
   title: string;
   line?: string;
   order?: number;
+  eventDate?: string;
+  summary?: string;
+  description?: string;
+  location?: string;
+  custom?: Array<{ label?: string; value?: string }>;
   boundChapters?: string[];
   participants?: string[];
   stateSnapshotRef?: string | null;
@@ -381,6 +386,11 @@ export interface TimelineEventInput {
   title: string;
   line: string;
   order: number;
+  eventDate?: string;
+  summary?: string;
+  description?: string;
+  location?: string;
+  custom?: Array<{ label?: string; value?: string }>;
   boundChapters?: string[];
   participants?: string[];
   stateSnapshotRef?: string | null;
@@ -727,6 +737,8 @@ export const api = {
       projectId,
       ...payload,
     })).event,
+  deleteTimelineEvent: async (projectId: string, eventId: string): Promise<{ id: string; deleted: true }> =>
+    del<{ id: string; deleted: true }>(withQuery(`/knowledge/timeline/${encodeURIComponent(eventId)}`, { projectId })),
   listWorldbook: async (): Promise<WorldbookEntry[]> =>
     unwrapList<WorldbookEntry>(await get("/knowledge/worldbook"), "entries"),
   listWorldbookByProject: async (projectId: string): Promise<WorldbookEntry[]> =>

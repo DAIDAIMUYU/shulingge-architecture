@@ -436,10 +436,20 @@ export interface Relation extends Entity {
   sourceChapters: string[];
 }
 
+export interface TimelineCustomField {
+  label?: string;
+  value?: string;
+}
+
 export interface TimelineEvent extends Entity {
   title: string;
   line: TimelineLine;
   order: number;
+  eventDate?: string;
+  summary?: string;
+  description?: string;
+  location?: string;
+  custom?: TimelineCustomField[];
   boundChapters: string[];
   participants: string[];
   stateSnapshotRef?: string | null;

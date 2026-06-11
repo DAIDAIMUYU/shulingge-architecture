@@ -536,6 +536,21 @@ input, textarea { font-family: inherit; }
 .worldbook-entry-title svg { color: var(--primary); flex: none; }
 .worldbook-entry-main p { margin: 0; color: var(--text-secondary); font-size: 13px; line-height: 1.6; }
 .worldbook-description { min-height: 160px; }
+.timeline-line-tabs { flex-wrap: wrap; }
+.timeline-stream { position: relative; display: grid; gap: 0; margin-top: 2px; }
+.timeline-stream::before { content: ""; position: absolute; left: 136px; top: 4px; bottom: 4px; width: 1px; background: var(--border); }
+.timeline-event-card { position: relative; display: grid; grid-template-columns: 116px 20px minmax(0, 1fr); gap: 10px; padding: 12px 0; }
+.timeline-marker { display: flex; justify-content: flex-end; align-items: flex-start; padding-top: 14px; color: var(--text-muted); font-size: 12px; }
+.timeline-marker span { max-width: 110px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.timeline-dot { position: relative; z-index: 1; width: 11px; height: 11px; margin-top: 18px; border: 2px solid var(--primary); border-radius: 999px; background: var(--bg-app); box-shadow: 0 0 0 4px var(--primary-light); }
+.timeline-event-body { display: grid; gap: 10px; padding: 14px 16px; background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-md); box-shadow: var(--shadow-card); }
+.timeline-event-head { display: flex; justify-content: space-between; gap: 16px; align-items: flex-start; }
+.timeline-event-title { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.timeline-event-title strong { font-size: 15px; }
+.timeline-event-head p { margin: 7px 0 0; color: var(--text-secondary); font-size: 13px; line-height: 1.6; }
+.timeline-event-description { padding-top: 10px; border-top: 1px dashed var(--border); color: var(--text-secondary); font-size: 13px; line-height: 1.7; white-space: pre-wrap; }
+.timeline-custom-list { display: flex; flex-wrap: wrap; gap: 7px; }
+.timeline-description { min-height: 160px; }
 
 .card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 18px; }
 .project-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-md); box-shadow: var(--shadow-card); overflow: hidden; cursor: pointer; transition: box-shadow .16s ease, transform .16s ease; }

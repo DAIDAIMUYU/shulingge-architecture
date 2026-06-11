@@ -1,28 +1,32 @@
 import { useEffect, useMemo, useState } from "react";
-import { Clock3, GitBranch, Plus, Save, Search, Users } from "lucide-react";
+import { Clock3, GitBranch, MapPin, Plus, Save, Search, Trash2, Users, X } from "lucide-react";
 
-import { api, ApiError, type TimelineEvent, type TimelineEventInput } from "../api/client.js";
+import {
+  api,
+  ApiError,
+  type ProjectSummary,
+  type TimelineEvent,
+  type TimelineEventInput,
+} from "../api/client.js";
+import { ConfirmModal } from "../app/Modals.js";
 import { CenterState, ViewShell } from "./common.js";
+import { ProjectSelector } from "./ProjectSelector.js";
 
-type TimelineTab = "overview" | "participants" | "bindings";
 type EditorMode = "create" | "edit";
+type TimelineLineFilter = "all" | "main" | "character" | "relation" | "world" | "canon" | "branch" | "chapter";
 
 const DEFAULT_PROJECT_ID = "demo-series";
-const TABS: Array<{ id: TimelineTab; label: string }> = [
-  { id: "overview", label: "事件概览" },
-  { id: "participants", label: "参与角色" },
-  { id: "bindings", label: "章节绑定" },
+const LINE_OPTIONS: Array<{ id: TimelineLineFilter; label: string }> = [
+  { id: "all", label: "全部线" },
+  { id: "main", label: "主线" },
+  { id: "character", label: "角色线" },
+  { id: "relation", label: "关系线" },
+  { id: "world", label: "世界线" },
+  { id: "canon", label: "原作线" },
+  { id: "branch", label: "支线" },
+  { id: "chapter", label: "章节线" },
 ];
-
-interface TimelineDraft {
-  id: string;
-  title: string;
-  line: string;
-  order: string;
-  boundChaptersText: string;
-  participantsText: string;
-  stateSnapshotRef: string;
-}
+const EDITABLE_LINES = LINE_OPTIONS.filter((line): line is { id: Exclude<TimelineLineFilter, "all">; label: string } => line.id !== "all");
 
 function readStoredProjectId(): string {
   if (typeof window === "undefined") {
@@ -51,28 +55,46 @@ function toLines(values: string[] | undefined): string {
   return (values ?? []).join("\n");
 }
 
-function createDraft(event?: TimelineEvent): TimelineDraft {
+function slugify(value: string): string {
+  const ascii = value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9_-]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  return ascii || `timeline-${Date.now().toString(36)}`;
+}
+
+function lineLabel(line?: string): string {
+  return LINE_OPTIONS.find((option) => option.id === line)?.label ?? String(line ?? "主线");
+}
+
+function eventSummary(event: TimelineEvent): string {
+  return event.summary?.trim() || event.description?.trim().slice(0, 90) || "尚未填写简介";
+}
+
+function createDraft(line: Exclude<TimelineLineFilter, "all">, event?: TimelineEvent): TimelineEventInput {
   return {
     id: event?.id ?? "",
     title: event?.title ?? "",
-    line: String(event?.line ?? "main"),
-    order: String(event?.order ?? 0),
-    boundChaptersText: toLines(event?.boundChapters),
-    participantsText: toLines(event?.participants),
-    stateSnapshotRef: String(event?.stateSnapshotRef ?? ""),
+    line: event?.line ?? line,
+    order: event?.order ?? 0,
+    eventDate: event?.eventDate ?? "",
+    summary: event?.summary ?? "",
+    description: event?.description ?? "",
+    location: event?.location ?? "",
+    custom: event?.custom ?? [],
+    boundChapters: event?.boundChapters ?? [],
+    participants: event?.participants ?? [],
+    stateSnapshotRef: event?.stateSnapshotRef ?? null,
   };
 }
 
-function toPayload(draft: TimelineDraft): TimelineEventInput {
-  return {
-    id: draft.id.trim(),
-    title: draft.title.trim(),
-    line: draft.line.trim() || "main",
-    order: Number.parseInt(draft.order, 10) || 0,
-    boundChapters: parseLines(draft.boundChaptersText),
-    participants: parseLines(draft.participantsText),
-    stateSnapshotRef: draft.stateSnapshotRef.trim() || null,
-  };
+function sortEvents(events: TimelineEvent[]): TimelineEvent[] {
+  return [...events].sort((left, right) =>
+    (left.order ?? 0) - (right.order ?? 0)
+    || String(left.eventDate ?? "").localeCompare(String(right.eventDate ?? ""))
+    || left.title.localeCompare(right.title),
+  );
 }
 
 function filterEvents(events: TimelineEvent[], query: string): TimelineEvent[] {
@@ -81,23 +103,72 @@ function filterEvents(events: TimelineEvent[], query: string): TimelineEvent[] {
     return events;
   }
 
-  return events.filter((event) => {
-    const values = [
+  return events.filter((event) =>
+    [
       event.id,
       event.title,
       event.line,
+      event.eventDate,
+      event.summary,
+      event.description,
+      event.location,
       ...(event.boundChapters ?? []),
       ...(event.participants ?? []),
+      JSON.stringify(event.custom ?? []),
     ]
-      .filter(Boolean)
-      .map((item) => String(item).toLowerCase());
-    return values.some((value) => value.includes(normalized));
-  });
+      .join(" ")
+      .toLowerCase()
+      .includes(normalized),
+  );
+}
+
+function CustomFieldsEditor({
+  rows,
+  onChange,
+}: {
+  rows: Array<{ label?: string; value?: string }>;
+  onChange(rows: Array<{ label?: string; value?: string }>): void;
+}) {
+  return (
+    <div className="character-custom-fields">
+      {rows.map((row, index) => (
+        <div className="character-custom-row" key={index}>
+          <input
+            className="input"
+            value={row.label ?? ""}
+            placeholder="自定义标题"
+            onChange={(event) => {
+              const next = [...rows];
+              next[index] = { ...row, label: event.target.value };
+              onChange(next);
+            }}
+          />
+          <input
+            className="input"
+            value={row.value ?? ""}
+            placeholder="内容"
+            onChange={(event) => {
+              const next = [...rows];
+              next[index] = { ...row, value: event.target.value };
+              onChange(next);
+            }}
+          />
+          <button type="button" className="btn-icon danger" onClick={() => onChange(rows.filter((_, rowIndex) => rowIndex !== index))} aria-label="删除自定义字段">
+            <Trash2 size={15} />
+          </button>
+        </div>
+      ))}
+      <button type="button" className="btn btn-ghost character-add-custom" onClick={() => onChange([...rows, { label: "", value: "" }])}>
+        <Plus size={14} />
+        添加自定义字段
+      </button>
+    </div>
+  );
 }
 
 function TimelineEditor({
   mode,
-  draft,
+  value,
   saving,
   error,
   onChange,
@@ -105,209 +176,252 @@ function TimelineEditor({
   onSubmit,
 }: {
   mode: EditorMode;
-  draft: TimelineDraft;
+  value: TimelineEventInput;
   saving: boolean;
   error: string | null;
-  onChange: (patch: Partial<TimelineDraft>) => void;
-  onCancel: () => void;
-  onSubmit: () => void;
+  onChange(next: TimelineEventInput): void;
+  onCancel(): void;
+  onSubmit(): void;
 }) {
   return (
-    <section className="editor-card">
-      <div className="editor-card-head">
-        <div>
-          <h2>{mode === "create" ? "新建时间线事件" : `编辑事件 · ${draft.title || draft.id || "未命名"}`}</h2>
-          <p className="view-sub">事件字段严格对齐后端 timeline schema：线路、顺位、参与者、章节绑定与快照引用。</p>
+    <div className="vault-modal-backdrop character-modal-backdrop" onMouseDown={onCancel}>
+      <div className="vault-modal character-modal timeline-modal" onMouseDown={(event) => event.stopPropagation()}>
+        <div className="character-modal-head">
+          <div>
+            <h2>{mode === "create" ? "新建事件" : `编辑事件 · ${value.title}`}</h2>
+            <p>事件归属于当前项目，并按线类型和排序值进入时序展示。</p>
+          </div>
+          <button type="button" className="btn-icon" onClick={onCancel} aria-label="关闭">
+            <X size={16} />
+          </button>
         </div>
-        <div className="view-actions">
+        <div className="character-modal-body">
+          {error ? <div className="err-card">保存失败：{error}</div> : null}
+          <div className="form-grid form-grid-3">
+            <label className="form-block">
+              <span>标题</span>
+              <input className="input" value={value.title} onChange={(event) => onChange({ ...value, title: event.target.value })} />
+            </label>
+            <label className="form-block">
+              <span>线类型</span>
+              <select className="input" value={value.line} onChange={(event) => onChange({ ...value, line: event.target.value })}>
+                {EDITABLE_LINES.map((line) => <option value={line.id} key={line.id}>{line.label}</option>)}
+              </select>
+            </label>
+            <label className="form-block">
+              <span>排序</span>
+              <input className="input" type="number" value={String(value.order ?? 0)} onChange={(event) => onChange({ ...value, order: Number.parseInt(event.target.value, 10) || 0 })} />
+            </label>
+          </div>
+          <div className="form-grid form-grid-2">
+            <label className="form-block">
+              <span>发生时间</span>
+              <input className="input" value={value.eventDate ?? ""} onChange={(event) => onChange({ ...value, eventDate: event.target.value })} placeholder="第3章 / 开篇前 / 某年某月" />
+            </label>
+            <label className="form-block">
+              <span>地点</span>
+              <input className="input" value={value.location ?? ""} onChange={(event) => onChange({ ...value, location: event.target.value })} />
+            </label>
+          </div>
+          <div className="form-grid">
+            <label className="form-block">
+              <span>简介</span>
+              <input className="input" value={value.summary ?? ""} onChange={(event) => onChange({ ...value, summary: event.target.value })} />
+            </label>
+            <label className="form-block">
+              <span>详细描述</span>
+              <textarea className="textarea timeline-description" value={value.description ?? ""} onChange={(event) => onChange({ ...value, description: event.target.value })} />
+            </label>
+          </div>
+          <div className="form-grid form-grid-2">
+            <label className="form-block">
+              <span>参与角色</span>
+              <textarea className="textarea" value={toLines(value.participants)} onChange={(event) => onChange({ ...value, participants: parseLines(event.target.value) })} placeholder={"kanae\nshinobu"} />
+            </label>
+            <label className="form-block">
+              <span>绑定章节</span>
+              <textarea className="textarea" value={toLines(value.boundChapters)} onChange={(event) => onChange({ ...value, boundChapters: parseLines(event.target.value) })} placeholder={"chapter-001\nchapter-004"} />
+            </label>
+          </div>
+          <label className="form-block">
+            <span>状态快照引用</span>
+            <input className="input" value={value.stateSnapshotRef ?? ""} onChange={(event) => onChange({ ...value, stateSnapshotRef: event.target.value.trim() || null })} />
+          </label>
+          <section className="agent-editor-section">
+            <div className="model-editor-section-title">自定义字段</div>
+            <CustomFieldsEditor rows={value.custom ?? []} onChange={(rows) => onChange({ ...value, custom: rows })} />
+          </section>
+        </div>
+        <div className="agent-modal-actions view-actions">
           <button type="button" className="btn btn-ghost" onClick={onCancel}>取消</button>
-          <button type="button" className="btn btn-primary" onClick={onSubmit} disabled={saving || !draft.id.trim() || !draft.title.trim()}>
-            <Save size={15} strokeWidth={2} />
+          <button type="button" className="btn btn-primary" onClick={onSubmit} disabled={saving || !value.title.trim()}>
+            <Save size={15} />
             {saving ? "保存中…" : "保存事件"}
           </button>
         </div>
       </div>
-
-      {error ? <div className="err-card">保存失败：{error}</div> : null}
-
-      <div className="form-grid form-grid-3">
-        <label className="form-block">
-          <span>事件 ID</span>
-          <input className="input" value={draft.id} onChange={(event) => onChange({ id: event.target.value })} disabled={mode === "edit"} />
-        </label>
-        <label className="form-block">
-          <span>标题</span>
-          <input className="input" value={draft.title} onChange={(event) => onChange({ title: event.target.value })} />
-        </label>
-        <label className="form-block">
-          <span>时间线线路</span>
-          <input className="input" value={draft.line} onChange={(event) => onChange({ line: event.target.value })} placeholder="main / side / flashback" />
-        </label>
-      </div>
-
-      <div className="form-grid form-grid-2">
-        <label className="form-block">
-          <span>顺位（order）</span>
-          <input className="input" value={draft.order} onChange={(event) => onChange({ order: event.target.value })} placeholder="0" />
-        </label>
-        <label className="form-block">
-          <span>状态快照引用</span>
-          <input className="input" value={draft.stateSnapshotRef} onChange={(event) => onChange({ stateSnapshotRef: event.target.value })} placeholder="snapshots/chapter-001/..." />
-        </label>
-      </div>
-
-      <div className="form-grid form-grid-2">
-        <label className="form-block">
-          <span>绑定章节</span>
-          <textarea className="textarea" value={draft.boundChaptersText} onChange={(event) => onChange({ boundChaptersText: event.target.value })} placeholder={"chapter-001\nchapter-002"} />
-        </label>
-        <label className="form-block">
-          <span>参与角色</span>
-          <textarea className="textarea" value={draft.participantsText} onChange={(event) => onChange({ participantsText: event.target.value })} placeholder={"kanae\nshinobu"} />
-        </label>
-      </div>
-    </section>
+    </div>
   );
 }
 
 export function TimelineView() {
   const [projectId, setProjectId] = useState(readStoredProjectId);
+  const [projects, setProjects] = useState<ProjectSummary[]>([]);
   const [events, setEvents] = useState<TimelineEvent[]>([]);
-  const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
-  const [tab, setTab] = useState<TimelineTab>("overview");
+  const [lineFilter, setLineFilter] = useState<TimelineLineFilter>("all");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [vaultMissing, setVaultMissing] = useState(false);
   const [editorMode, setEditorMode] = useState<EditorMode | null>(null);
-  const [draft, setDraft] = useState<TimelineDraft>(createDraft());
+  const [draft, setDraft] = useState<TimelineEventInput | null>(null);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<TimelineEvent | null>(null);
+
+  const loadData = async (targetProjectId = projectId) => {
+    setLoading(true);
+    setError(null);
+    setVaultMissing(false);
+    try {
+      const health = await api.health();
+      if (!health.vaultSelected) {
+        setVaultMissing(true);
+        setProjects([]);
+        setEvents([]);
+        setLoading(false);
+        return;
+      }
+      const nextProjects = await api.listProjects();
+      const resolvedProjectId = nextProjects.some((project) => project.projectId === targetProjectId)
+        ? targetProjectId
+        : nextProjects[0]?.projectId ?? targetProjectId;
+      if (resolvedProjectId !== projectId) {
+        setProjectId(resolvedProjectId);
+        writeStoredProjectId(resolvedProjectId);
+      }
+      const nextEvents = resolvedProjectId ? await api.listTimelineByProject(resolvedProjectId) : [];
+      setProjects(nextProjects);
+      setEvents(sortEvents(nextEvents));
+    } catch (loadError) {
+      setError(loadError instanceof ApiError ? loadError.message : "加载时间线失败");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    writeStoredProjectId(projectId);
+    void loadData(projectId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectId]);
 
-  useEffect(() => {
-    let alive = true;
+  const filteredEvents = useMemo(() => {
+    const byLine = lineFilter === "all" ? events : events.filter((event) => event.line === lineFilter);
+    return sortEvents(filterEvents(byLine, search));
+  }, [events, lineFilter, search]);
 
-    async function load() {
-      setLoading(true);
-      setError(null);
-      setVaultMissing(false);
+  const createLine = lineFilter === "all" ? "main" : lineFilter;
 
-      try {
-        const health = await api.health();
-        if (!health.vaultSelected) {
-          if (!alive) return;
-          setVaultMissing(true);
-          setEvents([]);
-          setLoading(false);
-          return;
-        }
+  const startCreate = () => {
+    setDraft(createDraft(createLine as Exclude<TimelineLineFilter, "all">));
+    setEditorMode("create");
+    setSaveError(null);
+  };
 
-        const nextEvents = await api.listTimelineByProject(projectId);
-        if (!alive) return;
+  const startEdit = (event: TimelineEvent) => {
+    setDraft(createDraft("main", event));
+    setEditorMode("edit");
+    setSaveError(null);
+  };
 
-        const sorted = [...nextEvents].sort((left, right) => (left.order ?? 0) - (right.order ?? 0));
-        setEvents(sorted);
-        setSelectedEventId((current) => {
-          if (current && sorted.some((event) => event.id === current)) {
-            return current;
-          }
-          return sorted[0]?.id ?? null;
-        });
-        setLoading(false);
-      } catch (loadError) {
-        if (!alive) return;
-        setError(loadError instanceof ApiError ? loadError.message : "加载失败");
-        setLoading(false);
-      }
+  const persist = async () => {
+    if (!draft) {
+      return;
+    }
+    const title = draft.title.trim();
+    if (!title) {
+      setSaveError("标题不能为空");
+      return;
     }
 
-    void load();
-    return () => {
-      alive = false;
-    };
-  }, [projectId]);
-
-  const filteredEvents = useMemo(() => filterEvents(events, search), [events, search]);
-  const selectedEvent = useMemo(
-    () => filteredEvents.find((event) => event.id === selectedEventId) ?? events.find((event) => event.id === selectedEventId) ?? null,
-    [events, filteredEvents, selectedEventId],
-  );
-
-  async function persist(mode: EditorMode) {
     setSaving(true);
     setSaveError(null);
     try {
-      const payload = toPayload(draft);
-      const saved = mode === "create"
-        ? await api.createTimelineEvent(projectId, payload)
-        : await api.updateTimelineEvent(projectId, draft.id, payload);
-      const nextEvents = await api.listTimelineByProject(projectId);
-      const sorted = [...nextEvents].sort((left, right) => (left.order ?? 0) - (right.order ?? 0));
-      setEvents(sorted);
-      setSelectedEventId(saved.id);
+      const payload: TimelineEventInput = {
+        ...draft,
+        id: editorMode === "create" ? slugify(draft.id || title) : draft.id,
+        title,
+        line: draft.line || "main",
+        order: draft.order ?? 0,
+        boundChapters: draft.boundChapters ?? [],
+        participants: draft.participants ?? [],
+        custom: draft.custom ?? [],
+      };
+      if (editorMode === "create") {
+        await api.createTimelineEvent(projectId, payload);
+      } else {
+        await api.updateTimelineEvent(projectId, payload.id, payload);
+      }
       setEditorMode(null);
-      setTab("overview");
+      setDraft(null);
+      setLineFilter((payload.line as TimelineLineFilter) || lineFilter);
+      await loadData(projectId);
     } catch (persistError) {
-      setSaveError(persistError instanceof ApiError ? persistError.message : "保存失败");
+      setSaveError(persistError instanceof ApiError ? persistError.message : "保存事件失败");
     } finally {
       setSaving(false);
     }
-  }
+  };
+
+  const deleteEvent = async (event: TimelineEvent) => {
+    try {
+      await api.deleteTimelineEvent(projectId, event.id);
+      setDeleteTarget(null);
+      await loadData(projectId);
+    } catch (deleteError) {
+      setError(deleteError instanceof ApiError ? deleteError.message : "删除事件失败");
+    }
+  };
 
   const showState = loading || error !== null || vaultMissing || filteredEvents.length === 0;
 
   return (
     <ViewShell
       title="时间线"
-      subtitle="按发生顺序梳理事件，校对前后一致性"
+      subtitle="按项目管理主线、角色线、关系线与世界线事件"
       actions={
-        <button
-          type="button"
-          className="btn btn-primary"
-          onClick={() => {
-            setDraft(createDraft());
-            setEditorMode("create");
-            setSaveError(null);
-          }}
-        >
-          <Plus size={15} strokeWidth={2} />
-          新建事件
-        </button>
+        <>
+          <ProjectSelector
+            projects={projects}
+            projectId={projectId}
+            disabled={vaultMissing || loading}
+            onChange={(nextProjectId) => {
+              setProjectId(nextProjectId);
+              writeStoredProjectId(nextProjectId);
+            }}
+          />
+          <button type="button" className="btn btn-primary" onClick={startCreate} disabled={!projectId || vaultMissing || projects.length === 0}>
+            <Plus size={15} />
+            新建事件
+          </button>
+        </>
       }
     >
       <div className="toolbar-row">
         <div className="search">
           <Search size={15} />
-          <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="搜索事件、角色、章节…" />
+          <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="搜索事件、角色、章节或地点…" />
         </div>
-        <label className="project-inline-field">
-          <span className="faint">Project</span>
-          <input className="input" value={projectId} onChange={(event) => setProjectId(event.target.value)} />
-        </label>
         <span className="grow" />
         <span className="faint">共 {filteredEvents.length} / {events.length} 个事件</span>
       </div>
-
-      {editorMode ? (
-        <TimelineEditor
-          mode={editorMode}
-          draft={draft}
-          saving={saving}
-          error={saveError}
-          onChange={(patch) => setDraft((current) => ({ ...current, ...patch }))}
-          onCancel={() => {
-            setEditorMode(null);
-            setSaveError(null);
-          }}
-          onSubmit={() => {
-            void persist(editorMode);
-          }}
-        />
-      ) : null}
+      <div className="worldbook-origin-tabs timeline-line-tabs">
+        {LINE_OPTIONS.map((line) => (
+          <button type="button" key={line.id} className={lineFilter === line.id ? "active" : ""} onClick={() => setLineFilter(line.id)}>
+            {line.label}
+          </button>
+        ))}
+      </div>
 
       {showState ? (
         <CenterState
@@ -315,174 +429,81 @@ export function TimelineView() {
           error={error}
           vaultMissing={vaultMissing}
           empty={filteredEvents.length === 0}
-          emptyText={search ? "没有匹配的时间线事件" : "还没有时间线事件"}
+          emptyText={search ? "没有找到匹配的事件" : "还没有时间线事件，点右上角「新建事件」"}
         />
       ) : (
-        <div className="split-layout">
-          <div className="list-card">
-            <div className="list-row head">
-              <span className="col" style={{ width: 88 }}>顺位</span>
-              <span className="col col-grow">事件</span>
-              <span className="col" style={{ width: 120 }}>线路</span>
-              <span className="col" style={{ width: 130 }}>绑定章节</span>
-            </div>
-            {filteredEvents.map((event) => (
-              <button
-                type="button"
-                className={`list-row ${selectedEvent?.id === event.id ? "active" : ""}`}
-                key={event.id}
-                onClick={() => {
-                  setSelectedEventId(event.id);
-                  setTab("overview");
-                }}
-              >
-                <span className="col" style={{ width: 88 }}>
-                  <span className="tag primary">#{event.order ?? 0}</span>
-                </span>
-                <span className="col col-grow">
-                  <div className="col-name">{event.title}</div>
-                  <div className="col-sub">{(event.participants ?? []).join(" / ") || "暂无参与角色"}</div>
-                </span>
-                <span className="col" style={{ width: 120 }}>
-                  <span className="tag">{String(event.line ?? "main")}</span>
-                </span>
-                <span className="col faint" style={{ width: 130 }}>
-                  {(event.boundChapters ?? []).slice(0, 2).join(" / ") || "—"}
-                </span>
-              </button>
-            ))}
-          </div>
-
-          {selectedEvent ? (
-            <div className="detail-stack">
-              <section className="hero-card">
-                <div className="hero-card-main">
-                  <span className="avatar lg">时</span>
+        <div className="timeline-stream">
+          {filteredEvents.map((event, index) => (
+            <article className="timeline-event-card" key={event.id}>
+              <div className="timeline-marker">
+                <span>{event.eventDate || `#${event.order ?? index + 1}`}</span>
+              </div>
+              <div className="timeline-dot" />
+              <div className="timeline-event-body">
+                <div className="timeline-event-head">
                   <div>
-                    <h2>{selectedEvent.title}</h2>
-                    <p className="view-sub">ID：{selectedEvent.id}</p>
-                    <div className="tag-row">
-                      <span className="tag primary">#{selectedEvent.order ?? 0}</span>
-                      <span className="tag">{String(selectedEvent.line ?? "main")}</span>
-                      <span className="tag">{selectedEvent.participants?.length ?? 0} 位参与者</span>
+                    <div className="timeline-event-title">
+                      <strong>{event.title}</strong>
+                      <span className="tag primary">{lineLabel(event.line)}</span>
                     </div>
+                    <p>{eventSummary(event)}</p>
+                  </div>
+                  <div className="view-actions">
+                    <button type="button" className="btn" onClick={() => startEdit(event)}>编辑</button>
+                    <button type="button" className="btn-icon danger" onClick={() => setDeleteTarget(event)} aria-label="删除事件">
+                      <Trash2 size={16} />
+                    </button>
                   </div>
                 </div>
-                <div className="view-actions">
-                  <button
-                    type="button"
-                    className="btn"
-                    onClick={() => {
-                      setDraft(createDraft(selectedEvent));
-                      setEditorMode("edit");
-                      setSaveError(null);
-                    }}
-                  >
-                    <Save size={15} strokeWidth={2} />
-                    编辑事件
-                  </button>
+                <div className="tag-row">
+                  {event.location ? <span className="tag"><MapPin size={12} />{event.location}</span> : null}
+                  <span className="tag"><Users size={12} />{(event.participants ?? []).length} 角色</span>
+                  <span className="tag"><GitBranch size={12} />{(event.boundChapters ?? []).length} 章节</span>
                 </div>
-              </section>
-
-              <div className="tab-strip">
-                {TABS.map((item) => (
-                  <button type="button" key={item.id} className={tab === item.id ? "active" : ""} onClick={() => setTab(item.id)}>
-                    {item.label}
-                  </button>
-                ))}
+                {event.description ? <div className="timeline-event-description">{event.description}</div> : null}
+                {event.custom?.length ? (
+                  <div className="timeline-custom-list">
+                    {event.custom.map((row, rowIndex) => (
+                      row.label || row.value ? <span className="tag" key={rowIndex}>{row.label || "补充"}：{row.value}</span> : null
+                    ))}
+                  </div>
+                ) : null}
               </div>
-
-              <div className="detail-grid">
-                <div>
-                  {tab === "overview" ? (
-                    <section className="info-card">
-                      <h3>事件概览</h3>
-                      <div className="field"><span className="k">事件 ID</span><span className="v">{selectedEvent.id}</span></div>
-                      <div className="field"><span className="k">标题</span><span className="v stack-align-start">{selectedEvent.title}</span></div>
-                      <div className="field"><span className="k">线路</span><span className="v">{String(selectedEvent.line ?? "main")}</span></div>
-                      <div className="field"><span className="k">顺位</span><span className="v">#{selectedEvent.order ?? 0}</span></div>
-                      <div className="field"><span className="k">快照引用</span><span className="v stack-align-start">{String(selectedEvent.stateSnapshotRef ?? "未设置")}</span></div>
-                    </section>
-                  ) : null}
-
-                  {tab === "participants" ? (
-                    <section className="info-card">
-                      <h3>参与角色</h3>
-                      {(selectedEvent.participants ?? []).length ? (
-                        <div className="stack-list">
-                          {(selectedEvent.participants ?? []).map((participant) => (
-                            <div className="mini-card" key={participant}>
-                              <div className="mini-card-title">{participant}</div>
-                              <div className="mini-card-sub">参与此事件的角色 ID</div>
-                            </div>
-                          ))}
-                        </div>
-                      ) : (
-                        <div className="faint">暂无参与角色</div>
-                      )}
-                    </section>
-                  ) : null}
-
-                  {tab === "bindings" ? (
-                    <section className="info-card">
-                      <h3>章节绑定</h3>
-                      {(selectedEvent.boundChapters ?? []).length ? (
-                        <div className="stack-list">
-                          {(selectedEvent.boundChapters ?? []).map((chapterId) => (
-                            <div className="quote-line" key={chapterId}>{chapterId}</div>
-                          ))}
-                        </div>
-                      ) : (
-                        <div className="faint">暂无绑定章节</div>
-                      )}
-                    </section>
-                  ) : null}
-                </div>
-
-                <div>
-                  <section className="info-card">
-                    <h3>事件信号</h3>
-                    <div className="signal-list">
-                      <div className="signal-item">
-                        <Clock3 size={16} />
-                        <div>
-                          <div className="mini-card-title">时间顺位</div>
-                          <div className="mini-card-sub">#{selectedEvent.order ?? 0}</div>
-                        </div>
-                      </div>
-                      <div className="signal-item">
-                        <Users size={16} />
-                        <div>
-                          <div className="mini-card-title">参与角色</div>
-                          <div className="mini-card-sub">{selectedEvent.participants?.length ?? 0} 位</div>
-                        </div>
-                      </div>
-                      <div className="signal-item">
-                        <GitBranch size={16} />
-                        <div>
-                          <div className="mini-card-title">章节绑定</div>
-                          <div className="mini-card-sub">{selectedEvent.boundChapters?.length ?? 0} 章</div>
-                        </div>
-                      </div>
-                    </div>
-                  </section>
-
-                  <section className="info-card">
-                    <h3>元数据</h3>
-                    <div className="stack-list">
-                      <div className="field"><span className="k">创建时间</span><span className="v">{String(selectedEvent.createdAt ?? "—")}</span></div>
-                      <div className="field"><span className="k">更新时间</span><span className="v">{String(selectedEvent.updatedAt ?? "—")}</span></div>
-                      <div className="field"><span className="k">绑定章节数</span><span className="v">{selectedEvent.boundChapters?.length ?? 0}</span></div>
-                    </div>
-                  </section>
-                </div>
-              </div>
-            </div>
-          ) : (
-            <CenterState loading={false} error={null} vaultMissing={false} empty emptyText="请选择左侧事件查看详情" />
-          )}
+            </article>
+          ))}
         </div>
       )}
+
+      {editorMode && draft ? (
+        <TimelineEditor
+          mode={editorMode}
+          value={draft}
+          saving={saving}
+          error={saveError}
+          onChange={setDraft}
+          onCancel={() => {
+            setEditorMode(null);
+            setDraft(null);
+            setSaveError(null);
+          }}
+          onSubmit={() => {
+            void persist();
+          }}
+        />
+      ) : null}
+
+      {deleteTarget ? (
+        <ConfirmModal
+          title="删除事件"
+          message={`确定删除事件「${deleteTarget.title}」吗？此操作不可恢复。`}
+          confirmText="删除"
+          danger
+          onCancel={() => setDeleteTarget(null)}
+          onConfirm={() => {
+            void deleteEvent(deleteTarget);
+          }}
+        />
+      ) : null}
     </ViewShell>
   );
 }
