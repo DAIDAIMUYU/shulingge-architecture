@@ -153,6 +153,21 @@ export interface RebuildIndexResult {
   indexPath: string;
   reused?: boolean;
 }
+export interface DirectorChatMessage {
+  role: "system" | "user" | "assistant";
+  content: string;
+}
+export interface DirectorChatPayload {
+  modelId?: string;
+  projectId?: string;
+  novelId?: string;
+  chapterId?: string;
+  messages: DirectorChatMessage[];
+}
+export interface DirectorChatResponse {
+  modelId: string;
+  reply: string;
+}
 export interface TextRange {
   start: number;
   end: number;
@@ -450,6 +465,8 @@ export const api = {
     ),
   rebuildIndex: async (): Promise<RebuildIndexResult> =>
     post<RebuildIndexResult>("/index/rebuild", {}),
+  chatWithDirector: async (payload: DirectorChatPayload): Promise<DirectorChatResponse> =>
+    post<DirectorChatResponse>("/director/chat", payload),
 
   listProjects: async (): Promise<ProjectSummary[]> =>
     unwrapList<ProjectSummary>(await get("/projects"), "projects"),

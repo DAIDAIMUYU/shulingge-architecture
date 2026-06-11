@@ -31,6 +31,7 @@ import {
   ApiError,
   type AgentInfo,
   type AnnotationRecord,
+  type DirectorChatMessage,
   type EditorChapter,
   type LockRecord,
   type RunRecord,
@@ -233,6 +234,7 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
   const [runsLoading, setRunsLoading] = useState(false);
   const [running, setRunning] = useState(false);
+  const [chatSending, setChatSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [inspectorTab, setInspectorTab] = useState<InspectorTab>(preferences.defaultInspectorTab);
   const [showInspector] = useState(false);
@@ -243,7 +245,7 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
       id: 0,
       kind: "text",
       role: "ai",
-      text: "你好，我是总控·书灵。告诉我这一章想怎么写或要改什么，我会调度正文、规则、声音、时间线等 9 位 Agent 协作完成，执行进度会展示在这里。",
+      text: "你好，我是总控·书灵。你可以和我聊这一章的思路、节奏、人物动机或具体写法。我会结合当前章节内容给建议，但本阶段不会修改正文或调度 Agent。",
     },
   ]);
   const [chatInput, setChatInput] = useState("");
@@ -1060,41 +1062,50 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
 
   const onSend = async () => {
     const text = chatInput.trim();
-    if (!text || running) {
+    if (!text || chatSending) {
       return;
     }
     setChatInput("");
-    pushText("user", text);
+    const userMessage: ChatMessage = { id: nextId(), kind: "text", role: "user", text };
+    const historyMessages: DirectorChatMessage[] = [...messages, userMessage]
+      .filter((message): message is Extract<ChatMessage, { kind: "text" }> => message.kind === "text" && message.id !== 0)
+      .map((message) => ({
+        role: message.role === "ai" ? "assistant" : "user",
+        content: message.text,
+      }));
+    setMessages((items) => [...items, userMessage]);
 
-    if (!vaultSelected) {
-      pushText("ai", "请先选择资料库 Vault，我才能读写正文并调度 Agent。");
-      return;
-    }
-
-    pushText("ai", `收到。我来为《${activeTitle}》调度 9 位 Agent 协作处理你的要求。`);
-    setMessages((items) => [...items, { id: nextId(), kind: "run" }]);
-    setRunning(true);
+    const thinkingMessageId = nextId();
+    setMessages((items) => [
+      ...items,
+      { id: thinkingMessageId, kind: "text", role: "ai", text: "总控思考中…" },
+    ]);
+    setChatSending(true);
     setError(null);
     try {
-      let record = await api.runChapter(locator.chapterId, locator.projectId, locator.novelId, false);
-      setRun(record);
-      for (let i = 0; i < 40 && record.status === "running"; i += 1) {
-        await new Promise((resolve) => setTimeout(resolve, 800));
-        record = await api.getRun(record.id, locator.projectId, locator.novelId);
-        setRun(record);
-      }
-      pushText(
-        "ai",
-        record.status === "done" || record.status === "succeeded"
-          ? "9 位 Agent 已完成本轮协作，正文与摘要已更新，你可以在左侧查看。"
-          : `本轮已结束（状态：${record.status}）。`,
+      const reply = await api.chatWithDirector({
+        messages: historyMessages,
+        projectId: locator.projectId || undefined,
+        novelId: locator.novelId || undefined,
+        chapterId: locator.chapterId || undefined,
+      });
+      setMessages((items) =>
+        items.map((message) =>
+          message.id === thinkingMessageId && message.kind === "text"
+            ? { ...message, text: reply.reply }
+            : message,
+        ),
       );
-      const latestRuns = await api.listRuns(locator.projectId, locator.novelId, locator.chapterId);
-      setRecentRuns(latestRuns);
     } catch (err) {
-      pushText("ai", `执行遇到问题：${err instanceof ApiError ? err.message : "运行失败"}`);
+      setMessages((items) =>
+        items.map((message) =>
+          message.id === thinkingMessageId && message.kind === "text"
+            ? { ...message, text: err instanceof ApiError ? err.message : "总控对话失败，请稍后再试" }
+            : message,
+        ),
+      );
     } finally {
-      setRunning(false);
+      setChatSending(false);
     }
   };
 
@@ -2010,7 +2021,7 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
           </div>
           <div>
             <div className="ch-name">总控 · 书灵</div>
-            <div className="ch-sub">调度 9 位 Agent 协作写作</div>
+            <div className="ch-sub">对话式创作顾问</div>
           </div>
         </div>
 
@@ -2035,14 +2046,15 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
             <textarea
               rows={1}
               value={chatInput}
-              placeholder="告诉总控你想怎么写这一章……"
+              placeholder="和总控聊聊这一章的思路、问题或写法……"
               onChange={(event) => setChatInput(event.target.value)}
               onKeyDown={onChatKey}
+              disabled={chatSending}
             />
             <button
               type="button"
               className="chat-send"
-              disabled={running || !chatInput.trim()}
+              disabled={chatSending || !chatInput.trim()}
               onClick={() => void onSend()}
               title="发送"
             >

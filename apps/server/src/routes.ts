@@ -39,6 +39,7 @@ import {
 import { readFile } from "node:fs/promises";
 import { completeBootstrap, getBootstrapStatus } from "./bootstrap.js";
 import { exportDiagnosticsBundle } from "./diagnostics.js";
+import { chatWithDirector } from "./director-chat.js";
 import { buildHealthReport } from "./doctor.js";
 import {
   buildKnowledgeGraph,
@@ -353,6 +354,18 @@ export const routeDefinitions: RouteDefinition[] = [
         incremental: body?.incremental ?? false,
       });
       return result;
+    },
+  },
+  {
+    method: "POST",
+    path: "/api/v1/director/chat",
+    async handler(request, context) {
+      const vaultRoot = requireVaultRoot(context);
+      return await chatWithDirector(
+        vaultRoot,
+        (request.body as Record<string, unknown> | undefined) ?? {},
+        getModelOptions(context),
+      );
     },
   },
   {
