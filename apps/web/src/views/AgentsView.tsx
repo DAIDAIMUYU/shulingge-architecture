@@ -119,8 +119,9 @@ function modelDisplay(agent: AgentConfig, models: ModelConfig[]): { label: strin
   }
 
   if (availableModels[0]) {
+    const defaultModel = availableModels[0];
     return {
-      label: "默认(第一个模型)",
+      label: defaultModel.model ? `${defaultModel.id} · ${defaultModel.model}` : defaultModel.id,
       kind: "default",
     };
   }
