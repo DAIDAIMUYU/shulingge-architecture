@@ -397,6 +397,22 @@ input, textarea { font-family: inherit; }
 .model-list-row { cursor: pointer; }
 .model-row-actions { display: inline-flex; align-items: center; gap: 4px; margin-left: auto; opacity: .62; transition: opacity .16s ease; }
 .model-list-row:hover .model-row-actions, .model-list-row:focus-within .model-row-actions { opacity: 1; }
+.agent-list-card { overflow-x: auto; }
+.agent-row-actions { width: 78px; justify-content: flex-end; flex: none; }
+.agent-model-cell { color: var(--text-secondary); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.agent-editor-section { margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--border); }
+.agent-switch-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px 14px; }
+.agent-switch-row { min-height: 34px; padding: 8px 10px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--bg-panel); }
+.agent-tag-block { min-width: 0; }
+.agent-tag-input { min-height: 38px; padding: 5px 8px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--bg-card); transition: border-color .16s ease, box-shadow .16s ease; }
+.agent-tag-input:focus-within { border-color: var(--primary); box-shadow: 0 0 0 2px var(--primary-light); }
+.agent-tag-list { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.agent-tag-list input { flex: 1 1 120px; min-width: 90px; height: 26px; border: 0; outline: none; background: transparent; color: var(--text-primary); font-size: 13px; }
+.agent-tag-list input::placeholder { color: var(--text-muted); }
+.agent-tag { gap: 5px; max-width: 100%; }
+.agent-tag button { display: inline-grid; place-items: center; width: 16px; height: 16px; border: 0; padding: 0; border-radius: 50%; background: transparent; color: currentColor; cursor: pointer; }
+.agent-tag button:hover { background: var(--bg-hover); }
+.agent-empty-editor { min-height: 180px; }
 .model-advanced { margin-top: 16px; border-top: 1px solid var(--border); padding-top: 12px; }
 .model-advanced-toggle { display: inline-flex; align-items: center; gap: 6px; border: 0; background: transparent; color: var(--text-secondary); font-size: 13px; cursor: pointer; padding: 4px 0; }
 .model-advanced-toggle:hover { color: var(--text-primary); }

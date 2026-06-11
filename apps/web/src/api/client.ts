@@ -83,6 +83,44 @@ export interface VaultStatus {
   selected: boolean;
   root?: string | null;
 }
+export type AgentPermissionMode = "controller" | "writer" | "blocker" | "checker" | "advisor" | "state-updater";
+export type AgentOutputFormat = "json+text" | "text";
+export interface AgentPermissions {
+  canWriteDraft: boolean;
+  canRewriteDraft: boolean;
+  canPatchParagraph: boolean;
+  canBlockWorkflow: boolean;
+  canRequestRewrite: boolean;
+  canWriteState: boolean;
+  canUpdateRules: boolean;
+}
+export interface AgentSpeakConfig {
+  speak: boolean;
+  displayName?: string;
+  icon?: string;
+  showReasoning: boolean;
+  showStructured: boolean;
+  onlyOnFailure: boolean;
+}
+export interface AgentConfig {
+  id: string;
+  name: string;
+  description: string;
+  enabled: boolean;
+  type: AgentPermissionMode;
+  workflowId?: string;
+  order: number;
+  modelConfigId: string;
+  readScope: string[];
+  builtInRules: string[];
+  skills: string[];
+  outputFormat: AgentOutputFormat;
+  permissions: AgentPermissions;
+  speak: AgentSpeakConfig;
+  schemaVersion?: number;
+  createdAt?: string;
+  updatedAt?: string;
+}
 export interface AgentInfo {
   id: string;
   name: string;
@@ -91,6 +129,18 @@ export interface AgentInfo {
   order?: number;
   kind?: string;
   description?: string;
+  type?: AgentPermissionMode;
+  workflowId?: string;
+  modelConfigId?: string;
+  readScope?: string[];
+  builtInRules?: string[];
+  skills?: string[];
+  outputFormat?: AgentOutputFormat;
+  permissions?: AgentPermissions;
+  speak?: AgentSpeakConfig;
+  schemaVersion?: number;
+  createdAt?: string;
+  updatedAt?: string;
 }
 export interface EditorChapter {
   chapterId: string;
@@ -439,6 +489,22 @@ export interface ModelConfigInput {
   fallbackModelId?: string;
   costLimit?: number;
 }
+export interface AgentConfigInput {
+  id?: string;
+  name: string;
+  description?: string;
+  enabled?: boolean;
+  type?: AgentPermissionMode;
+  workflowId?: string;
+  order?: number;
+  modelConfigId?: string;
+  readScope?: string[];
+  builtInRules?: string[];
+  skills?: string[];
+  outputFormat?: AgentOutputFormat;
+  permissions?: AgentPermissions;
+  speak?: AgentSpeakConfig;
+}
 export interface KnowledgeGraph {
   nodes?: Array<{ id: string; label?: string; type?: string; [k: string]: unknown }>;
   edges?: Array<{ id?: string; from?: string; to?: string; source?: string; target?: string; label?: string; type?: string; [k: string]: unknown }>;
@@ -451,6 +517,14 @@ export const api = {
   vaultStatus: () => get<VaultStatus>("/vault"),
   selectVault: (rootPath: string) => post<VaultStatus>("/vault/select", { rootPath }),
   listAgents: async (): Promise<AgentInfo[]> => unwrapList<AgentInfo>(await get("/agents"), "agents"),
+  getAgent: async (agentId: string): Promise<AgentConfig> =>
+    (await get<{ agent: AgentConfig }>(`/agents/${encodeURIComponent(agentId)}`)).agent,
+  createAgent: async (payload: AgentConfigInput): Promise<AgentConfig> =>
+    (await post<{ agent: AgentConfig }>("/agents", payload)).agent,
+  updateAgent: async (agentId: string, payload: Partial<AgentConfigInput>): Promise<AgentConfig> =>
+    (await patch<{ agent: AgentConfig }>(`/agents/${encodeURIComponent(agentId)}`, payload)).agent,
+  deleteAgent: async (agentId: string): Promise<{ deleted: true; agentId: string }> =>
+    del<{ deleted: true; agentId: string }>(`/agents/${encodeURIComponent(agentId)}`),
   listNotifications: async (): Promise<unknown[]> =>
     unwrapList<unknown>(await get("/notifications"), "notifications"),
   search: async (query: SearchQuery): Promise<SearchResult[]> =>
