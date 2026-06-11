@@ -135,7 +135,7 @@ function normalizeAgent(input: CreateAgentInput, id: string, order: number, curr
     type: (input.type ?? current?.type ?? "advisor") as AgentPermissionMode,
     workflowId: input.workflowId ?? current?.workflowId,
     order: input.order ?? current?.order ?? order,
-    modelConfigId: input.modelConfigId ?? current?.modelConfigId ?? `model-${id}`,
+    modelConfigId: input.modelConfigId ?? current?.modelConfigId ?? "",
     readScope: input.readScope ?? current?.readScope ?? [],
     builtInRules: input.builtInRules ?? current?.builtInRules ?? [],
     skills: input.skills ?? current?.skills ?? [],
@@ -166,6 +166,7 @@ async function seedDefaultAgents(vaultRoot: string): Promise<Agent[]> {
   const defaults = createDefaultAgentCatalog().active.map((agent) =>
     agentSchema.parse({
       ...agent,
+      modelConfigId: "",
       schemaVersion: CURRENT_SCHEMA_VERSION,
     }),
   );

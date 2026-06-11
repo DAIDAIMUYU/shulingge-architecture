@@ -105,6 +105,32 @@ function legacyRole(agent: AgentInfo | AgentConfig): string | undefined {
   return "role" in agent ? agent.role : undefined;
 }
 
+function modelDisplay(agent: AgentConfig, models: ModelConfig[]): { label: string; kind: "explicit" | "default" | "missing" } {
+  const availableModels = models.filter((model) => model.hasKey);
+  const boundModel = agent.modelConfigId
+    ? models.find((model) => model.id === agent.modelConfigId && model.hasKey)
+    : undefined;
+
+  if (boundModel) {
+    return {
+      label: boundModel.model ? `${boundModel.id} · ${boundModel.model}` : boundModel.id,
+      kind: "explicit",
+    };
+  }
+
+  if (availableModels[0]) {
+    return {
+      label: "默认(第一个模型)",
+      kind: "default",
+    };
+  }
+
+  return {
+    label: "暂无可用模型",
+    kind: "missing",
+  };
+}
+
 function createAgentDraft(agent?: AgentInfo | AgentConfig, nextOrder = 10): AgentDraft {
   return {
     id: agent?.id ?? "",
@@ -133,7 +159,7 @@ function toAgentPayload(draft: AgentDraft, mode: "create" | "edit"): AgentConfig
     type: draft.type,
     workflowId: draft.workflowId.trim() || undefined,
     order: Number.isFinite(Number(draft.order)) ? Math.max(0, Number(draft.order)) : 0,
-    modelConfigId: draft.modelConfigId.trim() || `model-${draft.id.trim() || "agent"}`,
+    modelConfigId: draft.modelConfigId.trim(),
     readScope: draft.readScope,
     builtInRules: draft.builtInRules,
     skills: draft.skills,
@@ -156,7 +182,7 @@ function normalizeAgent(agent: AgentInfo): AgentConfig {
     type: agent.type ?? "advisor",
     workflowId: agent.workflowId,
     order: agent.order ?? 0,
-    modelConfigId: agent.modelConfigId ?? `model-${agent.id}`,
+    modelConfigId: agent.modelConfigId ?? "",
     readScope: agent.readScope ?? [],
     builtInRules: agent.builtInRules ?? [],
     skills: agent.skills ?? [],
@@ -335,6 +361,7 @@ function AgentEditorModal({
     value: skill.id,
     label: skill.name ? `${skill.name} (${skill.id})` : skill.id,
   }));
+  const availableModels = models.filter((model) => model.hasKey);
   const currentType = AGENT_TYPE_OPTIONS.find((option) => option.value === draft.type);
 
   useEffect(() => {
@@ -422,11 +449,12 @@ function AgentEditorModal({
                   value={draft.modelConfigId}
                   onChange={(event) => onChange({ modelConfigId: event.target.value })}
                 >
-                  <option value="">未指定</option>
-                  {draft.modelConfigId && !models.some((model) => model.id === draft.modelConfigId) ? (
-                    <option value={draft.modelConfigId}>{draft.modelConfigId}</option>
-                  ) : null}
-                  {models.map((model) => (
+                  {availableModels.length > 0 ? (
+                    <option value="">默认(使用第一个可用模型)</option>
+                  ) : (
+                    <option value="" disabled>暂无可用模型，请先在设置页配置模型</option>
+                  )}
+                  {availableModels.map((model) => (
                     <option key={model.id} value={model.id}>
                       {model.id}{model.model ? ` · ${model.model}` : ""}
                     </option>
@@ -762,62 +790,67 @@ export function AgentsView() {
                 <span>还没有 Agent，点击「新建 Agent」创建一个。</span>
               </div>
             ) : (
-              sortedAgents.map((agent) => (
-                <div
-                  className="list-row model-list-row"
-                  key={agent.id}
-                  role="button"
-                  tabIndex={0}
-                  onClick={() => startEdit(agent)}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter" || event.key === " ") {
-                      event.preventDefault();
-                      startEdit(agent);
-                    }
-                  }}
-                >
-                  <span className="faint" style={{ width: 54 }}>{agent.order}</span>
-                  <span className="col col-grow">
-                    <div className="col-name">{agent.name}</div>
-                    <div className="col-sub">{agent.description || "暂无职责描述"}</div>
-                  </span>
-                  <span className="col" style={{ width: 112 }}>
-                    <span className="tag">{typeLabel(agent.type)}</span>
-                  </span>
-                  <span className="col" style={{ width: 86 }}>
-                    <span className={`tag ${agent.enabled ? "primary" : ""}`}>{agent.enabled ? "启用" : "停用"}</span>
-                  </span>
-                  <span className="col agent-model-cell" style={{ width: 150 }}>
-                    {agent.modelConfigId || "未指定"}
-                  </span>
-                  <span className="model-row-actions agent-row-actions">
-                    <button
-                      type="button"
-                      className="btn-icon"
-                      title="编辑 Agent"
-                      aria-label={`编辑 Agent ${agent.name}`}
-                      onClick={(event) => {
-                        event.stopPropagation();
+              sortedAgents.map((agent, index) => {
+                const model = modelDisplay(agent, models);
+                return (
+                  <div
+                    className="list-row model-list-row"
+                    key={agent.id}
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => startEdit(agent)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault();
                         startEdit(agent);
-                      }}
-                    >
-                      <Pencil size={15} />
-                    </button>
-                    <button
-                      type="button"
-                      className="btn-icon danger"
-                      title="删除 Agent"
-                      aria-label={`删除 Agent ${agent.name}`}
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        setAgentToDelete(agent);
-                      }}
-                    >
-                      <Trash2 size={15} />
-                    </button>
-                  </span>
-                </div>
-              ))
+                      }
+                    }}
+                  >
+                    <span className="faint" style={{ width: 54 }}>{index + 1}</span>
+                    <span className="col col-grow">
+                      <div className="col-name">{agent.name}</div>
+                      <div className="col-sub">{agent.description || "暂无职责描述"}</div>
+                    </span>
+                    <span className="col" style={{ width: 112 }}>
+                      <span className="tag">{typeLabel(agent.type)}</span>
+                    </span>
+                    <span className="col" style={{ width: 86 }}>
+                      <span className={`tag ${agent.enabled ? "primary" : ""}`}>{agent.enabled ? "启用" : "停用"}</span>
+                    </span>
+                    <span className="col agent-model-cell" style={{ width: 150 }}>
+                      <span className={`agent-model-label agent-model-${model.kind}`} title={model.label}>
+                        {model.label}
+                      </span>
+                    </span>
+                    <span className="model-row-actions agent-row-actions">
+                      <button
+                        type="button"
+                        className="btn-icon"
+                        title="编辑 Agent"
+                        aria-label={`编辑 Agent ${agent.name}`}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          startEdit(agent);
+                        }}
+                      >
+                        <Pencil size={15} />
+                      </button>
+                      <button
+                        type="button"
+                        className="btn-icon danger"
+                        title="删除 Agent"
+                        aria-label={`删除 Agent ${agent.name}`}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          setAgentToDelete(agent);
+                        }}
+                      >
+                        <Trash2 size={15} />
+                      </button>
+                    </span>
+                  </div>
+                );
+              })
             )}
           </div>
         </section>

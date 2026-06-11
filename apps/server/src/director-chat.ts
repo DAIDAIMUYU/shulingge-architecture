@@ -67,7 +67,7 @@ function clipContext(content: string): string {
     return content;
   }
 
-  return `${content.slice(0, MAX_CONTEXT_CHARS)}\n\n【正文过长，以上为前 ${MAX_CONTEXT_CHARS.toLocaleString("zh-CN")} 字节选】`;
+  return `${content.slice(0, MAX_CONTEXT_CHARS)}\n\n【正文过长，以上为前 ${MAX_CONTEXT_CHARS.toLocaleString("zh-CN")} 字节节选。】`;
 }
 
 export async function chatWithDirector(
@@ -76,15 +76,13 @@ export async function chatWithDirector(
   options: DirectorChatOptions,
 ): Promise<{ modelId: string; reply: string }> {
   const models = await listModels(vaultRoot, options);
-  const selectedModel = input.modelId
-    ? models.find((model) => model.id === input.modelId)
-    : models.find((model) => model.hasKey);
+  const availableModels = models.filter((model) => model.hasKey);
+  const selectedModel = (input.modelId
+    ? availableModels.find((model) => model.id === input.modelId)
+    : undefined) ?? availableModels[0];
 
   if (!selectedModel) {
     throw createHttpError(400, "DIRECTOR_MODEL_NOT_CONFIGURED", "请先在设置页配置并测试一个模型");
-  }
-  if (!selectedModel.hasKey) {
-    throw createHttpError(400, "DIRECTOR_MODEL_KEY_MISSING", "所选模型还没有写入 API Key，请先在设置页保存并测试模型");
   }
 
   const messages: ChatMessage[] = [
@@ -101,7 +99,7 @@ export async function chatWithDirector(
       messages.push({
         role: "system",
         content: [
-          `【当前章节上下文】`,
+          "【当前章节上下文】",
           `项目：${input.projectId}`,
           `卷：${input.novelId}`,
           `章节：${chapter.metadata?.title ?? input.chapterId}`,

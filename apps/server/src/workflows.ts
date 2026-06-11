@@ -15,6 +15,7 @@ import {
 import { readJsonFile, readManuscriptFile, writeJsonFile, writeManuscriptFile } from "@shulingge/vault-core";
 
 import { createHttpError } from "./errors.js";
+import { listModels } from "./models.js";
 
 export interface WorkflowServiceOptions {
   credentialService: CredentialService;
@@ -118,15 +119,17 @@ async function createModelRunner(
   options: WorkflowServiceOptions,
   fallbackModelId?: string,
 ) {
-  const configs = await listModelConfigs(vaultRoot);
-  const configuredIds = Object.keys(configs);
+  const publicModels = await listModels(vaultRoot, options);
+  const availableModels = publicModels.filter((model) => model.hasKey);
 
-  if (configuredIds.length === 0) {
-    throw createHttpError(400, "WORKFLOW_MODEL_REQUIRED", "At least one model config is required before running agents");
+  if (availableModels.length === 0) {
+    throw createHttpError(400, "WORKFLOW_MODEL_REQUIRED", "请先在设置页配置并测试一个模型");
   }
 
-  const resolvedFallbackModelId =
-    (fallbackModelId && configs[fallbackModelId] ? fallbackModelId : undefined) ?? configuredIds[0];
+  const configs = await listModelConfigs(vaultRoot);
+  const hasAvailableModel = (modelId?: string): modelId is string =>
+    Boolean(modelId && configs[modelId] && availableModels.some((model) => model.id === modelId));
+  const resolvedFallbackModelId = hasAvailableModel(fallbackModelId) ? fallbackModelId : availableModels[0].id;
   const registry = new ProviderRegistry(
     {
       models: configs,
@@ -147,7 +150,7 @@ async function createModelRunner(
         temperature?: number;
       },
     ) {
-      const actualModelId = configs[requestedModelId] ? requestedModelId : resolvedFallbackModelId;
+      const actualModelId = hasAvailableModel(requestedModelId) ? requestedModelId : resolvedFallbackModelId;
       const response = await registry.chat(actualModelId, {
         messages: request.messages,
         stream: false,

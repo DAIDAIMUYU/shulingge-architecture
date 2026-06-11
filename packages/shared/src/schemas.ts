@@ -158,7 +158,7 @@ export const agentSchema = entitySchema.extend({
   type: z.enum(AGENT_PERMISSION_MODE_VALUES),
   workflowId: z.string().min(1).optional(),
   order: z.number().int().nonnegative(),
-  modelConfigId: z.string().min(1),
+  modelConfigId: z.string(),
   readScope: stringArraySchema,
   builtInRules: stringArraySchema,
   skills: stringArraySchema,

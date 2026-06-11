@@ -400,6 +400,10 @@ input, textarea { font-family: inherit; }
 .agent-list-card { overflow-x: auto; }
 .agent-row-actions { width: 78px; justify-content: flex-end; flex: none; }
 .agent-model-cell { color: var(--text-secondary); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.agent-model-label { display: inline-block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; vertical-align: middle; }
+.agent-model-explicit { color: var(--text-secondary); }
+.agent-model-default { color: var(--primary); }
+.agent-model-missing { color: var(--warning); }
 .agent-editor-section { margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--border); }
 .agent-switch-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px 14px; }
 .agent-switch-row { min-height: 34px; padding: 8px 10px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--bg-panel); }

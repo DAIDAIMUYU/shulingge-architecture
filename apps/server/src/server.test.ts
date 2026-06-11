@@ -1721,6 +1721,34 @@ test("workflow routes expose agents, persist runs, summaries, and final manuscri
   }
 });
 
+test("workflow run requires a tested model when no usable model exists", async () => {
+  const vaultRoot = await createFixtureVault();
+  const server = await startServer({ vaultRoot });
+
+  try {
+    const runResponse = await fetch(`${server.baseUrl}/api/v1/chapters/chapter-001/run`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        projectId: "demo-series",
+        novelId: "main",
+        wait: true,
+      }),
+    });
+    const runPayload = (await runResponse.json()) as {
+      ok: false;
+      error: { message: string };
+    };
+
+    assert.equal(runResponse.status, 400);
+    assert.equal(runPayload.ok, false);
+    assert.equal(runPayload.error.message, "请先在设置页配置并测试一个模型");
+  } finally {
+    await server.close();
+    await rm(vaultRoot, { recursive: true, force: true });
+  }
+});
+
 test("agent routes initialize default agents and persist them", async () => {
   const vaultRoot = await createFixtureVault();
   const server = await startServer({ vaultRoot });
@@ -1736,7 +1764,7 @@ test("agent routes initialize default agents and persist them", async () => {
       };
     };
     const agentFiles = await readdir(path.join(vaultRoot, "settings", "agents"));
-    const writerAgent = await readJsonFile<{ id: string; name: string }>(
+    const writerAgent = await readJsonFile<{ id: string; name: string; modelConfigId: string }>(
       vaultRoot,
       "settings/agents/writer-agent.json",
     );
@@ -1748,6 +1776,7 @@ test("agent routes initialize default agents and persist them", async () => {
     assert.equal(agentsPayload.data.reserved.length, 0);
     assert.equal(agentFiles.filter((entry) => entry.endsWith(".json")).length, 9);
     assert.equal(writerAgent.id, "writer-agent");
+    assert.equal(writerAgent.modelConfigId, "");
     assert.deepEqual(
       agentsPayload.data.agents.map((agent) => agent.id),
       [...agentsPayload.data.agents].sort((left, right) => left.order - right.order).map((agent) => agent.id),
@@ -1775,7 +1804,6 @@ test("agent CRUD routes create, update, fetch, and delete agents", async () => {
         enabled: true,
         type: "advisor",
         order: 95,
-        modelConfigId: "model-draft-advisor",
         readScope: ["manuscript"],
         builtInRules: [],
         skills: [],
@@ -1842,7 +1870,7 @@ test("agent CRUD routes create, update, fetch, and delete agents", async () => {
 
     assert.equal(createResponse.status, 200);
     assert.equal(createPayload.data.agent.id, "draft-advisor");
-    assert.equal(createPayload.data.agent.modelConfigId, "model-draft-advisor");
+    assert.equal(createPayload.data.agent.modelConfigId, "");
     assert.equal(updateResponse.status, 200);
     assert.equal(updatePayload.data.agent.name, "草稿评审顾问");
     assert.equal(updatePayload.data.agent.enabled, false);
