@@ -103,6 +103,7 @@ function createModelConfig(
     provider: overrides.provider,
     model: overrides.model,
     schemaVersion: 1,
+    baseUrl: overrides.baseUrl,
     keyRef: overrides.keyRef,
     stream: overrides.stream,
     jsonMode: overrides.jsonMode,
@@ -149,6 +150,42 @@ test("openai-compatible adapter fetches api key only at call time and returns us
     assert.deepEqual(usageReports[0], { in: 11, out: 7 });
     assert.equal(mock.requests[0]?.headers.authorization, "Bearer sk-openai-123");
     assert.equal(JSON.stringify(response).includes("sk-openai-123"), false);
+  } finally {
+    await mock.close();
+  }
+});
+
+test("model baseUrl overrides provider default endpoint baseUrl", async () => {
+  const mock = await createMockServer();
+  try {
+    const store = new InMemoryCredentialStore();
+    const credentialService = new CredentialService(store);
+    await credentialService.storeApiKey("provider:openai:custom", "sk-openai-custom");
+
+    const registry = new ProviderRegistry({
+      models: {
+        writer: createModelConfig({
+          id: "writer",
+          provider: "openai",
+          model: "gpt-custom",
+          keyRef: "provider:openai:custom",
+          baseUrl: mock.baseUrl,
+        }),
+      },
+      endpoints: {
+        openai: {
+          baseUrl: "https://unused.example/v1",
+          apiPath: "/openai/chat/completions",
+        },
+      },
+    }, credentialService);
+
+    const response = await registry.chat("writer", {
+      messages: [{ role: "user", content: "write scene" }],
+    }) as { content: string };
+
+    assert.equal(response.content, "{\"scene\":\"ok\"}");
+    assert.equal(mock.requests[0]?.url, "/openai/chat/completions");
   } finally {
     await mock.close();
   }

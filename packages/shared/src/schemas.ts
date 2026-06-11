@@ -170,6 +170,7 @@ export const agentSchema = entitySchema.extend({
 export const modelConfigSchema = entitySchema.extend({
   provider: z.enum(PROVIDER_TYPE_VALUES),
   model: z.string().min(1),
+  baseUrl: z.string().url().optional(),
   keyRef: z.string().min(1).optional(),
   temperature: z.number().optional(),
   topP: z.number().optional(),

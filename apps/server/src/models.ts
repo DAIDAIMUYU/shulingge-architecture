@@ -27,6 +27,7 @@ interface CreateModelInput {
   id?: string;
   provider?: ModelConfig["provider"];
   model?: string;
+  baseUrl?: string;
   keyRef?: string;
   temperature?: number;
   topP?: number;
@@ -93,10 +94,14 @@ async function getHasKey(
 
 function normalizeModelConfig(input: CreateModelInput | UpdateModelInput, current?: ModelConfig): ModelConfig {
   const now = new Date().toISOString();
+  const nextBaseUrl = typeof input.baseUrl === "string"
+    ? input.baseUrl.trim() || undefined
+    : current?.baseUrl;
   const modelConfig: ModelConfig = {
     id: (hasId(input) ? input.id : undefined) ?? current?.id ?? "",
     provider: input.provider ?? current?.provider ?? "openai-compatible",
     model: input.model ?? current?.model ?? "",
+    baseUrl: nextBaseUrl,
     keyRef: input.keyRef ?? current?.keyRef,
     temperature: input.temperature ?? current?.temperature,
     topP: input.topP ?? current?.topP,

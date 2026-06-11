@@ -324,6 +324,7 @@ export interface ModelConfig {
   name?: string;
   provider?: string;
   model?: string;
+  baseUrl?: string;
   temperature?: number;
   topP?: number;
   maxTokens?: number;
@@ -408,6 +409,7 @@ export interface ModelConfigInput {
   id: string;
   provider: string;
   model: string;
+  baseUrl?: string;
   temperature?: number;
   topP?: number;
   maxTokens?: number;

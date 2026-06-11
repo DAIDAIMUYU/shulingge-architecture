@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 import {
   Bot,
   CheckCircle2,
+  ChevronDown,
+  ChevronRight,
   CloudOff,
   Keyboard,
   KeyRound,
@@ -33,10 +35,63 @@ import { ViewShell } from "./common.js";
 const SECTIONS = ["外观", "模型与 API", "远程访问", "通用", "Agent", "快捷键", "关于"] as const;
 type Section = (typeof SECTIONS)[number];
 
+const PROVIDER_OPTIONS = [
+  { value: "openai", label: "OpenAI" },
+  { value: "anthropic", label: "Anthropic (Claude)" },
+  { value: "gemini", label: "Google Gemini" },
+  { value: "deepseek", label: "DeepSeek" },
+  { value: "openrouter", label: "OpenRouter" },
+  { value: "siliconflow", label: "硅基流动" },
+  { value: "volcengine", label: "火山引擎" },
+  { value: "aliyun-bailian", label: "阿里百炼" },
+  { value: "ollama", label: "Ollama (本地)" },
+] as const;
+
+const PROVIDER_LABELS: Record<string, string> = {
+  ...Object.fromEntries(PROVIDER_OPTIONS.map((option) => [option.value, option.label])),
+  "openai-compatible": "OpenAI 兼容",
+  lmstudio: "LM Studio",
+  vllm: "vLLM",
+  "custom-local": "自定义本地",
+};
+
+const DEFAULT_PROVIDER_BASE_URLS: Record<string, string> = {
+  openai: "https://api.openai.com/v1",
+  anthropic: "https://api.anthropic.com/v1",
+  gemini: "https://generativelanguage.googleapis.com/v1beta/openai",
+  deepseek: "https://api.deepseek.com",
+  openrouter: "https://openrouter.ai/api/v1",
+  siliconflow: "https://api.siliconflow.cn/v1",
+  volcengine: "https://ark.cn-beijing.volces.com/api/v3",
+  "aliyun-bailian": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+  ollama: "http://127.0.0.1:11434",
+  "openai-compatible": "https://api.openai.com/v1",
+  lmstudio: "http://127.0.0.1:1234/v1",
+  vllm: "http://127.0.0.1:8000/v1",
+  "custom-local": "http://127.0.0.1:8000/v1",
+};
+
+const MODEL_PLACEHOLDERS: Record<string, string> = {
+  openai: "gpt-5.4",
+  anthropic: "claude-opus-4-6",
+  gemini: "gemini-3.1-pro",
+  deepseek: "deepseek-chat",
+  openrouter: "openai/gpt-5.4",
+  siliconflow: "Qwen/Qwen3-235B-A22B-Instruct-2507",
+  volcengine: "doubao-seed-1-6",
+  "aliyun-bailian": "qwen-plus",
+  ollama: "qwen3:8b",
+  "openai-compatible": "gpt-5.4",
+  lmstudio: "local-model",
+  vllm: "local-model",
+  "custom-local": "local-model",
+};
+
 interface ModelDraft {
   id: string;
   provider: string;
   model: string;
+  baseUrl: string;
   temperature: string;
   topP: string;
   maxTokens: string;
@@ -56,10 +111,12 @@ function currentTheme(): "light" | "dark" {
 }
 
 function createModelDraft(model?: ModelConfig): ModelDraft {
+  const provider = String(model?.provider ?? "openai");
   return {
     id: model?.id ?? "",
-    provider: String(model?.provider ?? "openai-compatible"),
+    provider,
     model: String(model?.model ?? ""),
+    baseUrl: String(model?.baseUrl ?? DEFAULT_PROVIDER_BASE_URLS[provider] ?? ""),
     temperature: model?.temperature === undefined ? "" : String(model.temperature),
     topP: model?.topP === undefined ? "" : String(model.topP),
     maxTokens: model?.maxTokens === undefined ? "" : String(model.maxTokens),
@@ -86,6 +143,7 @@ function toModelPayload(draft: ModelDraft): ModelConfigInput {
     id: draft.id.trim(),
     provider: draft.provider.trim(),
     model: draft.model.trim(),
+    baseUrl: draft.baseUrl.trim(),
     temperature: toOptionalNumber(draft.temperature),
     topP: toOptionalNumber(draft.topP),
     maxTokens: toOptionalNumber(draft.maxTokens),
@@ -121,6 +179,7 @@ function ModelEditor({
   testing,
   feedback,
   mode,
+  hasKey,
 }: {
   draft: ModelDraft;
   onChange: (patch: Partial<ModelDraft>) => void;
@@ -134,7 +193,12 @@ function ModelEditor({
   testing: boolean;
   feedback: string | null;
   mode: "create" | "edit";
+  hasKey: boolean;
 }) {
+  const [advancedOpen, setAdvancedOpen] = useState(false);
+  const providerKnownInSelector = PROVIDER_OPTIONS.some((option) => option.value === draft.provider);
+  const modelPlaceholder = MODEL_PLACEHOLDERS[draft.provider] ?? "请输入模型名";
+
   return (
     <section className="editor-card">
       <div className="editor-card-head">
@@ -154,65 +218,74 @@ function ModelEditor({
         </div>
       </div>
 
-      {feedback ? <div className="err-card">{feedback}</div> : null}
+      {feedback ? <div className="inspector-feedback">{feedback}</div> : null}
 
-      <div className="form-grid form-grid-3">
+      <div className="model-editor-section">
+        <div className="model-editor-section-title">基础配置</div>
+        <div className="form-grid form-grid-3">
+          <label className="form-block">
+            <span>配置 ID</span>
+            <input
+              className="input"
+              value={draft.id}
+              disabled={mode === "edit"}
+              placeholder="例如 main-writer"
+              onChange={(event) => onChange({ id: event.target.value })}
+            />
+          </label>
+          <label className="form-block">
+            <span>服务商</span>
+            <select
+              className="input"
+              value={draft.provider}
+              onChange={(event) => {
+                const provider = event.target.value;
+                onChange({
+                  provider,
+                  baseUrl: DEFAULT_PROVIDER_BASE_URLS[provider] ?? "",
+                });
+              }}
+            >
+              {!providerKnownInSelector ? (
+                <option value={draft.provider}>{PROVIDER_LABELS[draft.provider] ?? draft.provider}</option>
+              ) : null}
+              {PROVIDER_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>{option.label}</option>
+              ))}
+            </select>
+          </label>
+          <label className="form-block">
+            <span>模型名</span>
+            <input
+              className="input"
+              value={draft.model}
+              placeholder={modelPlaceholder}
+              onChange={(event) => onChange({ model: event.target.value })}
+            />
+          </label>
+        </div>
         <label className="form-block">
-          <span>模型 ID</span>
-          <input className="input" value={draft.id} disabled={mode === "edit"} onChange={(event) => onChange({ id: event.target.value })} />
+          <span>API 地址</span>
+          <input
+            className="input"
+            value={draft.baseUrl}
+            placeholder={DEFAULT_PROVIDER_BASE_URLS[draft.provider] ?? "留空使用服务商默认地址"}
+            onChange={(event) => onChange({ baseUrl: event.target.value })}
+          />
         </label>
-        <label className="form-block">
-          <span>Provider</span>
-          <input className="input" value={draft.provider} onChange={(event) => onChange({ provider: event.target.value })} />
-        </label>
-        <label className="form-block">
-          <span>Model</span>
-          <input className="input" value={draft.model} onChange={(event) => onChange({ model: event.target.value })} />
-        </label>
-      </div>
 
-      <div className="form-grid form-grid-3">
-        <label className="form-block">
-          <span>Temperature</span>
-          <input className="input" value={draft.temperature} onChange={(event) => onChange({ temperature: event.target.value })} />
-        </label>
-        <label className="form-block">
-          <span>Top P</span>
-          <input className="input" value={draft.topP} onChange={(event) => onChange({ topP: event.target.value })} />
-        </label>
-        <label className="form-block">
-          <span>Max Tokens</span>
-          <input className="input" value={draft.maxTokens} onChange={(event) => onChange({ maxTokens: event.target.value })} />
-        </label>
-      </div>
-
-      <div className="form-grid form-grid-3">
-        <label className="form-block">
-          <span>Context Window</span>
-          <input className="input" value={draft.contextWindow} onChange={(event) => onChange({ contextWindow: event.target.value })} />
-        </label>
-        <label className="form-block">
-          <span>Fallback Model ID</span>
-          <input className="input" value={draft.fallbackModelId} onChange={(event) => onChange({ fallbackModelId: event.target.value })} />
-        </label>
-        <label className="form-block">
-          <span>Cost Limit</span>
-          <input className="input" value={draft.costLimit} onChange={(event) => onChange({ costLimit: event.target.value })} />
-        </label>
-      </div>
-
-      <div className="form-grid form-grid-3">
-        <label className="switch-row"><input type="checkbox" checked={draft.longContext} onChange={(event) => onChange({ longContext: event.target.checked })} /><span>长上下文</span></label>
-        <label className="switch-row"><input type="checkbox" checked={draft.stream} onChange={(event) => onChange({ stream: event.target.checked })} /><span>流式输出</span></label>
-        <label className="switch-row"><input type="checkbox" checked={draft.jsonMode} onChange={(event) => onChange({ jsonMode: event.target.checked })} /><span>JSON 模式</span></label>
-      </div>
-
-      <div className="form-grid form-grid-2">
-        <label className="form-block">
-          <span>API Key</span>
-          <input className="input" type="password" value={apiKey} onChange={(event) => setApiKey(event.target.value)} placeholder="仅写入系统凭据管理器" />
-        </label>
-        <div className="model-actions-row">
+        <div className="model-key-row">
+          <label className="form-block model-key-input">
+            <span>API Key</span>
+            <input
+              className="input"
+              type="password"
+              value={apiKey}
+              onChange={(event) => setApiKey(event.target.value)}
+              placeholder="仅写入系统凭据管理器"
+            />
+          </label>
+          <span className={`tag ${hasKey ? "primary" : ""}`}>{hasKey ? "已存 Key" : "缺失 Key"}</span>
           <button type="button" className="btn" disabled={keySaving || !draft.id.trim() || !apiKey.trim()} onClick={onStoreKey}>
             <KeyRound size={15} strokeWidth={2} />
             {keySaving ? "写入中…" : "写入 Key"}
@@ -222,6 +295,56 @@ function ModelEditor({
             {testing ? "测试中…" : "测试连通性"}
           </button>
         </div>
+      </div>
+
+      <div className="model-advanced">
+        <button
+          type="button"
+          className="model-advanced-toggle"
+          onClick={() => setAdvancedOpen((open) => !open)}
+        >
+          {advancedOpen ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
+          高级参数
+        </button>
+        {advancedOpen ? (
+          <div className="model-advanced-panel">
+            <div className="form-grid form-grid-3">
+              <label className="form-block">
+                <span>温度</span>
+                <input className="input" value={draft.temperature} placeholder="例如 0.7" onChange={(event) => onChange({ temperature: event.target.value })} />
+              </label>
+              <label className="form-block">
+                <span>Top P</span>
+                <input className="input" value={draft.topP} placeholder="例如 0.9" onChange={(event) => onChange({ topP: event.target.value })} />
+              </label>
+              <label className="form-block">
+                <span>最大输出 Tokens</span>
+                <input className="input" value={draft.maxTokens} placeholder="例如 4096" onChange={(event) => onChange({ maxTokens: event.target.value })} />
+              </label>
+            </div>
+
+            <div className="form-grid form-grid-3">
+              <label className="form-block">
+                <span>上下文窗口</span>
+                <input className="input" value={draft.contextWindow} placeholder="例如 128000" onChange={(event) => onChange({ contextWindow: event.target.value })} />
+              </label>
+              <label className="form-block">
+                <span>备用模型 ID</span>
+                <input className="input" value={draft.fallbackModelId} onChange={(event) => onChange({ fallbackModelId: event.target.value })} />
+              </label>
+              <label className="form-block">
+                <span>费用上限</span>
+                <input className="input" value={draft.costLimit} placeholder="留空不限制" onChange={(event) => onChange({ costLimit: event.target.value })} />
+              </label>
+            </div>
+
+            <div className="form-grid form-grid-3">
+              <label className="switch-row"><input type="checkbox" checked={draft.longContext} onChange={(event) => onChange({ longContext: event.target.checked })} /><span>长上下文</span></label>
+              <label className="switch-row"><input type="checkbox" checked={draft.stream} onChange={(event) => onChange({ stream: event.target.checked })} /><span>流式输出</span></label>
+              <label className="switch-row"><input type="checkbox" checked={draft.jsonMode} onChange={(event) => onChange({ jsonMode: event.target.checked })} /><span>JSON 模式</span></label>
+            </div>
+          </div>
+        ) : null}
       </div>
     </section>
   );
@@ -841,13 +964,13 @@ export function SettingsView({ vaultPath, onSetVault, onClearVault }: SettingsVi
                             setModelFeedback(null);
                           }}
                         >
-                          <span className="col col-grow">
-                            <div className="col-name">{model.id}</div>
-                            <div className="col-sub">{model.model ?? "未设置模型名"}</div>
-                          </span>
-                          <span className="col" style={{ width: 120 }}>
-                            <span className="tag">{model.provider ?? "—"}</span>
-                          </span>
+                        <span className="col col-grow">
+                          <div className="col-name">{model.id}</div>
+                          <div className="col-sub">{model.model ?? "未设置模型名"} · {model.baseUrl ?? "默认 API 地址"}</div>
+                        </span>
+                        <span className="col" style={{ width: 120 }}>
+                          <span className="tag">{PROVIDER_LABELS[String(model.provider ?? "")] ?? model.provider ?? "—"}</span>
+                        </span>
                           <span className="col" style={{ width: 90 }}>
                             <span className={`tag ${model.hasKey ? "primary" : ""}`}>{model.hasKey ? "已存" : "缺失"}</span>
                           </span>
@@ -921,6 +1044,7 @@ export function SettingsView({ vaultPath, onSetVault, onClearVault }: SettingsVi
                 }}
                 testing={testingModel}
                 feedback={modelFeedback}
+                hasKey={Boolean(selectedModel?.hasKey)}
               />
             </div>
           ) : null}

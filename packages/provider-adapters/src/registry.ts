@@ -16,6 +16,7 @@ const DEFAULT_ENDPOINTS: Partial<Record<ModelConfig["provider"], ProviderEndpoin
   openai: { baseUrl: "https://api.openai.com/v1", apiPath: "/chat/completions" },
   "openai-compatible": { baseUrl: "https://api.openai.com/v1", apiPath: "/chat/completions" },
   anthropic: { baseUrl: "https://api.anthropic.com/v1", apiPath: "/messages" },
+  gemini: { baseUrl: "https://generativelanguage.googleapis.com/v1beta/openai", apiPath: "/chat/completions" },
   ollama: { baseUrl: "http://127.0.0.1:11434", apiPath: "/api/chat" },
   deepseek: { baseUrl: "https://api.deepseek.com", apiPath: "/chat/completions" },
   openrouter: { baseUrl: "https://openrouter.ai/api/v1", apiPath: "/chat/completions" },
@@ -48,14 +49,18 @@ export class ProviderRegistry {
       );
     }
 
-    const endpoint = this.options.endpoints?.[config.provider] ?? DEFAULT_ENDPOINTS[config.provider];
-    if (!endpoint) {
+    const providerEndpoint = this.options.endpoints?.[config.provider] ?? DEFAULT_ENDPOINTS[config.provider];
+    if (!providerEndpoint) {
       throw createProviderAdapterError(
         config.provider,
         "PROVIDER_ENDPOINT_MISSING",
         `No endpoint configured for provider ${config.provider}`,
       );
     }
+    const endpoint = {
+      ...providerEndpoint,
+      baseUrl: config.baseUrl?.trim() || providerEndpoint.baseUrl,
+    };
 
     const apiKey = config.keyRef ? await this.credentialService.getApiKey(config.keyRef) : null;
     if (config.provider !== "ollama" && config.keyRef && !apiKey) {
@@ -81,6 +86,7 @@ export class ProviderRegistry {
         return { config, model: createOllamaModel(common) };
       case "openai":
       case "openai-compatible":
+      case "gemini":
       case "deepseek":
       case "openrouter":
       case "siliconflow":

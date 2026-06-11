@@ -183,6 +183,7 @@ export interface Agent extends Entity {
 export interface ModelConfig extends Entity {
   provider: ProviderType;
   model: string;
+  baseUrl?: string;
   keyRef?: string;
   temperature?: number;
   topP?: number;
