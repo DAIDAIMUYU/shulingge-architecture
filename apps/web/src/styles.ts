@@ -466,6 +466,18 @@ input, textarea { font-family: inherit; }
 
 /* 卡片网格（项目库） */
 .view-toggle { display: inline-flex; gap: 2px; padding: 2px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--bg-card); }
+.character-project-selector { position: relative; display: inline-flex; align-items: center; gap: 8px; }
+.character-project-label { color: var(--text-muted); font-size: 13px; white-space: nowrap; }
+.character-project-button { height: 34px; min-width: 168px; max-width: 260px; display: inline-flex; align-items: center; justify-content: space-between; gap: 10px; padding: 0 10px 0 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--bg-card); color: var(--text-primary); font-size: 13px; cursor: pointer; transition: border-color .16s ease, background .16s ease, color .16s ease; }
+.character-project-button:hover { background: var(--bg-hover); border-color: var(--border-strong); }
+.character-project-button:disabled { opacity: .55; cursor: not-allowed; }
+.character-project-button span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.character-project-menu { position: absolute; top: calc(100% + 8px); right: 0; z-index: 50; width: 260px; max-height: 280px; overflow: auto; padding: 6px; background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-sm); box-shadow: var(--shadow-popover); }
+.character-project-menu button { width: 100%; min-height: 42px; display: flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: 3px; padding: 7px 10px; border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--text-secondary); text-align: left; cursor: pointer; transition: background .16s ease, color .16s ease; }
+.character-project-menu button:hover { background: var(--bg-hover); color: var(--text-primary); }
+.character-project-menu button.active { background: var(--primary-light); color: var(--primary); }
+.character-project-menu small { max-width: 100%; color: var(--text-muted); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.character-project-empty { padding: 10px; color: var(--text-muted); font-size: 13px; line-height: 1.6; }
 .character-card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 18px; }
 .character-card { overflow: hidden; background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-md); box-shadow: var(--shadow-card); }
 .character-card-cover { width: 100%; aspect-ratio: 3 / 4; border: 0; display: grid; place-items: center; background: linear-gradient(180deg, var(--primary-light), var(--bg-panel)); color: var(--primary); font-family: var(--font-serif); font-size: 48px; cursor: pointer; overflow: hidden; }

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ChevronDown, ChevronRight, Image, LayoutGrid, List, Plus, Save, Search, Trash2, UserRound, X } from "lucide-react";
 
 import {
@@ -456,6 +456,82 @@ function AvatarView({ character, large = false }: { character: Character; large?
   );
 }
 
+function ProjectSelector({
+  projects,
+  projectId,
+  disabled,
+  onChange,
+}: {
+  projects: ProjectSummary[];
+  projectId: string;
+  disabled?: boolean;
+  onChange(projectId: string): void;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement | null>(null);
+  const currentProject = projects.find((project) => project.projectId === projectId);
+
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+
+    const onPointerDown = (event: PointerEvent) => {
+      if (ref.current && !ref.current.contains(event.target as Node)) {
+        setOpen(false);
+      }
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setOpen(false);
+      }
+    };
+    window.addEventListener("pointerdown", onPointerDown);
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      window.removeEventListener("pointerdown", onPointerDown);
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [open]);
+
+  return (
+    <div className="character-project-selector" ref={ref}>
+      <span className="character-project-label">当前项目</span>
+      <button
+        type="button"
+        className="character-project-button"
+        onClick={() => setOpen((value) => !value)}
+        disabled={disabled || projects.length === 0}
+      >
+        <span>{currentProject?.title ?? "暂无项目"}</span>
+        <ChevronDown size={15} strokeWidth={1.8} />
+      </button>
+      {open ? (
+        <div className="character-project-menu">
+          {projects.length ? (
+            projects.map((project) => (
+              <button
+                type="button"
+                className={project.projectId === projectId ? "active" : ""}
+                key={project.projectId}
+                onClick={() => {
+                  onChange(project.projectId);
+                  setOpen(false);
+                }}
+              >
+                <span>{project.title}</span>
+                <small>{project.projectId}</small>
+              </button>
+            ))
+          ) : (
+            <div className="character-project-empty">暂无项目，请先去「项目」页新建一本书</div>
+          )}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function CharacterEditor({
   mode,
   value,
@@ -790,10 +866,21 @@ export function CharactersView() {
       title="角色"
       subtitle="按项目管理人物档案、头像、模板字段与自定义补充信息"
       actions={
-        <button type="button" className="btn btn-primary" onClick={() => setTemplateChoosing(true)} disabled={!projectId || vaultMissing}>
-          <Plus size={15} strokeWidth={2} />
-          新建角色
-        </button>
+        <>
+          <ProjectSelector
+            projects={projects}
+            projectId={projectId}
+            disabled={vaultMissing || loading}
+            onChange={(nextProjectId) => {
+              setProjectId(nextProjectId);
+              writeStoredProjectId(nextProjectId);
+            }}
+          />
+          <button type="button" className="btn btn-primary" onClick={() => setTemplateChoosing(true)} disabled={!projectId || vaultMissing || projects.length === 0}>
+            <Plus size={15} strokeWidth={2} />
+            新建角色
+          </button>
+        </>
       }
     >
       <div className="toolbar-row">
@@ -801,27 +888,6 @@ export function CharactersView() {
           <Search size={15} />
           <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="搜索角色、简介或字段…" />
         </div>
-        <label className="project-inline-field">
-          <span className="faint">项目</span>
-          <select
-            className="input"
-            value={projectId}
-            onChange={(event) => {
-              setProjectId(event.target.value);
-              writeStoredProjectId(event.target.value);
-            }}
-          >
-            {projects.length ? (
-              projects.map((project) => (
-                <option value={project.projectId} key={project.projectId}>
-                  {project.title}
-                </option>
-              ))
-            ) : (
-              <option value={projectId}>暂无项目</option>
-            )}
-          </select>
-        </label>
         <span className="grow" />
         <div className="view-toggle">
           <button type="button" className={`btn-icon ${viewMode === "card" ? "active" : ""}`} onClick={() => setViewMode("card")} aria-label="卡片视图">
