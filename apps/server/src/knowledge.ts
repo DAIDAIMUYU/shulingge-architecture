@@ -290,15 +290,22 @@ function normalizeRelation(input: RelationInput, current?: Relation): Relation {
 }
 
 function normalizeTimeline(input: TimelineInput, current?: TimelineEvent): TimelineEvent {
+  const profile = input.profile ?? current?.profile;
   return timelineEventSchema.parse({
     id: input.id ?? current?.id ?? "",
     title: input.title ?? current?.title ?? "",
     line: input.line ?? current?.line ?? "main",
     order: input.order ?? current?.order ?? 0,
+    template: input.template ?? current?.template ?? profile?.template ?? "simple",
+    importance: input.importance ?? current?.importance,
     eventDate: input.eventDate ?? current?.eventDate,
     summary: input.summary ?? current?.summary,
     description: input.description ?? current?.description,
     location: input.location ?? current?.location,
+    relatedWorldbook: input.relatedWorldbook ?? current?.relatedWorldbook ?? [],
+    previousEvents: input.previousEvents ?? current?.previousEvents ?? [],
+    nextEvents: input.nextEvents ?? current?.nextEvents ?? [],
+    profile,
     custom: input.custom ?? current?.custom ?? [],
     boundChapters: input.boundChapters ?? current?.boundChapters ?? [],
     participants: input.participants ?? current?.participants ?? [],

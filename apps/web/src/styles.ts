@@ -560,6 +560,7 @@ input, textarea { font-family: inherit; }
 .worldbook-character-picker label.selected { border-color: color-mix(in srgb, var(--primary) 32%, var(--border)); background: var(--primary-light); color: var(--primary); }
 .worldbook-character-picker input { accent-color: var(--primary); }
 .timeline-line-tabs { flex-wrap: wrap; }
+.timeline-line-hint { margin: -8px 0 16px; color: var(--text-secondary); font-size: 12px; }
 .timeline-stream { position: relative; display: grid; gap: 0; margin-top: 2px; }
 .timeline-stream::before { content: ""; position: absolute; left: 136px; top: 4px; bottom: 4px; width: 1px; background: var(--border); }
 .timeline-event-card { position: relative; display: grid; grid-template-columns: 116px 20px minmax(0, 1fr); gap: 10px; padding: 12px 0; }

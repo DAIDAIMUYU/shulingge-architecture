@@ -22,8 +22,11 @@ import type {
   RUN_STATUS_VALUES,
   SKILL_KIND_VALUES,
   SNAPSHOT_REASON_VALUES,
+  TIMELINE_IMPORTANCE_VALUES,
   SCOPE_VALUES,
   TIMELINE_LINE_VALUES,
+  TIMELINE_PROFILE_GROUP_VALUES,
+  TIMELINE_TEMPLATE_VALUES,
   WORKFLOW_FAIL_POLICY_VALUES,
   WORLDBOOK_CATEGORY_VALUES,
   WORLDBOOK_IMPORTANCE_VALUES,
@@ -465,14 +468,34 @@ export interface TimelineCustomField {
   value?: string;
 }
 
+export type TimelineTemplate = (typeof TIMELINE_TEMPLATE_VALUES)[number];
+export type TimelineImportance = (typeof TIMELINE_IMPORTANCE_VALUES)[number];
+export type TimelineProfileGroup = (typeof TIMELINE_PROFILE_GROUP_VALUES)[number];
+export type TimelineProfileSection = Record<string, string | undefined>;
+
+export interface TimelineProfile {
+  template?: TimelineTemplate;
+  basic?: TimelineProfileSection;
+  content?: TimelineProfileSection;
+  relations?: TimelineProfileSection;
+  writing?: TimelineProfileSection;
+  custom?: Partial<Record<TimelineProfileGroup, TimelineCustomField[]>>;
+}
+
 export interface TimelineEvent extends Entity {
   title: string;
   line: TimelineLine;
   order: number;
+  template?: TimelineTemplate;
+  importance?: TimelineImportance;
   eventDate?: string;
   summary?: string;
   description?: string;
   location?: string;
+  relatedWorldbook?: string[];
+  previousEvents?: string[];
+  nextEvents?: string[];
+  profile?: TimelineProfile;
   custom?: TimelineCustomField[];
   boundChapters: string[];
   participants: string[];

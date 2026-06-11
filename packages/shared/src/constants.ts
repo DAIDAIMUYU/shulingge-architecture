@@ -279,4 +279,42 @@ export const TIMELINE_LINE_VALUES = [
   "chapter",
 ] as const;
 
+export const TIMELINE_LINE_LABELS: Record<(typeof TIMELINE_LINE_VALUES)[number], string> = {
+  main: "主线",
+  character: "角色线",
+  relation: "关系线",
+  world: "世界线",
+  canon: "原作线",
+  branch: "支线",
+  chapter: "章节线",
+};
+
+export const TIMELINE_LINE_DESCRIPTIONS: Record<(typeof TIMELINE_LINE_VALUES)[number], string> = {
+  main: "推动小说核心剧情的关键事件",
+  character: "角色成长、转折和状态变化",
+  relation: "人物关系建立、升级或破裂",
+  world: "世界观、势力格局和大环境变化",
+  canon: "同人作品中对应原作事实或节点",
+  branch: "非主线但会影响体验的事件",
+  chapter: "按章节落点整理的写作事件",
+};
+
+export const TIMELINE_IMPORTANCE_VALUES = [
+  "core",
+  "important",
+  "minor",
+] as const;
+
+export const TIMELINE_TEMPLATE_VALUES = [
+  "simple",
+  "detailed",
+] as const;
+
+export const TIMELINE_PROFILE_GROUP_VALUES = [
+  "basic",
+  "content",
+  "relations",
+  "writing",
+] as const;
+
 export const CURRENT_SCHEMA_VERSION = 1;

@@ -394,16 +394,39 @@ export interface RelationInput {
   stage?: string;
   sourceChapters?: string[];
 }
+export type TimelineLine = "main" | "character" | "relation" | "world" | "canon" | "branch" | "chapter";
+export type TimelineTemplate = "simple" | "detailed";
+export type TimelineImportance = "core" | "important" | "minor";
+export type TimelineProfileGroup = "basic" | "content" | "relations" | "writing";
+export interface TimelineCustomField {
+  label?: string;
+  value?: string;
+}
+export type TimelineProfileSection = Record<string, string | undefined>;
+export interface TimelineProfile {
+  template?: TimelineTemplate;
+  basic?: TimelineProfileSection;
+  content?: TimelineProfileSection;
+  relations?: TimelineProfileSection;
+  writing?: TimelineProfileSection;
+  custom?: Partial<Record<TimelineProfileGroup, TimelineCustomField[]>>;
+}
 export interface TimelineEvent {
   id: string;
   title: string;
-  line?: string;
+  line?: TimelineLine;
   order?: number;
+  template?: TimelineTemplate;
+  importance?: TimelineImportance;
   eventDate?: string;
   summary?: string;
   description?: string;
   location?: string;
-  custom?: Array<{ label?: string; value?: string }>;
+  relatedWorldbook?: string[];
+  previousEvents?: string[];
+  nextEvents?: string[];
+  profile?: TimelineProfile;
+  custom?: TimelineCustomField[];
   boundChapters?: string[];
   participants?: string[];
   stateSnapshotRef?: string | null;
@@ -414,13 +437,19 @@ export interface TimelineEvent {
 export interface TimelineEventInput {
   id: string;
   title: string;
-  line: string;
+  line: TimelineLine;
   order: number;
+  template?: TimelineTemplate;
+  importance?: TimelineImportance;
   eventDate?: string;
   summary?: string;
   description?: string;
   location?: string;
-  custom?: Array<{ label?: string; value?: string }>;
+  relatedWorldbook?: string[];
+  previousEvents?: string[];
+  nextEvents?: string[];
+  profile?: TimelineProfile;
+  custom?: TimelineCustomField[];
   boundChapters?: string[];
   participants?: string[];
   stateSnapshotRef?: string | null;

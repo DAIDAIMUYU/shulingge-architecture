@@ -24,8 +24,10 @@ import {
   RUN_STATUS_VALUES,
   SKILL_KIND_VALUES,
   SNAPSHOT_REASON_VALUES,
+  TIMELINE_IMPORTANCE_VALUES,
   SCOPE_VALUES,
   TIMELINE_LINE_VALUES,
+  TIMELINE_TEMPLATE_VALUES,
   WORKFLOW_FAIL_POLICY_VALUES,
   WORLDBOOK_CATEGORY_VALUES,
   WORLDBOOK_IMPORTANCE_VALUES,
@@ -460,14 +462,37 @@ export const timelineCustomFieldSchema = z.object({
   value: z.string().optional(),
 });
 
+const timelineProfileSectionSchema = z.record(z.string().optional()).optional();
+const timelineProfileCustomSchema = z.object({
+  basic: z.array(timelineCustomFieldSchema).optional(),
+  content: z.array(timelineCustomFieldSchema).optional(),
+  relations: z.array(timelineCustomFieldSchema).optional(),
+  writing: z.array(timelineCustomFieldSchema).optional(),
+}).partial().optional();
+
+export const timelineProfileSchema = z.object({
+  template: z.enum(TIMELINE_TEMPLATE_VALUES).optional(),
+  basic: timelineProfileSectionSchema,
+  content: timelineProfileSectionSchema,
+  relations: timelineProfileSectionSchema,
+  writing: timelineProfileSectionSchema,
+  custom: timelineProfileCustomSchema,
+}).partial();
+
 export const timelineEventSchema = entitySchema.extend({
   title: z.string().min(1),
   line: z.enum(TIMELINE_LINE_VALUES),
   order: z.number().int().nonnegative(),
+  template: z.enum(TIMELINE_TEMPLATE_VALUES).optional(),
+  importance: z.enum(TIMELINE_IMPORTANCE_VALUES).optional(),
   eventDate: z.string().optional(),
   summary: z.string().optional(),
   description: z.string().optional(),
   location: z.string().optional(),
+  relatedWorldbook: stringArraySchema.optional(),
+  previousEvents: stringArraySchema.optional(),
+  nextEvents: stringArraySchema.optional(),
+  profile: timelineProfileSchema.optional(),
   custom: z.array(timelineCustomFieldSchema).optional(),
   boundChapters: stringArraySchema,
   participants: stringArraySchema,
