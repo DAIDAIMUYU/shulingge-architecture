@@ -21,6 +21,7 @@ import {
   Redo2,
   RefreshCw,
   Search,
+  Sparkles,
   Trash2,
   Undo2,
   X,
@@ -240,6 +241,9 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
   const [running, setRunning] = useState(false);
   const [chatSending, setChatSending] = useState(false);
   const [executingTaskId, setExecutingTaskId] = useState<number | null>(null);
+  const [polishing, setPolishing] = useState(false);
+  const [polishStartedAt, setPolishStartedAt] = useState<number | null>(null);
+  const [polishElapsedSeconds, setPolishElapsedSeconds] = useState(0);
   const [reviewing, setReviewing] = useState(false);
   const [reviewStartedAt, setReviewStartedAt] = useState<number | null>(null);
   const [reviewElapsedSeconds, setReviewElapsedSeconds] = useState(0);
@@ -301,6 +305,13 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
     () => agents
       .filter((agent) => agent.enabled !== false && (agent.type === "checker" || agent.type === "blocker"))
       .sort((left, right) => (left.order ?? 0) - (right.order ?? 0) || left.id.localeCompare(right.id)),
+    [agents],
+  );
+  const polishAgent = useMemo(
+    () => agents.find((agent) => agent.id === "polish-agent")
+      ?? agents.find((agent) => agent.id === "polish")
+      ?? agents.find((agent) => agent.enabled !== false && agent.type === "advisor" && agent.name.includes("润色"))
+      ?? null,
     [agents],
   );
 
@@ -620,6 +631,19 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
     }, 1000);
     return () => window.clearInterval(timer);
   }, [reviewing, reviewStartedAt]);
+
+  useEffect(() => {
+    if (!polishing || polishStartedAt === null) {
+      setPolishElapsedSeconds(0);
+      return;
+    }
+
+    setPolishElapsedSeconds(Math.max(0, Math.floor((Date.now() - polishStartedAt) / 1000)));
+    const timer = window.setInterval(() => {
+      setPolishElapsedSeconds(Math.max(0, Math.floor((Date.now() - polishStartedAt) / 1000)));
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [polishing, polishStartedAt]);
 
   const syncSelection = () => {
     const node = textareaRef.current;
@@ -1089,10 +1113,16 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
   const pushText = (role: "ai" | "user", text: string) =>
     setMessages((items) => [...items, { id: nextId(), kind: "text", role, text }]);
 
-  const confirmDirectorTask = async (messageId: number, task: DirectorTaskSuggestion) => {
-    if (executingTaskId !== null) {
-      return;
-    }
+  const executeAgentTask = async (input: {
+    agentId: string;
+    agentName: string;
+    taskDescription: string;
+    loadingText: string;
+    onBeforeExecute?: () => void;
+    onFinally?: () => void;
+    onSuccess?: () => void;
+    onFailure?: (message: string) => void;
+  }) => {
     if (!locator.projectId || !locator.novelId || !locator.chapterId || !chapter) {
       pushText("ai", "请先打开一个章节，再执行 AI 修改。");
       return;
@@ -1103,16 +1133,16 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
     }
 
     const loadingMessageId = nextId();
-    setExecutingTaskId(messageId);
+    input.onBeforeExecute?.();
     setMessages((items) => [
       ...items,
-      { id: loadingMessageId, kind: "text", role: "ai", text: `【${task.agentName}】正在处理…` },
+      { id: loadingMessageId, kind: "text", role: "ai", text: input.loadingText },
     ]);
 
     try {
       const result = await api.executeDirectorTask({
-        agentId: task.agentId,
-        taskDescription: task.taskDescription,
+        agentId: input.agentId,
+        taskDescription: input.taskDescription,
         projectId: locator.projectId,
         novelId: locator.novelId,
         chapterId: locator.chapterId,
@@ -1132,9 +1162,6 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
 
       setMessages((items) =>
         items.map((message) => {
-          if (message.id === messageId && message.kind === "confirm") {
-            return { ...message, status: "confirmed" as const };
-          }
           if (message.id === loadingMessageId && message.kind === "text") {
             return {
               id: loadingMessageId,
@@ -1146,20 +1173,46 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
           return message;
         }),
       );
+      input.onSuccess?.();
     } catch (err) {
+      const messageText = err instanceof ApiError ? err.message : err instanceof Error ? err.message : "Agent 执行失败，请稍后再试";
       setMessages((items) =>
         items.map((message) =>
           message.id === loadingMessageId && message.kind === "text"
             ? {
                 ...message,
-                text: err instanceof ApiError ? err.message : err instanceof Error ? err.message : "Agent 执行失败，请稍后再试",
+                text: messageText,
               }
             : message,
         ),
       );
+      input.onFailure?.(messageText);
     } finally {
-      setExecutingTaskId(null);
+      input.onFinally?.();
     }
+  };
+
+  const confirmDirectorTask = async (messageId: number, task: DirectorTaskSuggestion) => {
+    if (executingTaskId !== null || polishing) {
+      return;
+    }
+    await executeAgentTask({
+      agentId: task.agentId,
+      agentName: task.agentName,
+      taskDescription: task.taskDescription,
+      loadingText: `【${task.agentName}】正在处理…`,
+      onBeforeExecute: () => setExecutingTaskId(messageId),
+      onFinally: () => setExecutingTaskId(null),
+      onSuccess: () => {
+        setMessages((items) =>
+          items.map((message) =>
+            message.id === messageId && message.kind === "confirm"
+              ? { ...message, status: "confirmed" as const }
+              : message,
+          ),
+        );
+      },
+    });
   };
 
   const cancelDirectorTask = (messageId: number) => {
@@ -1241,6 +1294,56 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
       confirmText: "开始质检",
       onConfirm: () => {
         void runChapterReview();
+      },
+    });
+  };
+
+  const runPolish = async () => {
+    closeConfirm();
+    if (polishing || executingTaskId !== null) {
+      return;
+    }
+    if (!polishAgent) {
+      pushText("ai", "未找到润色 Agent，请在 Agent 管理页确认。");
+      return;
+    }
+
+    await executeAgentTask({
+      agentId: polishAgent.id,
+      agentName: polishAgent.name,
+      taskDescription: "通读全文，润色改进表达、消除重复与 AI 腔，保持原意和剧情不变。",
+      loadingText: `【${polishAgent.name}】正在润色…`,
+      onBeforeExecute: () => {
+        setPolishing(true);
+        setPolishStartedAt(Date.now());
+      },
+      onFinally: () => {
+        setPolishing(false);
+        setPolishStartedAt(null);
+      },
+    });
+  };
+
+  const openPolishConfirm = () => {
+    if (!hasValidActiveChapter) {
+      pushText("ai", "请先打开一个章节，再进行润色。");
+      return;
+    }
+    if (!draft.trim()) {
+      pushText("ai", "当前章节没有可润色的正文，请先写入内容。");
+      return;
+    }
+    if (!polishAgent) {
+      pushText("ai", "未找到润色 Agent，请在 Agent 管理页确认。");
+      return;
+    }
+
+    openConfirm({
+      title: "一键润色",
+      message: `将调用「${polishAgent.name}」对当前章节正文进行润色，改动后可撤销。确认？`,
+      confirmText: "开始润色",
+      onConfirm: () => {
+        void runPolish();
       },
     });
   };
@@ -1778,6 +1881,15 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
                 >
                   <Check size={15} strokeWidth={2} />
                   {reviewing ? `质检中 ${reviewElapsedSeconds}s` : "一键质检"}
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  onClick={openPolishConfirm}
+                  disabled={polishing || executingTaskId !== null || !hasValidActiveChapter}
+                >
+                  <Sparkles size={15} strokeWidth={2} />
+                  {polishing ? `润色中 ${polishElapsedSeconds}s` : "一键润色"}
                 </button>
                 <button type="button" className="btn" onClick={toggleFocusMode}>
                   {focusMode ? <Minimize2 size={15} strokeWidth={2} /> : <Maximize2 size={15} strokeWidth={2} />}
