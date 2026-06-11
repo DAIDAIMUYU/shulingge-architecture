@@ -107,6 +107,7 @@ import { createCollaborationSession, listCollaborationSessions, updateCollaborat
 import { buildRelationReplay } from "./graph-replay.js";
 import { assistCharacter } from "./assist-character.js";
 import { assistWorldbook } from "./assist-worldbook.js";
+import { assistTimeline } from "./assist-timeline.js";
 import { listThemeCommunity, publishThemeCommunityEntry } from "./theme-market.js";
 import {
   applyDownloadedUpdate,
@@ -406,6 +407,18 @@ export const routeDefinitions: RouteDefinition[] = [
     async handler(request, context) {
       const vaultRoot = requireVaultRoot(context);
       return await assistWorldbook(
+        vaultRoot,
+        (request.body as Record<string, unknown> | undefined) ?? {},
+        getModelOptions(context),
+      );
+    },
+  },
+  {
+    method: "POST",
+    path: "/api/v1/assist/timeline",
+    async handler(request, context) {
+      const vaultRoot = requireVaultRoot(context);
+      return await assistTimeline(
         vaultRoot,
         (request.body as Record<string, unknown> | undefined) ?? {},
         getModelOptions(context),

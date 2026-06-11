@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { BookOpen, ChevronDown, ChevronRight, Clock3, GitBranch, MapPin, Plus, Save, Search, Sparkles, Trash2, Users, X } from "lucide-react";
 
 import {
   api,
   ApiError,
+  type AssistTimelineField,
   type Character,
   type ProjectSummary,
   type TimelineCustomField,
@@ -21,6 +22,7 @@ import { CenterState, ViewShell } from "./common.js";
 import { ProjectSelector } from "./ProjectSelector.js";
 
 type EditorMode = "create" | "edit";
+type AssistMode = "original" | "fanfic";
 type TimelineLineFilter = "all" | TimelineLine;
 type FieldDef = { key: string; label: string; multiline?: boolean };
 type GroupDef = {
@@ -30,6 +32,10 @@ type GroupDef = {
   defaultOpen: boolean;
   fields: FieldDef[];
 };
+interface TimelineAssistField extends AssistTimelineField {
+  custom?: boolean;
+  profileGroup?: TimelineProfileGroup;
+}
 
 const DEFAULT_PROJECT_ID = "demo-series";
 
@@ -158,12 +164,24 @@ function createEmptyProfile(template: TimelineTemplate): TimelineProfile {
   };
 }
 
-function createDraft(line: TimelineLine, template: TimelineTemplate, event?: TimelineEvent): TimelineEventInput {
-  const profile = {
-    ...createEmptyProfile(template),
-    ...(event?.profile ?? {}),
-    template: event?.template ?? event?.profile?.template ?? template,
+function normalizeProfile(profile?: TimelineProfile, template: TimelineTemplate = "simple"): TimelineProfile {
+  const base = createEmptyProfile(profile?.template ?? template);
+  return {
+    ...base,
+    ...profile,
+    basic: { ...base.basic, ...profile?.basic },
+    content: { ...base.content, ...profile?.content },
+    relations: { ...base.relations, ...profile?.relations },
+    writing: { ...base.writing, ...profile?.writing },
+    custom: {
+      ...base.custom,
+      ...profile?.custom,
+    },
   };
+}
+
+function createDraft(line: TimelineLine, template: TimelineTemplate, event?: TimelineEvent): TimelineEventInput {
+  const profile = normalizeProfile(event?.profile, event?.template ?? event?.profile?.template ?? template);
   return {
     id: event?.id ?? "",
     title: event?.title ?? "",
@@ -230,11 +248,178 @@ function customRows(profile: TimelineProfile | undefined, group: TimelineProfile
   return profile?.custom?.[group] ?? [];
 }
 
+function collectAssistFields(profile: TimelineProfile, draft: TimelineEventInput): TimelineAssistField[] {
+  const normalized = normalizeProfile(profile, draft.template ?? profile.template ?? "simple");
+  const detailed = normalized.template === "detailed";
+  const fields: TimelineAssistField[] = [
+    { group: "核心信息", key: "title", label: "事件标题" },
+    { group: "核心信息", key: "line", label: "线类型" },
+    { group: "核心信息", key: "eventDate", label: "发生时间" },
+    { group: "核心信息", key: "order", label: "时间排序" },
+    { group: "核心信息", key: "location", label: "地点" },
+    { group: "核心信息", key: "summary", label: "一句话简介" },
+    { group: "核心信息", key: "description", label: "详细描述" },
+    { group: "核心信息", key: "importance", label: "重要程度" },
+  ];
+
+  if (detailed) {
+    for (const group of GROUPS) {
+      for (const field of group.fields) {
+        fields.push({
+          group: group.title,
+          key: field.key,
+          label: field.label,
+          profileGroup: group.id,
+        });
+      }
+
+      for (const row of normalized.custom?.[group.id] ?? []) {
+        const label = row.label?.trim();
+        if (label) {
+          fields.push({
+            group: group.title,
+            key: label,
+            label,
+            custom: true,
+            profileGroup: group.id,
+          });
+        }
+      }
+    }
+  } else {
+    for (const row of normalized.custom?.basic ?? []) {
+      const label = row.label?.trim();
+      if (label) {
+        fields.push({
+          group: "自定义补充字段",
+          key: label,
+          label,
+          custom: true,
+          profileGroup: "basic",
+        });
+      }
+    }
+  }
+
+  return fields;
+}
+
+function collectExistingValues(draft: TimelineEventInput, profile: TimelineProfile, fields: TimelineAssistField[]): Record<string, string> {
+  const normalized = normalizeProfile(profile, draft.template ?? profile.template ?? "simple");
+  const values: Record<string, string> = {};
+  for (const field of fields) {
+    if (field.custom && field.profileGroup) {
+      const row = normalized.custom?.[field.profileGroup]?.find((item) => item.label?.trim() === field.label);
+      values[field.key] = row?.value?.trim() ?? "";
+      continue;
+    }
+
+    if (field.profileGroup) {
+      values[field.key] = normalized[field.profileGroup]?.[field.key]?.trim() ?? "";
+      continue;
+    }
+
+    if (field.key === "line") {
+      values[field.key] = lineLabel(draft.line);
+    } else if (field.key === "order") {
+      values[field.key] = String(draft.order ?? "");
+    } else {
+      values[field.key] = typeof draft[field.key as keyof TimelineEventInput] === "string"
+        ? String(draft[field.key as keyof TimelineEventInput]).trim()
+        : "";
+    }
+  }
+  return values;
+}
+
+function mergeAssistFields(draft: TimelineEventInput, fields: TimelineAssistField[], generated: Record<string, string>): TimelineEventInput {
+  let next: TimelineEventInput = {
+    ...draft,
+    profile: normalizeProfile(draft.profile, draft.template ?? "simple"),
+  };
+
+  for (const field of fields) {
+    const generatedValue = (generated[field.key] ?? generated[field.label])?.trim();
+    if (!generatedValue) {
+      continue;
+    }
+
+    if (field.custom && field.profileGroup) {
+      const profile = normalizeProfile(next.profile, next.template ?? "simple");
+      const rows = [...(profile.custom?.[field.profileGroup] ?? [])];
+      const rowIndex = rows.findIndex((row) => row.label?.trim() === field.label);
+      if (rowIndex >= 0 && !rows[rowIndex].value?.trim()) {
+        rows[rowIndex] = { ...rows[rowIndex], value: generatedValue };
+        next = {
+          ...next,
+          profile: {
+            ...profile,
+            custom: { ...profile.custom, [field.profileGroup]: rows },
+          },
+        };
+      }
+      continue;
+    }
+
+    if (field.profileGroup) {
+      const profile = normalizeProfile(next.profile, next.template ?? "simple");
+      const currentValue = profile[field.profileGroup]?.[field.key]?.trim();
+      if (!currentValue) {
+        next = {
+          ...next,
+          profile: {
+            ...profile,
+            [field.profileGroup]: {
+              ...(profile[field.profileGroup] ?? {}),
+              [field.key]: generatedValue,
+            },
+          },
+        };
+      }
+      continue;
+    }
+
+    if (field.key === "title" && !next.title.trim()) {
+      next = { ...next, title: generatedValue };
+    } else if (field.key === "eventDate" && !next.eventDate?.trim()) {
+      next = { ...next, eventDate: generatedValue };
+    } else if (field.key === "location" && !next.location?.trim()) {
+      next = { ...next, location: generatedValue };
+    } else if (field.key === "summary" && !next.summary?.trim()) {
+      next = { ...next, summary: generatedValue };
+    } else if (field.key === "description" && !next.description?.trim()) {
+      next = { ...next, description: generatedValue };
+    }
+  }
+
+  return next;
+}
+
+function useElapsedSeconds(active: boolean): number {
+  const [seconds, setSeconds] = useState(0);
+
+  useEffect(() => {
+    if (!active) {
+      setSeconds(0);
+      return;
+    }
+    setSeconds(0);
+    const timer = window.setInterval(() => {
+      setSeconds((value) => value + 1);
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [active]);
+
+  return seconds;
+}
+
 function TemplateChooser({
   onChoose,
+  onAiGenerate,
   onCancel,
 }: {
   onChoose(template: TimelineTemplate): void;
+  onAiGenerate(): void;
   onCancel(): void;
 }) {
   return (
@@ -259,6 +444,11 @@ function TemplateChooser({
             <BookOpen size={22} />
             <strong>详细版</strong>
             <span>按基本信息、事件内容、关联和写作参考分块整理完整事件。</span>
+          </button>
+          <button type="button" className="character-template-card character-template-card-wide" onClick={onAiGenerate}>
+            <Sparkles size={22} />
+            <strong>AI 生成</strong>
+            <span>通过几步问答生成一个时间线事件草稿，再进入编辑器检查和保存。</span>
           </button>
         </div>
       </div>
@@ -346,6 +536,279 @@ function CheckboxMultiSelect<T extends { id: string; label: string }>({
   );
 }
 
+function TimelineAssistModal({
+  loading,
+  error,
+  onCancel,
+  onSubmit,
+}: {
+  loading: boolean;
+  error: string | null;
+  onCancel(): void;
+  onSubmit(input: { mode: AssistMode; userPrompt: string; eventName?: string; sourceWork?: string; scopeInstruction?: string }): void;
+}) {
+  const [mode, setMode] = useState<AssistMode>("original");
+  const [userPrompt, setUserPrompt] = useState("");
+  const [eventName, setEventName] = useState("");
+  const [sourceWork, setSourceWork] = useState("");
+  const [scopeInstruction, setScopeInstruction] = useState("");
+  const elapsedSeconds = useElapsedSeconds(loading);
+
+  const submit = (event: FormEvent) => {
+    event.preventDefault();
+    const prompt = userPrompt.trim();
+    const name = eventName.trim();
+    const work = sourceWork.trim();
+    if (loading || (mode === "original" ? !prompt : (!name || !work))) {
+      return;
+    }
+    onSubmit({
+      mode,
+      userPrompt: mode === "fanfic" ? [name, work, prompt].filter(Boolean).join("\n") : prompt,
+      eventName: name,
+      sourceWork: work,
+      scopeInstruction: scopeInstruction.trim(),
+    });
+  };
+
+  return (
+    <div
+      className="vault-modal-backdrop"
+      onMouseDown={(event) => {
+        event.stopPropagation();
+        if (!loading) {
+          onCancel();
+        }
+      }}
+    >
+      <form className="vault-modal character-assist-modal" onSubmit={submit} onMouseDown={(event) => event.stopPropagation()}>
+        <div className="character-modal-head compact">
+          <div>
+            <h2>AI 辅助填充</h2>
+            <p>AI 会读取当前时间线模板字段和自定义字段，只把生成内容填进空字段，保存前仍可修改。</p>
+          </div>
+          <button type="button" className="btn-icon" onClick={onCancel} disabled={loading} aria-label="关闭">
+            <X size={16} />
+          </button>
+        </div>
+
+        <div className="character-assist-mode">
+          <button type="button" className={mode === "original" ? "active" : ""} onClick={() => setMode("original")} disabled={loading}>
+            原创
+          </button>
+          <button type="button" className={mode === "fanfic" ? "active" : ""} onClick={() => setMode("fanfic")} disabled={loading}>
+            同人
+          </button>
+        </div>
+
+        <label className="form-block">
+          <span>{mode === "fanfic" ? "补充要求" : "想要一个什么样的事件"}</span>
+          {mode === "fanfic" ? (
+            <div className="form-grid form-grid-2 character-assist-fanfic-grid">
+              <label className="form-block">
+                <span>事件名</span>
+                <input className="input" value={eventName} placeholder="例如：无限列车事件" onChange={(event) => setEventName(event.target.value)} disabled={loading} />
+              </label>
+              <label className="form-block">
+                <span>来源作品</span>
+                <input className="input" value={sourceWork} placeholder="例如：鬼灭之刃" onChange={(event) => setSourceWork(event.target.value)} disabled={loading} />
+              </label>
+            </div>
+          ) : null}
+          <textarea
+            className="textarea character-assist-prompt"
+            value={userPrompt}
+            placeholder={mode === "fanfic" ? "可选：只填起因和影响，或补充这个同人事件的改编方向" : "例如：主角第一次发现师门隐藏真相的事件，表面是试炼，实际是一次清洗"}
+            onChange={(event) => setUserPrompt(event.target.value)}
+            disabled={loading}
+          />
+        </label>
+        <label className="form-block">
+          <span>指定填充范围</span>
+          <input
+            className="input"
+            value={scopeInstruction}
+            placeholder="可选：例如只填事件内容，或只填写作参考；留空则填所有空字段"
+            onChange={(event) => setScopeInstruction(event.target.value)}
+            disabled={loading}
+          />
+        </label>
+
+        {mode === "fanfic" ? (
+          <div className="character-assist-note">同人资料由 AI 依据其训练知识生成，可能不准确；不确定字段会尽量留空，请自行核对。</div>
+        ) : null}
+        {loading ? <div className="character-assist-note">正在生成…（已用 {elapsedSeconds} 秒）</div> : null}
+        {error ? <div className="err-card">{error}</div> : null}
+
+        <div className="vault-modal-actions">
+          <button type="button" className="btn btn-ghost" onClick={onCancel} disabled={loading}>
+            取消
+          </button>
+          <button type="submit" className="btn btn-primary" disabled={loading || (mode === "original" ? !userPrompt.trim() : (!eventName.trim() || !sourceWork.trim()))}>
+            <Sparkles size={15} />
+            {loading ? `生成中...${elapsedSeconds}s` : "开始填充"}
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
+function TimelineAiCreateModal({
+  projectId,
+  loading,
+  error,
+  onCancel,
+  onGenerate,
+}: {
+  projectId: string;
+  loading: boolean;
+  error: string | null;
+  onCancel(): void;
+  onGenerate(input: { mode: AssistMode; template: TimelineTemplate; line: TimelineLine; userPrompt: string; extraAnswer: string; eventName?: string; sourceWork?: string }): void;
+}) {
+  const [mode, setMode] = useState<AssistMode | null>(null);
+  const [userPrompt, setUserPrompt] = useState("");
+  const [eventName, setEventName] = useState("");
+  const [sourceWork, setSourceWork] = useState("");
+  const [template, setTemplate] = useState<TimelineTemplate>("simple");
+  const [line, setLine] = useState<TimelineLine>("main");
+  const [extraAnswer, setExtraAnswer] = useState("");
+  const elapsedSeconds = useElapsedSeconds(loading);
+
+  const fanficReady = Boolean(eventName.trim() && sourceWork.trim());
+  const originalReady = Boolean(userPrompt.trim() && extraAnswer.trim());
+  const canGenerate = Boolean(mode && (mode === "fanfic" ? fanficReady : originalReady));
+  const step = !mode ? 1 : mode === "fanfic" ? (fanficReady ? 4 : 2) : !userPrompt.trim() ? 2 : !extraAnswer.trim() ? 3 : 4;
+
+  return (
+    <div className="vault-modal-backdrop" onMouseDown={loading ? undefined : onCancel}>
+      <div className="vault-modal character-ai-create-modal" onMouseDown={(event) => event.stopPropagation()}>
+        <div className="character-modal-head compact">
+          <div>
+            <h2>AI 生成时间线事件</h2>
+            <p>回答几步问题后，AI 会生成一条时间线事件草稿并打开编辑器，保存前可继续修改。</p>
+          </div>
+          <button type="button" className="btn-icon" onClick={onCancel} disabled={loading} aria-label="关闭">
+            <X size={16} />
+          </button>
+        </div>
+
+        <div className="character-ai-chat">
+          <div className="character-ai-message ai">先告诉我，这是原创事件还是同人/原作事件？</div>
+          <div className="character-assist-mode">
+            <button type="button" className={mode === "original" ? "active" : ""} onClick={() => setMode("original")} disabled={loading}>
+              原创事件
+            </button>
+            <button type="button" className={mode === "fanfic" ? "active" : ""} onClick={() => setMode("fanfic")} disabled={loading}>
+              同人事件
+            </button>
+          </div>
+
+          {mode ? (
+            <>
+              <div className="character-ai-message ai">这条事件属于哪条线？</div>
+              <select className="input" value={line} onChange={(event) => setLine(event.target.value as TimelineLine)} disabled={loading}>
+                {EDITABLE_LINES.map((option) => <option value={option.id} key={option.id}>{option.label}：{option.hint}</option>)}
+              </select>
+            </>
+          ) : null}
+
+          {mode === "original" ? (
+            <>
+              <div className="character-ai-message ai">用一句话描述你想要的事件方向。</div>
+              <textarea
+                className="textarea character-assist-prompt"
+                value={userPrompt}
+                placeholder="例如：主角误入禁地后救下敌方少年，这件事后来导致两派停战谈判破裂"
+                onChange={(event) => setUserPrompt(event.target.value)}
+                disabled={loading}
+              />
+            </>
+          ) : null}
+          {mode === "fanfic" ? (
+            <>
+              <div className="character-ai-message ai">分别写清楚事件名和来源作品，避免 AI 混淆。</div>
+              <div className="form-grid form-grid-2 character-assist-fanfic-grid">
+                <label className="form-block">
+                  <span>事件名</span>
+                  <input className="input" value={eventName} placeholder="例如：那田蜘蛛山事件" onChange={(event) => setEventName(event.target.value)} disabled={loading} />
+                </label>
+                <label className="form-block">
+                  <span>来源作品</span>
+                  <input className="input" value={sourceWork} placeholder="例如：鬼灭之刃" onChange={(event) => setSourceWork(event.target.value)} disabled={loading} />
+                </label>
+              </div>
+            </>
+          ) : null}
+
+          {(mode === "original" ? userPrompt.trim() : fanficReady) ? (
+            <>
+              <div className="character-ai-message ai">这条时间线事件需要精简版还是详细版？</div>
+              <div className="character-assist-mode">
+                <button type="button" className={template === "simple" ? "active" : ""} onClick={() => setTemplate("simple")} disabled={loading}>
+                  精简版
+                </button>
+                <button type="button" className={template === "detailed" ? "active" : ""} onClick={() => setTemplate("detailed")} disabled={loading}>
+                  详细版
+                </button>
+              </div>
+            </>
+          ) : null}
+
+          {mode === "original" && userPrompt.trim() ? (
+            <>
+              <div className="character-ai-message ai">再补一句：这个事件的关键转折点，或它对剧情造成的影响是什么？</div>
+              <textarea
+                className="textarea character-ai-extra"
+                value={extraAnswer}
+                placeholder="例如：转折是主角选择隐瞒真相，影响是他从此失去师兄信任。"
+                onChange={(event) => setExtraAnswer(event.target.value)}
+                disabled={loading}
+              />
+            </>
+          ) : null}
+
+          {mode === "fanfic" && fanficReady ? (
+            <div className="character-assist-note">同人资料由 AI 依据其训练知识生成，可能不准确；不确定字段会尽量留空，请自行核对。</div>
+          ) : null}
+          {loading ? <div className="character-assist-note">正在生成…（已用 {elapsedSeconds} 秒）</div> : null}
+        </div>
+
+        {error ? <div className="err-card">{error}</div> : null}
+        <div className="vault-modal-actions">
+          <span className="faint">步骤 {step} / 4</span>
+          <span className="grow" />
+          <button type="button" className="btn btn-ghost" onClick={onCancel} disabled={loading}>
+            取消
+          </button>
+          <button
+            type="button"
+            className="btn btn-primary"
+            disabled={loading || !canGenerate || !projectId}
+            onClick={() => {
+              if (mode) {
+                onGenerate({
+                  mode,
+                  template,
+                  line,
+                  userPrompt: mode === "fanfic" ? `${eventName.trim()}，${sourceWork.trim()}` : userPrompt.trim(),
+                  extraAnswer: extraAnswer.trim(),
+                  eventName: eventName.trim(),
+                  sourceWork: sourceWork.trim(),
+                });
+              }
+            }}
+          >
+            <Sparkles size={15} />
+            {loading ? `生成中...${elapsedSeconds}s` : "生成事件草稿"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function TimelineEditor({
   mode,
   value,
@@ -369,6 +832,10 @@ function TimelineEditor({
 }) {
   const profile = value.profile ?? createEmptyProfile(value.template ?? "simple");
   const isDetailed = (value.template ?? profile.template ?? "simple") === "detailed";
+  const [assistOpen, setAssistOpen] = useState(false);
+  const [assistLoading, setAssistLoading] = useState(false);
+  const [assistError, setAssistError] = useState<string | null>(null);
+  const [assistNotice, setAssistNotice] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<Record<TimelineProfileGroup, boolean>>(() =>
     GROUPS.reduce((result, group) => ({ ...result, [group.id]: group.defaultOpen }), {} as Record<TimelineProfileGroup, boolean>),
   );
@@ -422,6 +889,44 @@ function TimelineEditor({
     </div>
   );
 
+  const runAssist = async (input: { mode: AssistMode; userPrompt: string; eventName?: string; sourceWork?: string; scopeInstruction?: string }) => {
+    const normalizedProfile = normalizeProfile(profile, value.template ?? "simple");
+    const fields = collectAssistFields(normalizedProfile, value);
+    if (!fields.length) {
+      setAssistError("当前没有可填充的字段。");
+      return;
+    }
+
+    setAssistLoading(true);
+    setAssistError(null);
+    setAssistNotice(null);
+    try {
+      const response = await api.assistTimeline({
+        mode: input.mode,
+        userPrompt: input.userPrompt,
+        eventName: input.eventName,
+        sourceWork: input.sourceWork,
+        scopeInstruction: input.scopeInstruction,
+        template: value.template ?? normalizedProfile.template,
+        line: lineLabel(value.line),
+        fields: fields.map(({ group, key, label }) => ({ group, key, label })),
+        existingValues: collectExistingValues(value, normalizedProfile, fields),
+      });
+      const nextDraft = mergeAssistFields({ ...value, profile: normalizedProfile }, fields, response.fields);
+      onChange(nextDraft);
+      setAssistOpen(false);
+      setAssistNotice(
+        input.mode === "fanfic"
+          ? "AI 已填入空字段。同人资料可能不准确，请核对后再保存。"
+          : "AI 已填入空字段，请检查后再保存时间线事件。",
+      );
+    } catch (assistErrorValue) {
+      setAssistError(assistErrorValue instanceof ApiError ? assistErrorValue.message : "AI 辅助填充失败");
+    } finally {
+      setAssistLoading(false);
+    }
+  };
+
   return (
     <div className="vault-modal-backdrop character-modal-backdrop" onMouseDown={onCancel}>
       <div className="vault-modal character-modal timeline-modal" onMouseDown={(event) => event.stopPropagation()}>
@@ -436,6 +941,7 @@ function TimelineEditor({
         </div>
         <div className="character-modal-body">
           {error ? <div className="err-card">保存失败：{error}</div> : null}
+          {assistNotice ? <div className="character-assist-success">{assistNotice}</div> : null}
           <section className="agent-editor-section">
             <div className="model-editor-section-title">核心信息</div>
             <div className="form-grid form-grid-3">
@@ -532,6 +1038,33 @@ function TimelineEditor({
           )}
         </div>
         <div className="agent-modal-actions view-actions">
+          <button
+            type="button"
+            className="btn"
+            onClick={() => {
+              setAssistOpen(true);
+              setAssistError(null);
+            }}
+          >
+            <Sparkles size={15} />
+            AI 辅助填充
+          </button>
+          <span className="grow" />
+          {assistOpen ? (
+            <TimelineAssistModal
+              loading={assistLoading}
+              error={assistError}
+              onCancel={() => {
+                if (!assistLoading) {
+                  setAssistOpen(false);
+                  setAssistError(null);
+                }
+              }}
+              onSubmit={(input) => {
+                void runAssist(input);
+              }}
+            />
+          ) : null}
           <button type="button" className="btn btn-ghost" onClick={onCancel}>取消</button>
           <button type="button" className="btn btn-primary" onClick={onSubmit} disabled={saving || !value.title.trim()}>
             <Save size={15} />
@@ -555,6 +1088,9 @@ export function TimelineView() {
   const [error, setError] = useState<string | null>(null);
   const [vaultMissing, setVaultMissing] = useState(false);
   const [templateChoosing, setTemplateChoosing] = useState(false);
+  const [aiCreating, setAiCreating] = useState(false);
+  const [aiCreateLoading, setAiCreateLoading] = useState(false);
+  const [aiCreateError, setAiCreateError] = useState<string | null>(null);
   const [editorMode, setEditorMode] = useState<EditorMode | null>(null);
   const [draft, setDraft] = useState<TimelineEventInput | null>(null);
   const [saving, setSaving] = useState(false);
@@ -621,6 +1157,60 @@ export function TimelineView() {
     setDraft(createDraft(createLine, template));
     setEditorMode("create");
     setSaveError(null);
+  };
+
+  const generateTimelineDraft = async (input: { mode: AssistMode; template: TimelineTemplate; line: TimelineLine; userPrompt: string; extraAnswer: string; eventName?: string; sourceWork?: string }) => {
+    const profile = createEmptyProfile(input.template);
+    const baseDraft: TimelineEventInput = {
+      ...createDraft(input.line, input.template),
+      line: input.line,
+      template: input.template,
+      profile,
+      title: input.eventName ?? "",
+    };
+    const fields = collectAssistFields(profile, baseDraft);
+    const prompt = [
+      input.userPrompt,
+      input.mode === "original" && input.extraAnswer ? `关键补充：${input.extraAnswer}` : "",
+    ].filter(Boolean).join("\n");
+
+    setAiCreateLoading(true);
+    setAiCreateError(null);
+    setFeedback(null);
+    try {
+      const response = await api.assistTimeline({
+        mode: input.mode,
+        userPrompt: prompt,
+        eventName: input.eventName,
+        sourceWork: input.sourceWork,
+        template: input.template,
+        line: lineLabel(input.line),
+        projectId,
+        fields: fields.map(({ group, key, label }) => ({ group, key, label })),
+        existingValues: collectExistingValues(baseDraft, profile, fields),
+      });
+      const nextDraft = mergeAssistFields(baseDraft, fields, response.fields);
+      const title = nextDraft.title || response.fields.title || response.fields["事件标题"] || input.eventName || input.userPrompt.split(/[，。,\n]/)[0] || "";
+      setDraft({
+        ...nextDraft,
+        title: title.slice(0, 48),
+        line: input.line,
+      });
+      setAiCreating(false);
+      setTemplateChoosing(false);
+      setEditorMode("create");
+      setSaveError(null);
+      setFeedback({
+        kind: "success",
+        text: input.mode === "fanfic"
+          ? "AI 已生成时间线事件草稿。同人资料可能不准确，请核对后再保存。"
+          : "AI 已生成时间线事件草稿，请检查后再保存。",
+      });
+    } catch (generateError) {
+      setAiCreateError(generateError instanceof ApiError ? generateError.message : "AI 生成时间线事件失败");
+    } finally {
+      setAiCreateLoading(false);
+    }
   };
 
   const startEdit = (event: TimelineEvent) => {
@@ -788,7 +1378,29 @@ export function TimelineView() {
       {templateChoosing ? (
         <TemplateChooser
           onChoose={startCreate}
+          onAiGenerate={() => {
+            setTemplateChoosing(false);
+            setAiCreating(true);
+            setAiCreateError(null);
+          }}
           onCancel={() => setTemplateChoosing(false)}
+        />
+      ) : null}
+
+      {aiCreating ? (
+        <TimelineAiCreateModal
+          projectId={projectId}
+          loading={aiCreateLoading}
+          error={aiCreateError}
+          onCancel={() => {
+            if (!aiCreateLoading) {
+              setAiCreating(false);
+              setAiCreateError(null);
+            }
+          }}
+          onGenerate={(input) => {
+            void generateTimelineDraft(input);
+          }}
         />
       ) : null}
 

@@ -281,6 +281,27 @@ export interface AssistWorldbookResponse {
   modelId: string;
   fields: Record<string, string>;
 }
+export interface AssistTimelineField {
+  group: string;
+  key: string;
+  label: string;
+}
+export interface AssistTimelinePayload {
+  mode: "original" | "fanfic";
+  userPrompt: string;
+  eventName?: string;
+  sourceWork?: string;
+  scopeInstruction?: string;
+  template?: string;
+  line?: string;
+  projectId?: string;
+  fields: AssistTimelineField[];
+  existingValues: Record<string, string>;
+}
+export interface AssistTimelineResponse {
+  modelId: string;
+  fields: Record<string, string>;
+}
 export interface TextRange {
   start: number;
   end: number;
@@ -743,6 +764,8 @@ export const api = {
     post<AssistCharacterResponse>("/assist/character", payload),
   assistWorldbook: async (payload: AssistWorldbookPayload): Promise<AssistWorldbookResponse> =>
     post<AssistWorldbookResponse>("/assist/worldbook", payload),
+  assistTimeline: async (payload: AssistTimelinePayload): Promise<AssistTimelineResponse> =>
+    post<AssistTimelineResponse>("/assist/timeline", payload),
 
   listProjects: async (): Promise<ProjectSummary[]> =>
     unwrapList<ProjectSummary>(await get("/projects"), "projects"),
