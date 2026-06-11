@@ -37,6 +37,22 @@ interface ResolvedAssistModel {
   registry: ProviderRegistry;
 }
 
+interface AssistBatch {
+  name: string;
+  fields: AssistCharacterField[];
+}
+
+const MAX_GENERATION_ATTEMPTS = 3;
+const BATCH_FIELD_THRESHOLD = 48;
+const BATCH_MAX_TOKENS = 7000;
+
+class AssistJsonParseError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "AssistJsonParseError";
+  }
+}
+
 function isAsyncIterable(value: unknown): value is AsyncIterable<unknown> {
   return Boolean(value) && typeof (value as AsyncIterable<unknown>)[Symbol.asyncIterator] === "function";
 }
@@ -76,28 +92,37 @@ async function resolveAssistModel(
   };
 }
 
-function extractJsonObject(raw: string): unknown | null {
+function cleanJsonCandidate(raw: string): string {
   const trimmed = raw.trim();
   if (!trimmed) {
+    return "";
+  }
+
+  const fenced = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/i);
+  const unfenced = (fenced?.[1] ?? trimmed)
+    .replace(/^\uFEFF/, "")
+    .trim();
+
+  const start = unfenced.indexOf("{");
+  const end = unfenced.lastIndexOf("}");
+  if (start >= 0 && end > start) {
+    return unfenced.slice(start, end + 1).trim();
+  }
+
+  return unfenced;
+}
+
+function extractJsonObject(raw: string): unknown | null {
+  const candidate = cleanJsonCandidate(raw);
+  if (!candidate) {
     return null;
   }
 
-  const unfenced = trimmed
-    .replace(/^```(?:json)?\s*/i, "")
-    .replace(/\s*```$/i, "")
-    .trim();
-
   try {
-    return JSON.parse(unfenced);
+    return JSON.parse(candidate);
   } catch {
-    const start = unfenced.indexOf("{");
-    const end = unfenced.lastIndexOf("}");
-    if (start < 0 || end <= start) {
-      return null;
-    }
-
     try {
-      return JSON.parse(unfenced.slice(start, end + 1));
+      return JSON.parse(candidate.replace(/,\s*([}\]])/g, "$1"));
     } catch {
       return null;
     }
@@ -111,19 +136,19 @@ function normalizeFields(input: unknown): AssistCharacterField[] {
 
   const fields: AssistCharacterField[] = [];
   for (const field of input) {
-      if (!field || typeof field !== "object") {
+    if (!field || typeof field !== "object") {
       continue;
-      }
-      const record = field as Record<string, unknown>;
-      const key = typeof record.key === "string" ? record.key.trim() : "";
-      const label = typeof record.label === "string" ? record.label.trim() : "";
-      if (!key && !label) {
+    }
+    const record = field as Record<string, unknown>;
+    const key = typeof record.key === "string" ? record.key.trim() : "";
+    const label = typeof record.label === "string" ? record.label.trim() : "";
+    if (!key && !label) {
       continue;
-      }
+    }
     fields.push({
-        group: typeof record.group === "string" ? record.group.trim() : "",
-        key,
-        label,
+      group: typeof record.group === "string" ? record.group.trim() : "",
+      key,
+      label,
     });
   }
 
@@ -142,11 +167,42 @@ function normalizeExistingValues(input: unknown): Record<string, string> {
   );
 }
 
+function createFieldBatches(fields: AssistCharacterField[], template?: string): AssistBatch[] {
+  if (template !== "detailed" && fields.length <= BATCH_FIELD_THRESHOLD) {
+    return [{ name: "全部字段", fields }];
+  }
+
+  const byGroup = new Map<string, AssistCharacterField[]>();
+  for (const field of fields) {
+    const group = field.group?.trim() || "未分组字段";
+    byGroup.set(group, [...(byGroup.get(group) ?? []), field]);
+  }
+
+  const batches: AssistBatch[] = [];
+  for (const [group, groupFields] of byGroup.entries()) {
+    if (groupFields.length <= BATCH_FIELD_THRESHOLD) {
+      batches.push({ name: group, fields: groupFields });
+      continue;
+    }
+
+    for (let index = 0; index < groupFields.length; index += BATCH_FIELD_THRESHOLD) {
+      batches.push({
+        name: `${group} ${Math.floor(index / BATCH_FIELD_THRESHOLD) + 1}`,
+        fields: groupFields.slice(index, index + BATCH_FIELD_THRESHOLD),
+      });
+    }
+  }
+
+  return batches;
+}
+
 function buildMessages(input: Required<Pick<AssistCharacterInput, "mode" | "userPrompt">> & {
   projectId?: string;
   template?: string;
   fields: AssistCharacterField[];
   existingValues: Record<string, string>;
+  batchName: string;
+  attempt: number;
 }): ChatMessage[] {
   const fieldText = input.fields
     .map((field, index) => `${index + 1}. group=${field.group || "-"}; key=${field.key || field.label}; label=${field.label || field.key}`)
@@ -164,7 +220,9 @@ function buildMessages(input: Required<Pick<AssistCharacterInput, "mode" | "user
         "用户会提供当前编辑器实时生成的字段清单，字段清单包含中文字段名，也可能包含用户自定义字段。",
         "你必须只根据这份字段清单生成内容，不要添加清单外字段，不要假设固定模板字段。",
         "默认不要覆盖 existingValues 中已经非空的字段；这些字段可以留空不返回。",
-        "输出必须是严格 JSON，不要 Markdown，不要代码块，不要解释。",
+        "输出必须是严格 JSON。不要 Markdown，不要代码块，不要解释，不要 JSON 前后的说明文字。",
+        "只输出一个 JSON 对象，第一个字符必须是 {，最后一个字符必须是 }。",
+        "字段值中的引号、换行和特殊字符必须符合 JSON 字符串转义规则；尽量用简洁短句，避免过长段落。",
         'JSON 结构必须是：{ "fields": { "<字段 key 或自定义 label>": "<生成内容>" } }',
         "自定义字段如果没有稳定 key，就使用它的 label 作为返回 key。",
         "字段内容使用中文，保持人物逻辑、语气和设定前后一致。",
@@ -179,11 +237,15 @@ function buildMessages(input: Required<Pick<AssistCharacterInput, "mode" | "user
         `模式：${input.mode === "fanfic" ? "同人" : "原创"}`,
         `项目：${input.projectId || "未指定"}`,
         `模板：${input.template || "未指定"}`,
+        `当前批次：${input.batchName}`,
+        input.attempt > 1
+          ? `这是第 ${input.attempt} 次请求。上一次输出不是可解析的 JSON。请只输出纯 JSON 对象，不要任何解释、标题、前后缀或 Markdown。`
+          : "",
         "",
         "用户描述：",
         input.userPrompt,
         "",
-        "当前编辑器字段清单：",
+        "本批字段清单：",
         fieldText,
         "",
         "已有非空字段值：",
@@ -196,13 +258,13 @@ function buildMessages(input: Required<Pick<AssistCharacterInput, "mode" | "user
 function normalizeResultFields(raw: string, fields: AssistCharacterField[]): Record<string, string> {
   const parsed = extractJsonObject(raw);
   if (!parsed || typeof parsed !== "object") {
-    throw createHttpError(502, "ASSIST_CHARACTER_INVALID_JSON", "AI 返回格式不是有效 JSON，请重试");
+    throw new AssistJsonParseError("AI 返回格式不是有效 JSON");
   }
 
   const data = parsed as Record<string, unknown>;
   const generated = data.fields;
   if (!generated || typeof generated !== "object" || Array.isArray(generated)) {
-    throw createHttpError(502, "ASSIST_CHARACTER_INVALID_FIELDS", "AI 返回内容缺少 fields 字段");
+    throw new AssistJsonParseError("AI 返回内容缺少 fields 字段");
   }
 
   const allowed = new Set<string>();
@@ -219,6 +281,47 @@ function normalizeResultFields(raw: string, fields: AssistCharacterField[]): Rec
     Object.entries(generated as Record<string, unknown>)
       .map(([key, value]) => [key.trim(), typeof value === "string" ? value.trim() : ""])
       .filter(([key, value]) => key && value && allowed.has(key)),
+  );
+}
+
+async function generateFieldBatch(
+  registry: ProviderRegistry,
+  modelId: string,
+  input: Required<Pick<AssistCharacterInput, "mode" | "userPrompt">> & {
+    projectId?: string;
+    template?: string;
+    fields: AssistCharacterField[];
+    existingValues: Record<string, string>;
+    batchName: string;
+  },
+): Promise<Record<string, string>> {
+  let lastError: unknown = null;
+  for (let attempt = 1; attempt <= MAX_GENERATION_ATTEMPTS; attempt += 1) {
+    try {
+      const result = await registry.chat(modelId, {
+        messages: buildMessages({ ...input, attempt }),
+        stream: false,
+        jsonMode: true,
+        maxTokens: BATCH_MAX_TOKENS,
+      });
+      const response = await result;
+      if (isAsyncIterable(response)) {
+        throw new Error("模型返回了流式响应，角色辅助填充接口期望完整 JSON 响应");
+      }
+
+      return normalizeResultFields(response.content, input.fields);
+    } catch (error) {
+      lastError = error;
+      if (!(error instanceof AssistJsonParseError)) {
+        throw error;
+      }
+    }
+  }
+
+  throw createHttpError(
+    502,
+    "ASSIST_CHARACTER_INVALID_JSON",
+    `AI 返回格式不是有效 JSON，请重试。失败批次：${input.batchName}；原因：${lastError instanceof Error ? lastError.message : String(lastError)}`,
   );
 }
 
@@ -239,30 +342,27 @@ export async function assistCharacter(
   }
 
   const { modelId, registry } = await resolveAssistModel(vaultRoot, options);
-  const messages = buildMessages({
-    mode,
-    userPrompt,
-    projectId: input.projectId,
-    template: input.template,
-    fields,
-    existingValues: normalizeExistingValues(input.existingValues),
-  });
+  const existingValues = normalizeExistingValues(input.existingValues);
+  const batches = createFieldBatches(fields, input.template);
+  const mergedFields: Record<string, string> = {};
 
   try {
-    const result = await registry.chat(modelId, {
-      messages,
-      stream: false,
-      jsonMode: true,
-      maxTokens: 5000,
-    });
-    const response = await result;
-    if (isAsyncIterable(response)) {
-      throw new Error("模型返回了流式响应，角色辅助填充接口期望完整 JSON 响应");
+    for (const batch of batches) {
+      const batchResult = await generateFieldBatch(registry, modelId, {
+        mode,
+        userPrompt,
+        projectId: input.projectId,
+        template: input.template,
+        fields: batch.fields,
+        existingValues,
+        batchName: batch.name,
+      });
+      Object.assign(mergedFields, batchResult);
     }
 
     return {
       modelId,
-      fields: normalizeResultFields(response.content, fields),
+      fields: mergedFields,
     };
   } catch (error) {
     if (error instanceof Error && "status" in error) {
