@@ -575,17 +575,29 @@ input, textarea { font-family: inherit; }
 .graph-canvas { height: calc(100% - 8px); min-height: 440px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; background: radial-gradient(circle at 50% 40%, var(--bg-panel), var(--bg-app)); border: 1px solid var(--border); border-radius: var(--radius-md); color: var(--text-muted); }
 .graph-panel { min-height: 0; }
 .graph-panel-head { display: flex; justify-content: space-between; gap: 16px; margin-bottom: 12px; }
+.relations-grid { display: grid; grid-template-columns: minmax(0, 1fr) 260px; gap: 20px; align-items: stretch; margin-bottom: 20px; }
+.graph-controls { display: inline-flex; align-items: center; gap: 6px; }
+.graph-legend { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; margin: 0 0 12px; color: var(--text-muted); font-size: 12px; }
+.graph-legend span { display: inline-flex; align-items: center; gap: 6px; }
+.graph-legend-dot { width: 9px; height: 9px; border-radius: 999px; border: 1px solid var(--border-strong); background: var(--bg-card); }
+.graph-legend-dot.type-character { background: var(--primary-light); border-color: var(--primary); }
+.graph-legend-dot.type-worldbook { background: rgba(91,123,154,.18); border-color: rgba(91,123,154,.65); }
+.graph-legend-dot.type-timeline { background: rgba(184,134,11,.18); border-color: rgba(184,134,11,.65); }
+.graph-legend-dot.type-knowledge { background: rgba(74,124,89,.18); border-color: rgba(74,124,89,.65); }
 .graph-stage { min-height: 460px; border-radius: var(--radius-md); overflow: hidden; background: radial-gradient(circle at 50% 40%, rgba(45,106,79,.08), transparent 42%), radial-gradient(circle at 50% 50%, var(--bg-panel), var(--bg-app)); border: 1px solid var(--border); }
-.graph-svg { width: 100%; height: 460px; display: block; }
+.graph-stage.interactive { cursor: grab; user-select: none; }
+.graph-stage.interactive:active { cursor: grabbing; }
+.graph-svg { width: 100%; height: 520px; display: block; touch-action: none; }
 .graph-edge { stroke: var(--border-strong); stroke-width: 2; opacity: .82; transition: opacity .16s ease, stroke .16s ease, stroke-width .16s ease; }
 .graph-edge.active { stroke: var(--primary); stroke-width: 3; opacity: 1; }
 .graph-edge.dimmed { opacity: .18; }
 .graph-edge-label { fill: var(--text-muted); font-size: 11px; text-anchor: middle; pointer-events: none; }
 .graph-edge-label.dimmed { opacity: .24; }
-.graph-node { cursor: pointer; transition: opacity .16s ease, transform .16s ease; }
+.graph-node { cursor: grab; transition: opacity .16s ease; }
+.graph-node:active, .graph-node.dragging { cursor: grabbing; }
 .graph-node.muted { opacity: .35; }
 .graph-node-dot { fill: var(--bg-card); stroke: var(--border-strong); stroke-width: 2; transition: fill .16s ease, stroke .16s ease, stroke-width .16s ease; }
-.graph-node.active .graph-node-dot { stroke: var(--primary); stroke-width: 3; }
+.graph-node.active .graph-node-dot, .graph-node.hovered .graph-node-dot { stroke: var(--primary); stroke-width: 3; filter: drop-shadow(0 3px 8px rgba(45,106,79,.18)); }
 .graph-node-dot.type-character { fill: var(--primary-light); }
 .graph-node-dot.type-worldbook { fill: rgba(91,123,154,.12); }
 .graph-node-dot.type-timeline { fill: rgba(184,134,11,.14); }
@@ -593,6 +605,14 @@ input, textarea { font-family: inherit; }
 .graph-node-dot.type-reference { fill: rgba(156,154,144,.14); }
 .graph-node-initial { fill: var(--text-primary); font-size: 13px; font-weight: 700; pointer-events: none; }
 .graph-node-label { fill: var(--text-secondary); font-size: 12px; pointer-events: none; }
+.graph-side-panel { min-height: 100%; }
+.graph-side-panel h3 { margin-bottom: 12px; }
+.graph-side-empty { min-height: 180px; display: grid; place-items: center; gap: 10px; color: var(--text-muted); text-align: center; line-height: 1.6; }
+.relation-list-card { margin-top: 0; }
+.relation-row-actions { width: 90px; display: inline-flex; align-items: center; justify-content: flex-end; gap: 4px; flex: none; }
+.relation-empty { padding: 28px; color: var(--text-muted); font-size: 13px; text-align: center; }
+.relation-editor-modal { width: min(720px, 100%); }
+.relation-source { min-height: 96px; }
 
 /* 加载 / 空态 */
 .empty-icon { color: var(--text-muted); opacity: .8; }
@@ -740,6 +760,7 @@ input, textarea { font-family: inherit; }
   .card-grid { grid-template-columns: 1fr; }
   .split-layout > .list-card { overflow-x: auto; }
   .split-layout > .list-card .list-row { min-width: 640px; }
+  .relations-grid { grid-template-columns: 1fr; }
   .graph-stage { min-height: 360px; }
   .graph-svg { height: 360px; }
   .split-layout, .detail-grid, .form-grid-2, .form-grid-3 { grid-template-columns: 1fr; }

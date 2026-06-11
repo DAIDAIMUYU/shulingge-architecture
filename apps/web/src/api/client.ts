@@ -362,7 +362,17 @@ export interface Relation {
   target?: string;
   type?: string;
   label?: string;
+  stage?: string;
+  sourceChapters?: string[];
   [k: string]: unknown;
+}
+export interface RelationInput {
+  id: string;
+  from: string;
+  to: string;
+  type: string;
+  stage?: string;
+  sourceChapters?: string[];
 }
 export interface TimelineEvent {
   id: string;
@@ -724,6 +734,15 @@ export const api = {
     unwrapList<Relation>(await get("/knowledge/relations"), "relations"),
   listRelationsByProject: async (projectId: string): Promise<Relation[]> =>
     unwrapList<Relation>(await get(withQuery("/knowledge/relations", { projectId })), "relations"),
+  createRelation: async (projectId: string, payload: RelationInput): Promise<Relation> =>
+    (await post<{ relation: Relation }>("/knowledge/relations", { projectId, ...payload })).relation,
+  updateRelation: async (projectId: string, relationId: string, payload: Partial<RelationInput>): Promise<Relation> =>
+    (await patch<{ relation: Relation }>(`/knowledge/relations/${encodeURIComponent(relationId)}`, {
+      projectId,
+      ...payload,
+    })).relation,
+  deleteRelation: async (projectId: string, relationId: string): Promise<{ id: string; deleted: true }> =>
+    del<{ id: string; deleted: true }>(withQuery(`/knowledge/relations/${encodeURIComponent(relationId)}`, { projectId })),
   listTimeline: async (): Promise<TimelineEvent[]> =>
     unwrapList<TimelineEvent>(await get("/knowledge/timeline"), "events"),
   listTimelineByProject: async (projectId: string): Promise<TimelineEvent[]> =>
