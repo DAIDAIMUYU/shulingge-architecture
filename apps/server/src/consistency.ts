@@ -135,7 +135,7 @@ export async function runConsistencyCheck(
   }
 
   for (const entry of worldbook) {
-    const missingTimelineRefs = (entry.trigger.timeline ?? []).filter((timelineId) => !timelineIds.has(timelineId));
+    const missingTimelineRefs = (entry.relatedEvents ?? entry.trigger?.timeline ?? []).filter((timelineId) => !timelineIds.has(timelineId));
     if (missingTimelineRefs.length > 0) {
       issues.push({
         id: `worldbook:${entry.id}:missing-timeline`,
@@ -143,19 +143,7 @@ export async function runConsistencyCheck(
         severity: "warn",
         entityId: entry.id,
         message: `Worldbook entry ${entry.id} references missing timeline ids: ${missingTimelineRefs.join(", ")}`,
-        suggestions: ["修正 trigger.timeline", "或补建对应时间线事件"],
-      });
-    }
-
-    const missingWorldbookLinks = (entry.relatedNovels ?? []).filter((novelId) => novelId !== input.novelId);
-    if (missingWorldbookLinks.length > 0) {
-      issues.push({
-        id: `worldbook:${entry.id}:novel-scope`,
-        category: "worldbook",
-        severity: "warn",
-        entityId: entry.id,
-        message: `Worldbook entry ${entry.id} points to other novels only: ${missingWorldbookLinks.join(", ")}`,
-        suggestions: ["确认 relatedNovels 是否包含当前 novel", "避免跨卷误触发"],
+        suggestions: ["修正相关事件", "或补建对应时间线事件"],
       });
     }
   }
@@ -204,7 +192,7 @@ export async function runConsistencyCheck(
         severity: "warn",
         entityId: character.id,
         message: `Character ${character.id} references missing worldbook entries`,
-        suggestions: ["修正 relatedWorldbook", "或补建相关世界书条目"],
+        suggestions: ["修正 relatedWorldbook", "或补建相关世界大纲条目"],
       });
     }
     if (!character.voice.byEmotion || Object.keys(character.voice.byEmotion).length === 0) {

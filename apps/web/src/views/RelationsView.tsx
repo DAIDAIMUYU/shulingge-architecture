@@ -27,7 +27,7 @@ type DragState =
 
 const NODE_LABELS: Record<string, string> = {
   character: "角色",
-  worldbook: "世界书",
+  worldbook: "世界大纲",
   timeline: "时间线",
   knowledge: "知识",
   reference: "引用",
@@ -443,7 +443,7 @@ export function RelationsView() {
   return (
     <ViewShell
       title="关系"
-      subtitle="角色、世界书和时间线的交互式知识图谱"
+      subtitle="角色、世界大纲和时间线的交互式知识图谱"
       actions={(
         <>
           <ProjectSelector

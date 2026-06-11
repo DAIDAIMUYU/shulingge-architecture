@@ -38,7 +38,7 @@ const PRIMARY_NAV: NavItem[] = [
   { id: "characters", icon: Users, label: "角色" },
   { id: "relations", icon: Network, label: "关系" },
   { id: "timeline", icon: Clock, label: "时间线" },
-  { id: "worldbook", icon: Globe, label: "世界书" },
+  { id: "worldbook", icon: Globe, label: "世界大纲" },
   { id: "agents", icon: Bot, label: "Agent" },
   { id: "skills", icon: Sparkles, label: "Skill" },
   { id: "rules", icon: Scale, label: "规则" },

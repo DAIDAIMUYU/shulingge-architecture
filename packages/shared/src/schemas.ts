@@ -28,7 +28,9 @@ import {
   TIMELINE_LINE_VALUES,
   WORKFLOW_FAIL_POLICY_VALUES,
   WORLDBOOK_CATEGORY_VALUES,
+  WORLDBOOK_IMPORTANCE_VALUES,
   WORLDBOOK_ORIGIN_VALUES,
+  WORLDBOOK_TEMPLATE_VALUES,
   WRITE_SCOPE_VALUES,
   WRITING_FREEDOM_VALUES,
 } from "./constants.js";
@@ -355,20 +357,45 @@ export const worldbookCustomFieldSchema = z.object({
   value: z.string().optional(),
 });
 
+const worldbookProfileSectionSchema = z.record(z.string().optional()).optional();
+const worldbookProfileCustomSchema = z.object({
+  basic: z.array(worldbookCustomFieldSchema).optional(),
+  content: z.array(worldbookCustomFieldSchema).optional(),
+  background: z.array(worldbookCustomFieldSchema).optional(),
+  relations: z.array(worldbookCustomFieldSchema).optional(),
+  writing: z.array(worldbookCustomFieldSchema).optional(),
+}).partial().optional();
+
+export const worldbookProfileSchema = z.object({
+  template: z.enum(WORLDBOOK_TEMPLATE_VALUES).optional(),
+  basic: worldbookProfileSectionSchema,
+  content: worldbookProfileSectionSchema,
+  background: worldbookProfileSectionSchema,
+  relations: worldbookProfileSectionSchema,
+  writing: worldbookProfileSectionSchema,
+  custom: worldbookProfileCustomSchema,
+}).partial();
+
 export const worldbookEntrySchema = entitySchema.extend({
   title: z.string().min(1),
   origin: z.enum(WORLDBOOK_ORIGIN_VALUES).optional(),
   category: z.enum(WORLDBOOK_CATEGORY_VALUES).optional(),
+  template: z.enum(WORLDBOOK_TEMPLATE_VALUES).optional(),
+  importance: z.enum(WORLDBOOK_IMPORTANCE_VALUES).optional(),
   name: z.string().optional(),
   summary: z.string().optional(),
   description: z.string().optional(),
+  keywords: stringArraySchema.optional(),
   relatedCharacters: stringArraySchema.optional(),
+  relatedSettings: stringArraySchema.optional(),
+  relatedEvents: stringArraySchema.optional(),
   relatedChapters: stringArraySchema.optional(),
   custom: z.array(worldbookCustomFieldSchema).optional(),
-  sections: worldbookSectionsSchema,
-  trigger: worldbookTriggerSchema,
-  relatedNovels: stringArraySchema,
-  appliesToAgents: stringArraySchema,
+  profile: worldbookProfileSchema.optional(),
+  sections: worldbookSectionsSchema.optional(),
+  trigger: worldbookTriggerSchema.optional(),
+  relatedNovels: stringArraySchema.optional(),
+  appliesToAgents: stringArraySchema.optional(),
 });
 
 export const characterVoiceSchema = z.object({

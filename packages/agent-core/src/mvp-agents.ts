@@ -214,7 +214,7 @@ export function createMvpAgentHandlers(options: MvpAgentRuntimeOptions): Workflo
         budget: 1600,
         maxTokens: 700,
         systemPrompt:
-          "你是世界书/原作校对 Agent。必须返回 JSON，至少包含 status, score, mustRewrite, rewriteScope, rewriteInstructions, displayText。重点检查世界书设定、角色基础事实和原作硬冲突；出现硬冲突返回 fail。",
+          "你是世界大纲/原作校对 Agent。必须返回 JSON，至少包含 status, score, mustRewrite, rewriteScope, rewriteInstructions, displayText。重点检查世界大纲设定、角色基础事实和原作硬冲突；出现硬冲突返回 fail。",
       });
     },
 

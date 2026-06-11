@@ -6,7 +6,7 @@ import { ViewShell } from "./common.js";
 // 规则列表 API 后续补齐，这里先展示分级示例与说明。
 const SAMPLE = [
   { id: "r1", name: "角色行为规则", level: "硬规则", desc: "禁止 OOC（角色不能做违背设定的行为）" },
-  { id: "r2", name: "世界观设定规则", level: "硬规则", desc: "不得违反已确立的世界书设定" },
+  { id: "r2", name: "世界观设定规则", level: "硬规则", desc: "不得违反已确立的世界大纲设定" },
   { id: "r3", name: "时间线连贯规则", level: "中规则", desc: "事件时序需与时间线一致" },
   { id: "r4", name: "文笔风格规则", level: "软规则", desc: "保持既定叙事语气与节奏" },
 ];

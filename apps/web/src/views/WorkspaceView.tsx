@@ -101,7 +101,7 @@ const AGENT_FALLBACK: AgentInfo[] = [
   { id: "voice", name: "角色声音 Agent", order: 3 },
   { id: "relation", name: "关系情感 Agent", order: 4 },
   { id: "timeline", name: "时间线 Agent", order: 5 },
-  { id: "worldbook", name: "世界书校对 Agent", order: 6 },
+  { id: "worldbook", name: "世界大纲校对 Agent", order: 6 },
   { id: "polish", name: "润色去 AI 味 Agent", order: 7 },
   { id: "summary", name: "摘要状态 Agent", order: 8 },
   { id: "director", name: "总控 Agent", order: 9 },
@@ -148,7 +148,7 @@ const SEARCH_TYPE_LABELS: Record<string, string> = {
   manuscript: "正文",
   "chapter-metadata": "章节",
   character: "角色",
-  worldbook: "世界书",
+  worldbook: "世界大纲",
   relation: "关系",
   timeline: "时间线",
   "knowledge-item": "知识",
@@ -1385,7 +1385,7 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
               <Search size={14} strokeWidth={2} />
               <input
                 value={searchText}
-                placeholder={vaultSelected ? "搜索正文、角色、世界书..." : "请先选择资料库"}
+                placeholder={vaultSelected ? "搜索正文、角色、世界大纲..." : "请先选择资料库"}
                 disabled={!vaultSelected}
                 onChange={(event) => setSearchText(event.target.value)}
               />

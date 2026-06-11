@@ -347,7 +347,19 @@ async function collectSharedDocuments(
       path: relativeVaultPath(vaultRoot, filePath),
       title: item.title,
       content: JSON.stringify(item),
-      tags: tokenize("worldbook", ...item.trigger.keywords, ...item.trigger.characters, ...item.trigger.places),
+      tags: tokenize(
+        "worldbook",
+        item.name,
+        item.summary,
+        item.description,
+        ...(item.keywords ?? []),
+        ...(item.relatedCharacters ?? []),
+        ...(item.relatedSettings ?? []),
+        ...(item.relatedEvents ?? []),
+        ...(item.trigger?.keywords ?? []),
+        ...(item.trigger?.characters ?? []),
+        ...(item.trigger?.places ?? []),
+      ),
     });
   }
 

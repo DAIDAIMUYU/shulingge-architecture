@@ -90,11 +90,63 @@ export const WORLDBOOK_ORIGIN_VALUES = [
 export const WORLDBOOK_CATEGORY_VALUES = [
   "place",
   "organization",
-  "setting",
-  "item",
+  "people",
+  "history",
   "event",
+  "item",
+  "power-system",
+  "rule",
+  "culture",
+  "geography",
+  "politics",
+  "economy",
+  "religion",
+  "language",
+  "technology",
+  "faction-relation",
   "other",
+  "setting",
 ] as const;
+
+export const WORLDBOOK_IMPORTANCE_VALUES = [
+  "core",
+  "important",
+  "minor",
+] as const;
+
+export const WORLDBOOK_TEMPLATE_VALUES = [
+  "simple",
+  "detailed",
+] as const;
+
+export const WORLDBOOK_PROFILE_GROUP_VALUES = [
+  "basic",
+  "content",
+  "background",
+  "relations",
+  "writing",
+] as const;
+
+export const WORLDBOOK_CATEGORY_LABELS: Record<(typeof WORLDBOOK_CATEGORY_VALUES)[number], string> = {
+  place: "地点/场所",
+  organization: "组织/势力",
+  people: "人物群体/种族",
+  history: "事件/历史",
+  event: "事件/历史",
+  item: "物品/道具",
+  "power-system": "功法/能力体系",
+  rule: "规则/法则",
+  culture: "文化/习俗",
+  geography: "地理/环境",
+  politics: "政治/权力",
+  economy: "经济/资源",
+  religion: "宗教/信仰",
+  language: "语言/文字",
+  technology: "科技/技术水平",
+  "faction-relation": "势力关系",
+  other: "其他",
+  setting: "其他",
+};
 
 export const BRANCH_TYPE_VALUES = [
   "main",

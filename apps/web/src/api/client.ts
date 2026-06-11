@@ -426,23 +426,59 @@ export interface TimelineEventInput {
   stateSnapshotRef?: string | null;
 }
 export type WorldbookOrigin = "canon" | "original";
-export type WorldbookCategory = "place" | "organization" | "setting" | "item" | "event" | "other";
+export type WorldbookCategory =
+  | "place"
+  | "organization"
+  | "people"
+  | "history"
+  | "event"
+  | "item"
+  | "power-system"
+  | "rule"
+  | "culture"
+  | "geography"
+  | "politics"
+  | "economy"
+  | "religion"
+  | "language"
+  | "technology"
+  | "faction-relation"
+  | "other"
+  | "setting";
+export type WorldbookTemplate = "simple" | "detailed";
+export type WorldbookImportance = "core" | "important" | "minor";
+export type WorldbookProfileGroup = "basic" | "content" | "background" | "relations" | "writing";
 export interface WorldbookCustomField {
   label?: string;
   value?: string;
+}
+export type WorldbookProfileSection = Record<string, string | undefined>;
+export interface WorldbookProfile {
+  template?: WorldbookTemplate;
+  basic?: WorldbookProfileSection;
+  content?: WorldbookProfileSection;
+  background?: WorldbookProfileSection;
+  relations?: WorldbookProfileSection;
+  writing?: WorldbookProfileSection;
+  custom?: Partial<Record<WorldbookProfileGroup, WorldbookCustomField[]>>;
 }
 export interface WorldbookEntry {
   id: string;
   title: string;
   origin?: WorldbookOrigin;
   category?: WorldbookCategory;
+  template?: WorldbookTemplate;
+  importance?: WorldbookImportance;
   name?: string;
   summary?: string;
   description?: string;
+  keywords?: string[];
   relatedCharacters?: string[];
+  relatedSettings?: string[];
+  relatedEvents?: string[];
   relatedChapters?: string[];
   custom?: WorldbookCustomField[];
-  keywords?: string[];
+  profile?: WorldbookProfile;
   content?: string;
   sections?: {
     fact?: string;
@@ -469,12 +505,18 @@ export interface WorldbookEntryInput {
   title: string;
   origin?: WorldbookOrigin;
   category?: WorldbookCategory;
+  template?: WorldbookTemplate;
+  importance?: WorldbookImportance;
   name?: string;
   summary?: string;
   description?: string;
+  keywords?: string[];
   relatedCharacters?: string[];
+  relatedSettings?: string[];
+  relatedEvents?: string[];
   relatedChapters?: string[];
   custom?: WorldbookCustomField[];
+  profile?: WorldbookProfile;
   sections?: {
     fact?: string;
     adaptation?: string;

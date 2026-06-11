@@ -29,7 +29,7 @@ const AGENT_TYPE_OPTIONS: Array<{ value: AgentPermissionMode; label: string; hin
 const READ_SCOPE_OPTIONS = [
   { value: "manuscript", label: "正文", hint: "当前章节正文" },
   { value: "outline", label: "大纲", hint: "正文标题与章节结构" },
-  { value: "worldbook", label: "世界书", hint: "设定、地点、体系" },
+  { value: "worldbook", label: "世界大纲", hint: "设定、地点、体系" },
   { value: "characters", label: "角色", hint: "角色卡与人物信息" },
   { value: "relations", label: "关系", hint: "人物关系与情感线" },
   { value: "timeline", label: "时间线", hint: "事件顺序与在场状态" },

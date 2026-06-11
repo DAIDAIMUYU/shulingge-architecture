@@ -38,11 +38,27 @@ function tokenizeSearchTerms(text: string): string[] {
 
 function matchesTrigger(text: string, entry: WorldbookEntry): boolean {
   const haystack = text.toLowerCase();
-  return (
-    entry.trigger.keywords.some((keyword) => haystack.includes(keyword.toLowerCase())) ||
-    entry.trigger.characters.some((character) => haystack.includes(character.toLowerCase())) ||
-    entry.trigger.places.some((place) => haystack.includes(place.toLowerCase()))
-  );
+  const values = [
+    entry.id,
+    entry.title,
+    entry.name,
+    entry.summary,
+    entry.description,
+    ...(entry.keywords ?? []),
+    ...(entry.relatedCharacters ?? []),
+    ...(entry.relatedSettings ?? []),
+    ...(entry.relatedEvents ?? []),
+    ...(entry.trigger?.keywords ?? []),
+    ...(entry.trigger?.characters ?? []),
+    ...(entry.trigger?.places ?? []),
+  ];
+
+  return values.some((value) => {
+    if (!value?.trim()) {
+      return false;
+    }
+    return haystack.includes(value.trim().toLowerCase());
+  });
 }
 
 function normalizeLookupValues(values: Iterable<string | undefined>): Set<string> {

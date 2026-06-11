@@ -26,7 +26,10 @@ import type {
   TIMELINE_LINE_VALUES,
   WORKFLOW_FAIL_POLICY_VALUES,
   WORLDBOOK_CATEGORY_VALUES,
+  WORLDBOOK_IMPORTANCE_VALUES,
   WORLDBOOK_ORIGIN_VALUES,
+  WORLDBOOK_PROFILE_GROUP_VALUES,
+  WORLDBOOK_TEMPLATE_VALUES,
   WRITE_SCOPE_VALUES,
   WRITING_FREEDOM_VALUES,
 } from "./constants.js";
@@ -363,26 +366,47 @@ export interface WorldbookTrigger {
 
 export type WorldbookOrigin = (typeof WORLDBOOK_ORIGIN_VALUES)[number];
 export type WorldbookCategory = (typeof WORLDBOOK_CATEGORY_VALUES)[number];
+export type WorldbookImportance = (typeof WORLDBOOK_IMPORTANCE_VALUES)[number];
+export type WorldbookTemplate = (typeof WORLDBOOK_TEMPLATE_VALUES)[number];
+export type WorldbookProfileGroup = (typeof WORLDBOOK_PROFILE_GROUP_VALUES)[number];
 
 export interface WorldbookCustomField {
   label?: string;
   value?: string;
 }
 
+export type WorldbookProfileSection = Record<string, string | undefined>;
+
+export interface WorldbookProfile {
+  template?: WorldbookTemplate;
+  basic?: WorldbookProfileSection;
+  content?: WorldbookProfileSection;
+  background?: WorldbookProfileSection;
+  relations?: WorldbookProfileSection;
+  writing?: WorldbookProfileSection;
+  custom?: Partial<Record<WorldbookProfileGroup, WorldbookCustomField[]>>;
+}
+
 export interface WorldbookEntry extends Entity {
   title: string;
   origin?: WorldbookOrigin;
   category?: WorldbookCategory;
+  template?: WorldbookTemplate;
+  importance?: WorldbookImportance;
   name?: string;
   summary?: string;
   description?: string;
+  keywords?: string[];
   relatedCharacters?: string[];
+  relatedSettings?: string[];
+  relatedEvents?: string[];
   relatedChapters?: string[];
   custom?: WorldbookCustomField[];
-  sections: WorldbookSections;
-  trigger: WorldbookTrigger;
-  relatedNovels: string[];
-  appliesToAgents: string[];
+  profile?: WorldbookProfile;
+  sections?: WorldbookSections;
+  trigger?: WorldbookTrigger;
+  relatedNovels?: string[];
+  appliesToAgents?: string[];
 }
 
 export interface CharacterVoice {

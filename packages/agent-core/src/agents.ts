@@ -143,8 +143,8 @@ export function createDefaultAgentCatalog(_defaultProvider: ProviderType = "open
     }),
     createAgentTemplate({
       id: "canon-agent",
-      name: "世界书/原作校对 Agent",
-      description: "检查世界书设定、原作事实与本作改写冲突。",
+      name: "世界大纲/原作校对 Agent",
+      description: "检查世界大纲设定、原作事实与本作改写冲突。",
       type: "checker",
       modelConfigId: "model-canon",
       readScope: ["manuscript", "worldbook", "characters", "timeline", "summaries"],

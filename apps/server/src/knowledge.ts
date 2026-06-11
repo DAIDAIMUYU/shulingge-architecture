@@ -211,30 +211,39 @@ function createTimestampFields<T extends { createdAt?: string; updatedAt?: strin
 }
 
 function normalizeWorldbook(input: WorldbookInput, current?: WorldbookEntry): WorldbookEntry {
+  const title = input.title ?? current?.title ?? "";
+  const name = input.name ?? current?.name ?? title;
+  const profile = input.profile ?? current?.profile;
   return worldbookEntrySchema.parse({
     id: input.id ?? current?.id ?? "",
-    title: input.title ?? current?.title ?? "",
+    title,
     origin: input.origin ?? current?.origin ?? "original",
-    category: input.category ?? current?.category ?? "setting",
-    name: input.name ?? current?.name ?? input.title ?? current?.title,
+    category: input.category ?? current?.category ?? "other",
+    template: input.template ?? current?.template ?? profile?.template ?? "simple",
+    importance: input.importance ?? current?.importance,
+    name,
     summary: input.summary ?? current?.summary,
     description: input.description ?? current?.description,
+    keywords: input.keywords ?? current?.keywords ?? input.trigger?.keywords ?? current?.trigger?.keywords ?? [],
     relatedCharacters: input.relatedCharacters ?? current?.relatedCharacters ?? [],
+    relatedSettings: input.relatedSettings ?? current?.relatedSettings ?? [],
+    relatedEvents: input.relatedEvents ?? current?.relatedEvents ?? [],
     relatedChapters: input.relatedChapters ?? current?.relatedChapters ?? [],
     custom: input.custom ?? current?.custom ?? [],
+    profile,
     sections: {
-      fact: input.sections?.fact ?? current?.sections.fact ?? "",
-      adaptation: input.sections?.adaptation ?? current?.sections.adaptation ?? "",
-      currentState: input.sections?.currentState ?? current?.sections.currentState ?? "",
-      writingHint: input.sections?.writingHint ?? current?.sections.writingHint ?? "",
-      forbidden: input.sections?.forbidden ?? current?.sections.forbidden ?? "",
+      fact: input.sections?.fact ?? current?.sections?.fact ?? input.description ?? current?.description ?? "",
+      adaptation: input.sections?.adaptation ?? current?.sections?.adaptation ?? "",
+      currentState: input.sections?.currentState ?? current?.sections?.currentState ?? "",
+      writingHint: input.sections?.writingHint ?? current?.sections?.writingHint ?? input.profile?.writing?.writingNotes ?? current?.profile?.writing?.writingNotes ?? "",
+      forbidden: input.sections?.forbidden ?? current?.sections?.forbidden ?? "",
     },
     trigger: {
-      keywords: input.trigger?.keywords ?? current?.trigger.keywords ?? [],
-      characters: input.trigger?.characters ?? current?.trigger.characters ?? [],
-      places: input.trigger?.places ?? current?.trigger.places ?? [],
-      timeline: input.trigger?.timeline ?? current?.trigger.timeline ?? [],
-      semantic: input.trigger?.semantic ?? current?.trigger.semantic ?? false,
+      keywords: input.trigger?.keywords ?? current?.trigger?.keywords ?? input.keywords ?? current?.keywords ?? [],
+      characters: input.trigger?.characters ?? current?.trigger?.characters ?? input.relatedCharacters ?? current?.relatedCharacters ?? [],
+      places: input.trigger?.places ?? current?.trigger?.places ?? [],
+      timeline: input.trigger?.timeline ?? current?.trigger?.timeline ?? input.relatedEvents ?? current?.relatedEvents ?? [],
+      semantic: input.trigger?.semantic ?? current?.trigger?.semantic ?? false,
     },
     relatedNovels: input.relatedNovels ?? current?.relatedNovels ?? [],
     appliesToAgents: input.appliesToAgents ?? current?.appliesToAgents ?? [],
@@ -626,21 +635,21 @@ export async function buildKnowledgeGraph(vaultRoot: string, locator: NovelLocat
   }
 
   for (const entry of worldbookEntries) {
-    for (const characterId of entry.trigger.characters) {
+    for (const characterId of entry.relatedCharacters ?? entry.trigger?.characters ?? []) {
       addEdge(edges, {
         id: `worldbook-character:${entry.id}:${characterId}`,
         from: `worldbook:${entry.id}`,
         to: `character:${characterId}`,
-        type: "trigger-character",
+        type: "related-character",
       });
     }
 
-    for (const timelineId of entry.trigger.timeline ?? []) {
+    for (const timelineId of entry.relatedEvents ?? entry.trigger?.timeline ?? []) {
       addEdge(edges, {
         id: `worldbook-timeline:${entry.id}:${timelineId}`,
         from: `worldbook:${entry.id}`,
         to: lookupEntityId(timelineId),
-        type: "trigger-timeline",
+        type: "related-event",
       });
     }
   }

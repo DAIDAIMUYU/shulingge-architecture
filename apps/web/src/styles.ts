@@ -553,6 +553,12 @@ input, textarea { font-family: inherit; }
 .worldbook-entry-title svg { color: var(--primary); flex: none; }
 .worldbook-entry-main p { margin: 0; color: var(--text-secondary); font-size: 13px; line-height: 1.6; }
 .worldbook-description { min-height: 160px; }
+.worldbook-group-desc { margin: 0; color: var(--text-secondary); font-size: 12px; line-height: 1.6; }
+.worldbook-character-picker { display: grid; grid-template-columns: repeat(auto-fill, minmax(148px, 1fr)); gap: 8px; max-height: 180px; overflow: auto; padding: 8px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--bg-panel); }
+.worldbook-character-picker label { min-height: 34px; display: flex; align-items: center; gap: 8px; padding: 0 10px; border: 1px solid transparent; border-radius: var(--radius-sm); color: var(--text-secondary); cursor: pointer; }
+.worldbook-character-picker label:hover { background: var(--bg-hover); color: var(--text-primary); }
+.worldbook-character-picker label.selected { border-color: color-mix(in srgb, var(--primary) 32%, var(--border)); background: var(--primary-light); color: var(--primary); }
+.worldbook-character-picker input { accent-color: var(--primary); }
 .timeline-line-tabs { flex-wrap: wrap; }
 .timeline-stream { position: relative; display: grid; gap: 0; margin-top: 2px; }
 .timeline-stream::before { content: ""; position: absolute; left: 136px; top: 4px; bottom: 4px; width: 1px; background: var(--border); }
