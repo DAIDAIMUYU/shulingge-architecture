@@ -106,6 +106,7 @@ import { invokePluginHook, listPlugins, registerPlugin, updatePluginState } from
 import { createCollaborationSession, listCollaborationSessions, updateCollaborationSession } from "./collaboration.js";
 import { buildRelationReplay } from "./graph-replay.js";
 import { assistCharacter } from "./assist-character.js";
+import { assistWorldbook } from "./assist-worldbook.js";
 import { listThemeCommunity, publishThemeCommunityEntry } from "./theme-market.js";
 import {
   applyDownloadedUpdate,
@@ -393,6 +394,18 @@ export const routeDefinitions: RouteDefinition[] = [
     async handler(request, context) {
       const vaultRoot = requireVaultRoot(context);
       return await assistCharacter(
+        vaultRoot,
+        (request.body as Record<string, unknown> | undefined) ?? {},
+        getModelOptions(context),
+      );
+    },
+  },
+  {
+    method: "POST",
+    path: "/api/v1/assist/worldbook",
+    async handler(request, context) {
+      const vaultRoot = requireVaultRoot(context);
+      return await assistWorldbook(
         vaultRoot,
         (request.body as Record<string, unknown> | undefined) ?? {},
         getModelOptions(context),

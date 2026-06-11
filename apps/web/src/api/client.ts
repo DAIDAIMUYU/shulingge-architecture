@@ -260,6 +260,27 @@ export interface AssistCharacterResponse {
   modelId: string;
   fields: Record<string, string>;
 }
+export interface AssistWorldbookField {
+  group: string;
+  key: string;
+  label: string;
+}
+export interface AssistWorldbookPayload {
+  mode: "original" | "fanfic";
+  userPrompt: string;
+  entryName?: string;
+  sourceWork?: string;
+  scopeInstruction?: string;
+  template?: string;
+  category?: string;
+  projectId?: string;
+  fields: AssistWorldbookField[];
+  existingValues: Record<string, string>;
+}
+export interface AssistWorldbookResponse {
+  modelId: string;
+  fields: Record<string, string>;
+}
 export interface TextRange {
   start: number;
   end: number;
@@ -720,6 +741,8 @@ export const api = {
     post<DirectorExecuteResponse>("/director/execute", payload),
   assistCharacter: async (payload: AssistCharacterPayload): Promise<AssistCharacterResponse> =>
     post<AssistCharacterResponse>("/assist/character", payload),
+  assistWorldbook: async (payload: AssistWorldbookPayload): Promise<AssistWorldbookResponse> =>
+    post<AssistWorldbookResponse>("/assist/worldbook", payload),
 
   listProjects: async (): Promise<ProjectSummary[]> =>
     unwrapList<ProjectSummary>(await get("/projects"), "projects"),
