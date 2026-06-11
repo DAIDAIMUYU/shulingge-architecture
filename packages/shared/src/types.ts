@@ -376,10 +376,33 @@ export interface CharacterVoice {
   byRelationStage?: Record<string, string[]>;
 }
 
+export type CharacterProfileTemplate = "simple" | "detailed";
+export type CharacterProfileGroup = "basic" | "appearance" | "language" | "belief" | "relations" | "background";
+
+export interface CharacterProfileCustomField {
+  label?: string;
+  value?: string;
+}
+
+export type CharacterProfileSection = Record<string, string | undefined>;
+
+export interface CharacterProfile {
+  template?: CharacterProfileTemplate;
+  avatarPath?: string;
+  basic?: CharacterProfileSection;
+  appearance?: CharacterProfileSection;
+  language?: CharacterProfileSection;
+  belief?: CharacterProfileSection;
+  relations?: CharacterProfileSection;
+  background?: CharacterProfileSection;
+  custom?: Partial<Record<CharacterProfileGroup, CharacterProfileCustomField[]>>;
+}
+
 export interface Character extends Entity {
   name: string;
   links: string[];
   voice: CharacterVoice;
+  profile?: CharacterProfile;
   knowledgeScopeRef?: string;
   currentStateRef?: string;
   forbiddenWrites: string[];

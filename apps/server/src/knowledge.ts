@@ -248,6 +248,7 @@ function normalizeCharacter(input: CharacterInput, current?: Character): Charact
       byEmotion: input.voice?.byEmotion ?? current?.voice.byEmotion ?? {},
       byRelationStage: input.voice?.byRelationStage ?? current?.voice.byRelationStage ?? {},
     },
+    profile: input.profile ?? current?.profile,
     knowledgeScopeRef: input.knowledgeScopeRef ?? current?.knowledgeScopeRef,
     currentStateRef: input.currentStateRef ?? current?.currentStateRef,
     forbiddenWrites: input.forbiddenWrites ?? current?.forbiddenWrites ?? [],

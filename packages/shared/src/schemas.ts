@@ -365,10 +365,39 @@ export const characterVoiceSchema = z.object({
   byRelationStage: z.record(stringArraySchema).optional(),
 });
 
+export const characterProfileFieldSchema = z.string().optional();
+export const characterProfileCustomFieldSchema = z.object({
+  label: z.string().optional(),
+  value: z.string().optional(),
+});
+
+const characterProfileSectionSchema = z.record(characterProfileFieldSchema).optional();
+const characterProfileCustomSchema = z.object({
+  basic: z.array(characterProfileCustomFieldSchema).optional(),
+  appearance: z.array(characterProfileCustomFieldSchema).optional(),
+  language: z.array(characterProfileCustomFieldSchema).optional(),
+  belief: z.array(characterProfileCustomFieldSchema).optional(),
+  relations: z.array(characterProfileCustomFieldSchema).optional(),
+  background: z.array(characterProfileCustomFieldSchema).optional(),
+}).partial().optional();
+
+export const characterProfileSchema = z.object({
+  template: z.enum(["simple", "detailed"]).optional(),
+  avatarPath: z.string().optional(),
+  basic: characterProfileSectionSchema,
+  appearance: characterProfileSectionSchema,
+  language: characterProfileSectionSchema,
+  belief: characterProfileSectionSchema,
+  relations: characterProfileSectionSchema,
+  background: characterProfileSectionSchema,
+  custom: characterProfileCustomSchema,
+}).partial();
+
 export const characterSchema = entitySchema.extend({
   name: z.string().min(1),
   links: stringArraySchema,
   voice: characterVoiceSchema,
+  profile: characterProfileSchema.optional(),
   knowledgeScopeRef: z.string().min(1).optional(),
   currentStateRef: z.string().min(1).optional(),
   forbiddenWrites: stringArraySchema,

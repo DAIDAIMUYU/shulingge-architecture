@@ -1,30 +1,336 @@
 import { useEffect, useMemo, useState } from "react";
-import { BookOpen, PencilLine, Plus, Save, Search, Sparkles, Users } from "lucide-react";
+import { ChevronDown, ChevronRight, Image, LayoutGrid, List, Plus, Save, Search, Trash2, UserRound, X } from "lucide-react";
 
-import { api, ApiError, type Character, type Relation, type TimelineEvent } from "../api/client.js";
 import {
-  createCharacterFormDraft,
-  filterCharacters,
-  getCharacterRelations,
-  getCharacterTimelineEvents,
-  toCharacterPayload,
-  type CharacterFormDraft,
-} from "./characters-utils.js";
+  api,
+  ApiError,
+  type Character,
+  type CharacterInput,
+  type CharacterProfile,
+  type CharacterProfileGroup,
+  type CharacterProfileTemplate,
+  type ProjectSummary,
+} from "../api/client.js";
 import { CenterState, ViewShell } from "./common.js";
 
-type CharacterTab = "profile" | "voice" | "state" | "relations" | "knowledge" | "notes";
+type CharacterViewMode = "card" | "list";
 type EditorMode = "create" | "edit";
 
-const TABS: Array<{ id: CharacterTab; label: string }> = [
-  { id: "profile", label: "基础资料" },
-  { id: "voice", label: "角色声音" },
-  { id: "state", label: "当前状态" },
-  { id: "relations", label: "关系" },
-  { id: "knowledge", label: "知情范围" },
-  { id: "notes", label: "笔记规则" },
-];
+interface CharacterField {
+  key: string;
+  label: string;
+}
+
+interface CharacterSubsection {
+  title?: string;
+  fields: CharacterField[];
+}
+
+interface CharacterGroupDefinition {
+  id: CharacterProfileGroup;
+  title: string;
+  simpleTitle?: string;
+  subsections: CharacterSubsection[];
+}
 
 const DEFAULT_PROJECT_ID = "demo-series";
+const PROFILE_GROUPS: CharacterProfileGroup[] = ["basic", "appearance", "language", "belief", "relations", "background"];
+
+const GROUP_DEFINITIONS: CharacterGroupDefinition[] = [
+  {
+    id: "basic",
+    title: "基础资料",
+    simpleTitle: "基础",
+    subsections: [
+      {
+        fields: [
+          { key: "fullName", label: "角色全名" },
+          { key: "nickname", label: "昵称/外号" },
+          { key: "age", label: "年龄" },
+          { key: "birthday", label: "生日" },
+          { key: "birthTime", label: "出生时间" },
+          { key: "birthPlace", label: "出生地" },
+          { key: "genderPronouns", label: "性别/代词" },
+          { key: "sexualOrientation", label: "性取向/亲密关系倾向" },
+          { key: "relationshipStatus", label: "当前关系状态" },
+          { key: "species", label: "种族/物种" },
+          { key: "culture", label: "民族/文化身份" },
+          { key: "bloodType", label: "血型" },
+          { key: "likes", label: "喜欢的东西" },
+          { key: "dislikes", label: "讨厌的东西" },
+          { key: "appearanceImpression", label: "整体外貌印象" },
+          { key: "personalityImpression", label: "整体性格印象" },
+          { key: "hobbies", label: "兴趣爱好" },
+          { key: "occupation", label: "职业/身份" },
+          { key: "strengths", label: "擅长的事" },
+          { key: "weaknesses", label: "不擅长的事" },
+          { key: "oneLine", label: "一句话介绍" },
+        ],
+      },
+    ],
+  },
+  {
+    id: "appearance",
+    title: "外貌与身体",
+    simpleTitle: "外貌",
+    subsections: [
+      {
+        title: "脸部",
+        fields: [
+          { key: "currentState", label: "当前状态" },
+          { key: "height", label: "身高" },
+          { key: "weight", label: "体重" },
+          { key: "hairColor", label: "发色" },
+          { key: "hairstyle", label: "发型" },
+          { key: "facialHair", label: "胡须/面部毛发" },
+          { key: "eyelashes", label: "睫毛" },
+          { key: "eyebrows", label: "眉毛" },
+          { key: "faceShape", label: "脸型" },
+          { key: "ears", label: "耳朵特征" },
+          { key: "cheekbones", label: "颧骨" },
+          { key: "jawline", label: "下颌线" },
+          { key: "chin", label: "下巴" },
+          { key: "neck", label: "脖颈" },
+          { key: "skinMarks", label: "皮肤印记" },
+          { key: "scars", label: "伤疤" },
+          { key: "distinctiveFeatures", label: "独特外貌特征" },
+          { key: "skinTone", label: "肤色/肤质" },
+          { key: "eyeColor", label: "眼睛颜色" },
+          { key: "facialFeatures", label: "五官特点" },
+          { key: "freckles", label: "雀斑" },
+          { key: "moles", label: "痣" },
+          { key: "firstImpression", label: "第一眼感觉" },
+          { key: "obviousFeature", label: "最明显外貌特征" },
+        ],
+      },
+      {
+        title: "身体、声音与健康",
+        fields: [
+          { key: "bodyType", label: "体型" },
+          { key: "dominantHand", label: "惯用手" },
+          { key: "fingerFeatures", label: "手指特征" },
+          { key: "handFeatures", label: "手部特征" },
+          { key: "waistHipRatio", label: "腰部/胯部比例" },
+          { key: "veins", label: "血管明显程度" },
+          { key: "flexibility", label: "柔韧性" },
+          { key: "bodyTemperature", label: "体温" },
+          { key: "posture", label: "站姿/坐姿/走路姿态" },
+          { key: "birthmark", label: "胎记" },
+          { key: "tattoo", label: "纹身" },
+          { key: "piercing", label: "穿孔/耳洞/饰钉" },
+          { key: "teeth", label: "牙齿状态" },
+          { key: "voice", label: "声音特点" },
+          { key: "clothingStyle", label: "穿衣风格" },
+          { key: "health", label: "健康状况" },
+          { key: "allergies", label: "过敏源" },
+          { key: "shoeSize", label: "鞋码" },
+        ],
+      },
+    ],
+  },
+  {
+    id: "language",
+    title: "语言习惯与个性",
+    simpleTitle: "性格",
+    subsections: [
+      {
+        fields: [
+          { key: "languages", label: "会说的语言" },
+          { key: "accent", label: "口音" },
+          { key: "personalityType", label: "性格类型" },
+          { key: "corePersonality", label: "核心性格" },
+          { key: "bestQuality", label: "最大优点" },
+          { key: "worstFlaw", label: "最大缺点" },
+          { key: "culturalBackground", label: "文化背景" },
+          { key: "residence", label: "居住地" },
+          { key: "speechStyle", label: "说话方式" },
+          { key: "catchphrases", label: "常用词/口头禅" },
+          { key: "titles", label: "头衔/称号" },
+          { key: "zodiac", label: "星座" },
+          { key: "fears", label: "害怕的事" },
+          { key: "phobias", label: "恐惧症" },
+          { key: "goodHabits", label: "好习惯" },
+          { key: "badHabits", label: "坏习惯" },
+          { key: "gestures", label: "小动作" },
+          { key: "intelligence", label: "智力水平" },
+          { key: "education", label: "教育经历" },
+          { key: "interests", label: "兴趣领域" },
+          { key: "humor", label: "幽默感" },
+          { key: "problemSolving", label: "解决问题的方式" },
+          { key: "empathy", label: "情绪感知能力" },
+          { key: "creativity", label: "创造力" },
+          { key: "addictions", label: "成瘾或依赖" },
+          { key: "introversion", label: "内向还是外向" },
+          { key: "petPeeve", label: "最受不了的小事" },
+          { key: "commonMood", label: "常见情绪状态" },
+          { key: "greeting", label: "握手/打招呼方式" },
+          { key: "luckyNumber", label: "幸运数字" },
+          { key: "treasuredItem", label: "最珍惜的物品" },
+          { key: "diet", label: "饮食偏好" },
+          { key: "scent", label: "标志性气味" },
+          { key: "emergencyContact", label: "第一紧急联系人" },
+          { key: "bucketList", label: "人生愿望清单" },
+          { key: "morningRoutine", label: "早晨习惯" },
+          { key: "sports", label: "运动能力/喜欢的运动" },
+          { key: "uniqueSkills", label: "独特技能" },
+          { key: "sleep", label: "睡眠习惯" },
+        ],
+      },
+    ],
+  },
+  {
+    id: "belief",
+    title: "信念价值观与动机",
+    simpleTitle: "动机",
+    subsections: [
+      {
+        title: "信念价值观",
+        fields: [
+          { key: "politics", label: "政治倾向/立场" },
+          { key: "religion", label: "宗教或精神信仰" },
+          { key: "coreValues", label: "核心价值观" },
+          { key: "morality", label: "对善恶与道德的看法" },
+          { key: "happiness", label: "对幸福的理解" },
+          { key: "success", label: "对成功的定义" },
+          { key: "worldview", label: "对世界和社会的看法" },
+          { key: "socialIssues", label: "对重要社会议题的态度" },
+          { key: "philosophy", label: "人生哲学" },
+          { key: "selfImage", label: "如何看待自己" },
+          { key: "optimism", label: "偏乐观还是偏悲观" },
+        ],
+      },
+      {
+        title: "动机冲突欲望",
+        fields: [
+          { key: "coreMotivation", label: "最核心的行动动机" },
+          { key: "motto", label: "人生信条" },
+          { key: "darkestSecret", label: "最黑暗的秘密" },
+          { key: "biggestDream", label: "最大的梦想" },
+          { key: "currentGoal", label: "当前目标" },
+          { key: "deepFear", label: "最深层的恐惧" },
+          { key: "innerConflict", label: "内在冲突" },
+          { key: "externalConflict", label: "外部冲突" },
+          { key: "regret", label: "最后悔的事" },
+          { key: "strongestDesire", label: "最强烈的欲望" },
+          { key: "externalPressure", label: "正在承受的外部压力" },
+          { key: "insecurity", label: "最大的不安全感" },
+          { key: "pureJoy", label: "最纯粹的快乐来源" },
+          { key: "nightmare", label: "最可怕的噩梦" },
+          { key: "legacy", label: "希望留下怎样的遗产/影响" },
+          { key: "whatTheyWant", label: "最想要什么" },
+          { key: "whatTheyFear", label: "最害怕什么" },
+        ],
+      },
+    ],
+  },
+  {
+    id: "relations",
+    title: "人际关系与职业",
+    simpleTitle: "关系",
+    subsections: [
+      {
+        title: "人际关系",
+        fields: [
+          { key: "friends", label: "朋友" },
+          { key: "enemies", label: "敌人" },
+          { key: "rivals", label: "竞争对手" },
+          { key: "lover", label: "恋人/重要伴侣" },
+          { key: "family", label: "家人" },
+          { key: "familyPattern", label: "家庭关系模式" },
+          { key: "mostTrusted", label: "最信任的人" },
+          { key: "afraidToLose", label: "最害怕失去的人" },
+          { key: "approvalWanted", label: "最想得到谁的认可" },
+          { key: "withFriends", label: "和朋友相处时的样子" },
+          { key: "withEnemies", label: "和敌人相处时的样子" },
+          { key: "intimacyWeakness", label: "亲密关系中的弱点" },
+          { key: "attractedTo", label: "容易被什么样的人吸引" },
+          { key: "conflictsWith", label: "容易和什么样的人冲突" },
+          { key: "favoriteCreature", label: "最喜欢的神话/幻想生物" },
+          { key: "favoriteJoke", label: "最喜欢的笑话" },
+          { key: "mostImportantPerson", label: "最重要的人" },
+          { key: "familyRelationship", label: "和家人的关系" },
+          { key: "friendshipStyle", label: "和朋友相处方式" },
+        ],
+      },
+      {
+        title: "职业与社会身份",
+        fields: [
+          { key: "organization", label: "所属组织/公司/阵营" },
+          { key: "career", label: "职业" },
+          { key: "workEthic", label: "工作伦理" },
+          { key: "income", label: "收入水平" },
+          { key: "volunteer", label: "是否做志愿活动" },
+          { key: "idealCareer", label: "理想职业" },
+          { key: "careerGoal", label: "职业目标" },
+          { key: "reputation", label: "职业名声" },
+          { key: "careerChallenge", label: "职业挑战" },
+          { key: "careerSkills", label: "职业技能" },
+          { key: "jobFeeling", label: "对当前工作的感受" },
+          { key: "coworkers", label: "对同事/伙伴的感受" },
+          { key: "teamPosition", label: "在团队中的位置" },
+          { key: "authority", label: "面对权威的态度" },
+          { key: "failure", label: "面对失败的反应" },
+          { key: "proveThemselves", label: "最想证明自己的地方" },
+        ],
+      },
+    ],
+  },
+  {
+    id: "background",
+    title: "背景故事与同人设定",
+    simpleTitle: "背景",
+    subsections: [
+      {
+        title: "背景故事",
+        fields: [
+          { key: "childhood", label: "童年经历" },
+          { key: "importantPastEvent", label: "过去的重要事件" },
+          { key: "socialClass", label: "社会阶层" },
+          { key: "criminalRecord", label: "是否有犯罪记录" },
+          { key: "lifeMilestones", label: "人生重大节点" },
+          { key: "achievements", label: "已经取得的成就" },
+          { key: "keyMemory", label: "关键记忆" },
+          { key: "childhoodInfluence", label: "童年影响" },
+          { key: "lifeChoice", label: "做过的重大人生选择" },
+          { key: "firstHeartbreak", label: "第一次心碎" },
+          { key: "lifeLesson", label: "得到过的人生教训" },
+          { key: "preciousMoment", label: "最珍贵的瞬间" },
+          { key: "biggestFailure", label: "最大的失败" },
+          { key: "embarrassingMoment", label: "最尴尬的时刻" },
+          { key: "meaningfulObject", label: "最有意义的物品" },
+          { key: "hardDecision", label: "做过最艰难的决定" },
+          { key: "backgroundImpact", label: "这段背景如何影响角色现在的性格" },
+          { key: "escapingPast", label: "角色是否在逃避过去" },
+          { key: "pastEventEffect", label: "这件事如何影响现在" },
+          { key: "finalDirection", label: "最终会走向哪里" },
+        ],
+      },
+      {
+        title: "同人/既有世界观",
+        fields: [
+          { key: "sourceWork", label: "角色是否属于某个已有作品" },
+          { key: "sourceWorldRelation", label: "和原作世界什么关系" },
+          { key: "sourceCharacterRelation", label: "和原作角色什么重要关系" },
+          { key: "specialPower", label: "是否拥有该世界观特殊能力" },
+          { key: "changedCanon", label: "是否改变过原作历史/世界线" },
+          { key: "worldAchievement", label: "在这个世界有什么成就" },
+          { key: "canonRole", label: "职责/身份/阵营" },
+          { key: "canonConflict", label: "和原作设定冲突的地方" },
+          { key: "storyChange", label: "存在会让原作故事发生什么变化" },
+        ],
+      },
+    ],
+  },
+];
+
+const SIMPLE_FIELDS: Partial<Record<CharacterProfileGroup, string[]>> = {
+  basic: ["fullName", "age", "genderPronouns", "species", "occupation", "oneLine"],
+  appearance: ["firstImpression", "obviousFeature", "hairColor", "eyeColor", "height", "clothingStyle"],
+  language: ["corePersonality", "bestQuality", "worstFlaw", "speechStyle", "likes", "dislikes"],
+  belief: ["whatTheyWant", "whatTheyFear", "currentGoal", "innerConflict", "externalConflict", "regret"],
+  relations: ["mostImportantPerson", "familyRelationship", "friendshipStyle"],
+  background: ["importantPastEvent", "pastEventEffect", "finalDirection"],
+};
 
 function readStoredProjectId(): string {
   if (typeof window === "undefined") {
@@ -42,37 +348,117 @@ function writeStoredProjectId(projectId: string): void {
   window.localStorage.setItem("shulingge.web.projectId", projectId);
 }
 
-function toCharacterSummary(character: Character): string {
-  const worldbook = Array.isArray(character.relatedWorldbook) ? character.relatedWorldbook.length : 0;
-  const links = Array.isArray(character.links) ? character.links.length : 0;
-  if (worldbook || links) {
-    return `${links} 条链接 · ${worldbook} 条世界书关联`;
-  }
-
-  return "尚未补充关联资料";
+function createEmptyProfile(template: CharacterProfileTemplate): CharacterProfile {
+  return {
+    template,
+    avatarPath: "",
+    basic: {},
+    appearance: {},
+    language: {},
+    belief: {},
+    relations: {},
+    background: {},
+    custom: Object.fromEntries(PROFILE_GROUPS.map((group) => [group, []])) as CharacterProfile["custom"],
+  };
 }
 
-function renderRecordRows(record: Record<string, string | string[]> | undefined, emptyText: string) {
-  const entries = Object.entries(record ?? {});
-  if (!entries.length) {
-    return <div className="faint">{emptyText}</div>;
-  }
+function normalizeProfile(profile?: CharacterProfile, template: CharacterProfileTemplate = "simple"): CharacterProfile {
+  const base = createEmptyProfile(profile?.template ?? template);
+  return {
+    ...base,
+    ...profile,
+    basic: { ...base.basic, ...profile?.basic },
+    appearance: { ...base.appearance, ...profile?.appearance },
+    language: { ...base.language, ...profile?.language },
+    belief: { ...base.belief, ...profile?.belief },
+    relations: { ...base.relations, ...profile?.relations },
+    background: { ...base.background, ...profile?.background },
+    custom: {
+      ...base.custom,
+      ...profile?.custom,
+    },
+  };
+}
 
+function slugify(value: string): string {
+  const ascii = value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9_-]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  return ascii || `character-${Date.now().toString(36)}`;
+}
+
+function firstNonEmpty(...values: Array<string | undefined>): string {
+  return values.find((value) => value?.trim())?.trim() ?? "";
+}
+
+function characterIntro(character: Character): string {
+  return firstNonEmpty(
+    character.profile?.basic?.oneLine,
+    character.profile?.basic?.occupation,
+    character.profile?.language?.corePersonality,
+    character.summary,
+    "尚未填写一句话介绍",
+  );
+}
+
+function isLikelyImagePath(value?: string): value is string {
+  return Boolean(value && /^(https?:|data:image\/|\/)/i.test(value.trim()));
+}
+
+function profileSearchText(character: Character): string {
+  return JSON.stringify(character.profile ?? {}).toLowerCase();
+}
+
+function TemplateChooser({
+  onChoose,
+  onCancel,
+}: {
+  onChoose(template: CharacterProfileTemplate): void;
+  onCancel(): void;
+}) {
   return (
-    <div className="stack-list">
-      {entries.map(([key, value]) => (
-        <div className="field" key={key}>
-          <span className="k">{key}</span>
-          <span className="v stack-align-start">{Array.isArray(value) ? value.join(" / ") : value}</span>
+    <div className="vault-modal-backdrop" onMouseDown={onCancel}>
+      <div className="vault-modal character-template-modal" onMouseDown={(event) => event.stopPropagation()}>
+        <div className="character-modal-head compact">
+          <div>
+            <h2>选择角色模板</h2>
+            <p>先决定这张角色卡的填写深度，之后仍可继续补充字段。</p>
+          </div>
+          <button type="button" className="btn-icon" onClick={onCancel} aria-label="关闭">
+            <X size={16} />
+          </button>
         </div>
-      ))}
+        <div className="character-template-grid">
+          <button type="button" className="character-template-card" onClick={() => onChoose("simple")}>
+            <UserRound size={24} />
+            <strong>精简版</strong>
+            <span>快速搭出角色骨架，适合主线初期或配角。</span>
+          </button>
+          <button type="button" className="character-template-card" onClick={() => onChoose("detailed")}>
+            <Image size={24} />
+            <strong>详细版</strong>
+            <span>事无巨细地整理人设，适合主角、反派和核心群像。</span>
+          </button>
+        </div>
+      </div>
     </div>
+  );
+}
+
+function AvatarView({ character, large = false }: { character: Character; large?: boolean }) {
+  const avatarPath = character.profile?.avatarPath?.trim();
+  return (
+    <span className={`avatar ${large ? "lg character-avatar-large" : ""}`}>
+      {isLikelyImagePath(avatarPath) ? <img src={avatarPath} alt="" /> : character.name?.slice(0, 1) || "角"}
+    </span>
   );
 }
 
 function CharacterEditor({
   mode,
-  draft,
+  value,
   saving,
   error,
   onChange,
@@ -80,319 +466,331 @@ function CharacterEditor({
   onSubmit,
 }: {
   mode: EditorMode;
-  draft: CharacterFormDraft;
+  value: CharacterInput;
   saving: boolean;
   error: string | null;
-  onChange: (patch: Partial<CharacterFormDraft>) => void;
-  onCancel: () => void;
-  onSubmit: () => void;
+  onChange(next: CharacterInput): void;
+  onCancel(): void;
+  onSubmit(): void;
 }) {
-  const title = mode === "create" ? "新建角色" : `编辑角色 · ${draft.name || draft.id || "未命名"}`;
+  const profile = normalizeProfile(value.profile);
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  const isDetailed = profile.template === "detailed";
+
+  const updateProfile = (nextProfile: CharacterProfile) => {
+    onChange({ ...value, profile: nextProfile });
+  };
+  const updateField = (group: CharacterProfileGroup, key: string, fieldValue: string) => {
+    updateProfile({
+      ...profile,
+      [group]: {
+        ...(profile[group] ?? {}),
+        [key]: fieldValue,
+      },
+    });
+  };
+  const customRows = (group: CharacterProfileGroup) => profile.custom?.[group] ?? [];
+  const updateCustom = (group: CharacterProfileGroup, index: number, patch: { label?: string; value?: string }) => {
+    const rows = [...customRows(group)];
+    rows[index] = { ...rows[index], ...patch };
+    updateProfile({ ...profile, custom: { ...profile.custom, [group]: rows } });
+  };
+  const addCustom = (group: CharacterProfileGroup) => {
+    updateProfile({
+      ...profile,
+      custom: {
+        ...profile.custom,
+        [group]: [...customRows(group), { label: "", value: "" }],
+      },
+    });
+  };
+  const removeCustom = (group: CharacterProfileGroup, index: number) => {
+    updateProfile({
+      ...profile,
+      custom: {
+        ...profile.custom,
+        [group]: customRows(group).filter((_, rowIndex) => rowIndex !== index),
+      },
+    });
+  };
+  const renderFields = (group: CharacterGroupDefinition, compact: boolean) => {
+    const allowed = compact ? new Set(SIMPLE_FIELDS[group.id] ?? []) : null;
+    return (
+      <div className="character-field-stack">
+        {group.subsections.map((subsection, sectionIndex) => {
+          const fields = allowed ? subsection.fields.filter((field) => allowed.has(field.key)) : subsection.fields;
+          if (!fields.length) {
+            return null;
+          }
+          return (
+            <div className="character-subsection" key={`${group.id}-${sectionIndex}`}>
+              {subsection.title && !compact ? <h4>{subsection.title}</h4> : null}
+              <div className="character-field-grid">
+                {fields.map((field) => (
+                  <label className="form-block" key={`${group.id}-${field.key}`}>
+                    <span>{field.label}</span>
+                    <input
+                      className="input"
+                      value={profile[group.id]?.[field.key] ?? ""}
+                      onChange={(event) => updateField(group.id, field.key, event.target.value)}
+                    />
+                  </label>
+                ))}
+              </div>
+            </div>
+          );
+        })}
+        <div className="character-custom-fields">
+          {customRows(group.id).map((row, index) => (
+            <div className="character-custom-row" key={`${group.id}-custom-${index}`}>
+              <input
+                className="input"
+                value={row.label ?? ""}
+                placeholder="自定义标题"
+                onChange={(event) => updateCustom(group.id, index, { label: event.target.value })}
+              />
+              <input
+                className="input"
+                value={row.value ?? ""}
+                placeholder="内容"
+                onChange={(event) => updateCustom(group.id, index, { value: event.target.value })}
+              />
+              <button type="button" className="btn-icon danger" onClick={() => removeCustom(group.id, index)} aria-label="删除自定义字段">
+                <Trash2 size={15} />
+              </button>
+            </div>
+          ))}
+          <button type="button" className="btn btn-ghost character-add-custom" onClick={() => addCustom(group.id)}>
+            <Plus size={14} />
+            添加自定义字段
+          </button>
+        </div>
+      </div>
+    );
+  };
 
   return (
-    <section className="editor-card">
-      <div className="editor-card-head">
-        <div>
-          <h2>{title}</h2>
-          <p className="view-sub">仅使用当前后端已定义的角色字段，不额外发明数据结构。</p>
+    <div className="vault-modal-backdrop character-modal-backdrop" onMouseDown={onCancel}>
+      <div className="vault-modal character-modal" onMouseDown={(event) => event.stopPropagation()}>
+        <div className="character-modal-head">
+          <div>
+            <h2>{mode === "create" ? "新建角色" : `编辑角色 · ${value.name}`}</h2>
+            <p>{isDetailed ? "详细版模板，默认折叠 6 大类。" : "精简版模板，优先填写最关键的人设骨架。"}</p>
+          </div>
+          <button type="button" className="btn-icon" onClick={onCancel} aria-label="关闭">
+            <X size={16} />
+          </button>
         </div>
-        <div className="view-actions">
+        <div className="character-modal-body">
+          {error ? <div className="err-card">保存失败：{error}</div> : null}
+          <section className="character-editor-top">
+            <div className="character-avatar-uploader">
+              {isLikelyImagePath(profile.avatarPath) ? <img src={profile.avatarPath} alt="" /> : <Image size={28} />}
+            </div>
+            <div className="character-top-fields">
+              <label className="form-block">
+                <span>角色名</span>
+                <input className="input" value={value.name} onChange={(event) => onChange({ ...value, name: event.target.value })} />
+              </label>
+              <label className="form-block">
+                <span>头像/立绘 URL 或本地路径</span>
+                <input
+                  className="input"
+                  value={profile.avatarPath ?? ""}
+                  placeholder="https://... 或 /assets/character.png"
+                  onChange={(event) => updateProfile({ ...profile, avatarPath: event.target.value })}
+                />
+              </label>
+            </div>
+          </section>
+
+          {isDetailed ? (
+            <div className="character-accordion">
+              {GROUP_DEFINITIONS.map((group) => {
+                const open = Boolean(expanded[group.id]);
+                return (
+                  <section className="character-accordion-item" key={group.id}>
+                    <button
+                      type="button"
+                      className="character-accordion-head"
+                      onClick={() => setExpanded((current) => ({ ...current, [group.id]: !open }))}
+                    >
+                      {open ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+                      <span>{group.title}</span>
+                    </button>
+                    {open ? <div className="character-accordion-body">{renderFields(group, false)}</div> : null}
+                  </section>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="character-simple-grid">
+              {GROUP_DEFINITIONS.map((group) => (
+                <section className="info-card character-simple-section" key={group.id}>
+                  <h3>{group.simpleTitle ?? group.title}</h3>
+                  {renderFields(group, true)}
+                </section>
+              ))}
+            </div>
+          )}
+        </div>
+        <div className="agent-modal-actions view-actions">
           <button type="button" className="btn btn-ghost" onClick={onCancel}>
             取消
           </button>
-          <button type="button" className="btn btn-primary" onClick={onSubmit} disabled={saving || !draft.id.trim() || !draft.name.trim()}>
-            <Save size={15} strokeWidth={2} />
+          <button type="button" className="btn btn-primary" onClick={onSubmit} disabled={saving || !value.name.trim()}>
+            <Save size={15} />
             {saving ? "保存中…" : "保存角色"}
           </button>
         </div>
       </div>
-
-      {error ? <div className="err-card">保存失败：{error}</div> : null}
-
-      <div className="form-grid form-grid-2">
-        <label className="form-block">
-          <span>角色 ID</span>
-          <input
-            className="input"
-            value={draft.id}
-            onChange={(event) => onChange({ id: event.target.value })}
-            disabled={mode === "edit"}
-            placeholder="kanae"
-          />
-        </label>
-        <label className="form-block">
-          <span>显示名称</span>
-          <input
-            className="input"
-            value={draft.name}
-            onChange={(event) => onChange({ name: event.target.value })}
-            placeholder="香奈惠 / Kanae"
-          />
-        </label>
-        <label className="form-block">
-          <span>知情范围引用</span>
-          <input
-            className="input"
-            value={draft.knowledgeScopeRef}
-            onChange={(event) => onChange({ knowledgeScopeRef: event.target.value })}
-            placeholder="states/knowledge/kanae.json"
-          />
-        </label>
-        <label className="form-block">
-          <span>当前状态引用</span>
-          <input
-            className="input"
-            value={draft.currentStateRef}
-            onChange={(event) => onChange({ currentStateRef: event.target.value })}
-            placeholder="states/characters/kanae.state.json"
-          />
-        </label>
-        <label className="form-block">
-          <span>角色弧线引用</span>
-          <input
-            className="input"
-            value={draft.arcRef}
-            onChange={(event) => onChange({ arcRef: event.target.value })}
-            placeholder="arc-healing"
-          />
-        </label>
-        <label className="form-block">
-          <span>关联世界书</span>
-          <textarea
-            className="textarea"
-            value={draft.relatedWorldbookText}
-            onChange={(event) => onChange({ relatedWorldbookText: event.target.value })}
-            placeholder={"wb-butterfly-mansion\nwb-insect-corps"}
-          />
-        </label>
-      </div>
-
-      <div className="form-grid form-grid-2">
-        <label className="form-block">
-          <span>链接 / 设定线索</span>
-          <textarea
-            className="textarea"
-            value={draft.linksText}
-            onChange={(event) => onChange({ linksText: event.target.value })}
-            placeholder={"[[Butterfly Mansion]]\n[[花香与药臼]]"}
-          />
-        </label>
-        <label className="form-block">
-          <span>禁止写法</span>
-          <textarea
-            className="textarea"
-            value={draft.forbiddenWritesText}
-            onChange={(event) => onChange({ forbiddenWritesText: event.target.value })}
-            placeholder={"out-of-character rage\n无故泄密"}
-          />
-        </label>
-      </div>
-
-      <div className="form-grid form-grid-2">
-        <label className="form-block">
-          <span>常用台词</span>
-          <textarea
-            className="textarea"
-            value={draft.typicalLinesText}
-            onChange={(event) => onChange({ typicalLinesText: event.target.value })}
-            placeholder={"请先冷静。\n先处理伤口。"}
-          />
-        </label>
-        <label className="form-block">
-          <span>禁用台词</span>
-          <textarea
-            className="textarea"
-            value={draft.forbiddenLinesText}
-            onChange={(event) => onChange({ forbiddenLinesText: event.target.value })}
-            placeholder={"我不在乎任何人。"}
-          />
-        </label>
-      </div>
-
-      <div className="form-grid form-grid-2">
-        <label className="form-block">
-          <span>称呼表</span>
-          <textarea
-            className="textarea"
-            value={draft.honorificsText}
-            onChange={(event) => onChange({ honorificsText: event.target.value })}
-            placeholder={"shinobu: 忍\nprotagonist: 你"}
-          />
-        </label>
-        <label className="form-block">
-          <span>按情境</span>
-          <textarea
-            className="textarea"
-            value={draft.bySituationText}
-            onChange={(event) => onChange({ bySituationText: event.target.value })}
-            placeholder={"combat: 收束阵形 | 不要硬撑\nrest: 先喝茶 | 慢慢说"}
-          />
-        </label>
-      </div>
-      <div className="form-grid form-grid-2">
-        <label className="form-block">
-          <span>按情绪</span>
-          <textarea
-            className="textarea"
-            value={draft.byEmotionText}
-            onChange={(event) => onChange({ byEmotionText: event.target.value })}
-            placeholder={"grief: 先别说话 | 我在这\ncalm: 先把呼吸稳住"}
-          />
-        </label>
-        <label className="form-block">
-          <span>按关系阶段</span>
-          <textarea
-            className="textarea"
-            value={draft.byRelationStageText}
-            onChange={(event) => onChange({ byRelationStageText: event.target.value })}
-            placeholder={"trust: 我知道你的节奏 | 按约定来\nsuspicion: 先别急着下结论"}
-          />
-        </label>
-      </div>
-    </section>
+    </div>
   );
 }
 
 export function CharactersView() {
   const [projectId, setProjectId] = useState(readStoredProjectId);
+  const [projects, setProjects] = useState<ProjectSummary[]>([]);
   const [characters, setCharacters] = useState<Character[]>([]);
-  const [relations, setRelations] = useState<Relation[]>([]);
-  const [timelineEvents, setTimelineEvents] = useState<TimelineEvent[]>([]);
-  const [selectedCharacterId, setSelectedCharacterId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
-  const [activeTab, setActiveTab] = useState<CharacterTab>("profile");
+  const [viewMode, setViewMode] = useState<CharacterViewMode>("card");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [vaultMissing, setVaultMissing] = useState(false);
+  const [templateChoosing, setTemplateChoosing] = useState(false);
   const [editorMode, setEditorMode] = useState<EditorMode | null>(null);
-  const [draft, setDraft] = useState<CharacterFormDraft>(createCharacterFormDraft());
+  const [draft, setDraft] = useState<CharacterInput | null>(null);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
 
-  useEffect(() => {
-    writeStoredProjectId(projectId);
-  }, [projectId]);
-
-  useEffect(() => {
-    let alive = true;
-
-    async function load() {
-      setLoading(true);
-      setError(null);
-      setVaultMissing(false);
-
-      try {
-        const health = await api.health();
-        if (!health.vaultSelected) {
-          if (!alive) return;
-          setVaultMissing(true);
-          setCharacters([]);
-          setRelations([]);
-          setTimelineEvents([]);
-          setLoading(false);
-          return;
-        }
-
-        const [nextCharacters, nextRelations, nextTimeline] = await Promise.all([
-          api.listCharactersByProject(projectId),
-          api.listRelationsByProject(projectId),
-          api.listTimelineByProject(projectId),
-        ]);
-
-        if (!alive) {
-          return;
-        }
-
-        setCharacters(nextCharacters);
-        setRelations(nextRelations);
-        setTimelineEvents(nextTimeline);
-        setSelectedCharacterId((current) => {
-          if (current && nextCharacters.some((character) => character.id === current)) {
-            return current;
-          }
-          return nextCharacters[0]?.id ?? null;
-        });
+  const loadData = async (targetProjectId = projectId) => {
+    setLoading(true);
+    setError(null);
+    setVaultMissing(false);
+    try {
+      const health = await api.health();
+      if (!health.vaultSelected) {
+        setVaultMissing(true);
+        setProjects([]);
+        setCharacters([]);
         setLoading(false);
-      } catch (loadError) {
-        if (!alive) {
-          return;
-        }
-        setError(loadError instanceof ApiError ? loadError.message : "加载失败");
-        setLoading(false);
+        return;
       }
+      const nextProjects = await api.listProjects();
+      const resolvedProjectId = nextProjects.some((project) => project.projectId === targetProjectId)
+        ? targetProjectId
+        : nextProjects[0]?.projectId ?? targetProjectId;
+      if (resolvedProjectId !== projectId) {
+        setProjectId(resolvedProjectId);
+        writeStoredProjectId(resolvedProjectId);
+      }
+      const nextCharacters = resolvedProjectId ? await api.listCharactersByProject(resolvedProjectId) : [];
+      setProjects(nextProjects);
+      setCharacters(nextCharacters);
+    } catch (loadError) {
+      setError(loadError instanceof ApiError ? loadError.message : "加载角色失败");
+    } finally {
+      setLoading(false);
     }
+  };
 
-    void load();
-
-    return () => {
-      alive = false;
-    };
+  useEffect(() => {
+    void loadData(projectId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectId]);
 
-  const filteredCharacters = useMemo(() => filterCharacters(characters, search), [characters, search]);
-
-  const selectedCharacter = useMemo(() => {
-    if (!filteredCharacters.length) {
-      return characters.find((character) => character.id === selectedCharacterId) ?? null;
+  const filteredCharacters = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    if (!query) {
+      return characters;
     }
-    return filteredCharacters.find((character) => character.id === selectedCharacterId) ?? filteredCharacters[0] ?? null;
-  }, [characters, filteredCharacters, selectedCharacterId]);
+    return characters.filter((character) =>
+      [
+        character.id,
+        character.name,
+        characterIntro(character),
+        ...(character.links ?? []),
+        profileSearchText(character),
+      ]
+        .join(" ")
+        .toLowerCase()
+        .includes(query),
+    );
+  }, [characters, search]);
 
-  const characterRelations = useMemo(
-    () => (selectedCharacter ? getCharacterRelations(relations, selectedCharacter.id) : []),
-    [relations, selectedCharacter],
-  );
-  const relatedEvents = useMemo(
-    () => (selectedCharacter ? getCharacterTimelineEvents(timelineEvents, selectedCharacter.id) : []),
-    [selectedCharacter, timelineEvents],
-  );
+  const startCreate = (template: CharacterProfileTemplate) => {
+    setTemplateChoosing(false);
+    setDraft({
+      id: "",
+      name: "",
+      links: [],
+      voice: { typicalLines: [], forbiddenLines: [], honorifics: {} },
+      forbiddenWrites: [],
+      relatedWorldbook: [],
+      profile: createEmptyProfile(template),
+    });
+    setSaveError(null);
+    setEditorMode("create");
+  };
 
-  const showState = loading || error !== null || vaultMissing || filteredCharacters.length === 0;
+  const startEdit = (character: Character) => {
+    setDraft({
+      id: character.id,
+      name: character.name,
+      links: character.links ?? [],
+      voice: character.voice ?? { typicalLines: [], forbiddenLines: [], honorifics: {} },
+      knowledgeScopeRef: character.knowledgeScopeRef,
+      currentStateRef: character.currentStateRef,
+      forbiddenWrites: character.forbiddenWrites ?? [],
+      arcRef: character.arcRef,
+      relatedWorldbook: character.relatedWorldbook ?? [],
+      profile: normalizeProfile(character.profile, character.profile?.template ?? "simple"),
+    });
+    setSaveError(null);
+    setEditorMode("edit");
+  };
 
-  async function persistCharacter(mode: EditorMode) {
+  const persistCharacter = async () => {
+    if (!draft) {
+      return;
+    }
+    const name = draft.name.trim();
+    if (!name) {
+      setSaveError("角色名不能为空");
+      return;
+    }
+
     setSaving(true);
     setSaveError(null);
-
     try {
-      const payload = toCharacterPayload(draft);
-      const savedCharacter =
-        mode === "create"
-          ? await api.createCharacter(projectId, payload)
-          : await api.updateCharacter(projectId, draft.id, payload);
-
-      const [nextCharacters, nextRelations, nextTimeline] = await Promise.all([
-        api.listCharactersByProject(projectId),
-        api.listRelationsByProject(projectId),
-        api.listTimelineByProject(projectId),
-      ]);
-
-      setCharacters(nextCharacters);
-      setRelations(nextRelations);
-      setTimelineEvents(nextTimeline);
-      setSelectedCharacterId(savedCharacter.id);
-      setActiveTab("profile");
+      const payload: CharacterInput = {
+        ...draft,
+        id: editorMode === "create" ? slugify(draft.id || name) : draft.id,
+        name,
+      };
+      if (editorMode === "create") {
+        await api.createCharacter(projectId, payload);
+      } else {
+        await api.updateCharacter(projectId, payload.id, payload);
+      }
       setEditorMode(null);
+      setDraft(null);
+      await loadData(projectId);
     } catch (persistError) {
-      setSaveError(persistError instanceof ApiError ? persistError.message : "保存失败");
+      setSaveError(persistError instanceof ApiError ? persistError.message : "保存角色失败");
     } finally {
       setSaving(false);
     }
-  }
+  };
+
+  const showState = loading || error !== null || vaultMissing || filteredCharacters.length === 0;
 
   return (
     <ViewShell
       title="角色"
-      subtitle="人物档案、声音、关系、状态与知情范围"
+      subtitle="按项目管理人物档案、头像、模板字段与自定义补充信息"
       actions={
-        <button
-          type="button"
-          className="btn btn-primary"
-          onClick={() => {
-            setDraft(createCharacterFormDraft());
-            setEditorMode("create");
-            setSaveError(null);
-          }}
-        >
+        <button type="button" className="btn btn-primary" onClick={() => setTemplateChoosing(true)} disabled={!projectId || vaultMissing}>
           <Plus size={15} strokeWidth={2} />
           新建角色
         </button>
@@ -401,32 +799,40 @@ export function CharactersView() {
       <div className="toolbar-row">
         <div className="search">
           <Search size={15} />
-          <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="搜索角色、链接或规则…" />
+          <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="搜索角色、简介或字段…" />
         </div>
         <label className="project-inline-field">
-          <span className="faint">Project</span>
-          <input className="input" value={projectId} onChange={(event) => setProjectId(event.target.value)} />
+          <span className="faint">项目</span>
+          <select
+            className="input"
+            value={projectId}
+            onChange={(event) => {
+              setProjectId(event.target.value);
+              writeStoredProjectId(event.target.value);
+            }}
+          >
+            {projects.length ? (
+              projects.map((project) => (
+                <option value={project.projectId} key={project.projectId}>
+                  {project.title}
+                </option>
+              ))
+            ) : (
+              <option value={projectId}>暂无项目</option>
+            )}
+          </select>
         </label>
         <span className="grow" />
+        <div className="view-toggle">
+          <button type="button" className={`btn-icon ${viewMode === "card" ? "active" : ""}`} onClick={() => setViewMode("card")} aria-label="卡片视图">
+            <LayoutGrid size={16} />
+          </button>
+          <button type="button" className={`btn-icon ${viewMode === "list" ? "active" : ""}`} onClick={() => setViewMode("list")} aria-label="列表视图">
+            <List size={16} />
+          </button>
+        </div>
         <span className="faint">共 {filteredCharacters.length} / {characters.length} 位</span>
       </div>
-
-      {editorMode ? (
-        <CharacterEditor
-          mode={editorMode}
-          draft={draft}
-          saving={saving}
-          error={saveError}
-          onChange={(patch) => setDraft((current) => ({ ...current, ...patch }))}
-          onCancel={() => {
-            setEditorMode(null);
-            setSaveError(null);
-          }}
-          onSubmit={() => {
-            void persistCharacter(editorMode);
-          }}
-        />
-      ) : null}
 
       {showState ? (
         <CenterState
@@ -436,293 +842,67 @@ export function CharactersView() {
           empty={filteredCharacters.length === 0}
           emptyText={search ? "没有匹配的角色" : "还没有角色，点右上角「新建角色」"}
         />
-      ) : (
-        <div className="split-layout">
-          <div className="list-card">
-            <div className="list-row head">
-              <span style={{ width: 38 }} />
-              <span className="col col-grow">角色</span>
-              <span className="col" style={{ width: 130 }}>声音</span>
-              <span className="col" style={{ width: 90 }}>规则</span>
-              <span className="col" style={{ width: 120 }}>更新时间</span>
-            </div>
-            {filteredCharacters.map((character) => {
-              const typicalLines = Array.isArray(character.voice?.typicalLines) ? character.voice?.typicalLines.length : 0;
-              const forbiddenWrites = Array.isArray(character.forbiddenWrites) ? character.forbiddenWrites.length : 0;
-              return (
-                <button
-                  type="button"
-                  className={`list-row ${selectedCharacter?.id === character.id ? "active" : ""}`}
-                  key={character.id}
-                  onClick={() => {
-                    setSelectedCharacterId(character.id);
-                    setActiveTab("profile");
-                  }}
-                >
-                  <span className="avatar">{character.name?.slice(0, 1) ?? "角"}</span>
-                  <span className="col col-grow">
-                    <div className="col-name">{character.name}</div>
-                    <div className="col-sub">{toCharacterSummary(character)}</div>
-                  </span>
-                  <span className="col" style={{ width: 130 }}>
-                    <span className="tag primary">{typicalLines} 条</span>
-                  </span>
-                  <span className="col" style={{ width: 90 }}>
-                    <span className="tag">{forbiddenWrites} 条</span>
-                  </span>
-                  <span className="col faint" style={{ width: 120 }}>{String(character.updatedAt ?? "—")}</span>
+      ) : viewMode === "card" ? (
+        <div className="character-card-grid">
+          {filteredCharacters.map((character) => (
+            <article className="character-card" key={character.id}>
+              <button type="button" className="character-card-cover" onClick={() => startEdit(character)}>
+                {isLikelyImagePath(character.profile?.avatarPath) ? (
+                  <img src={character.profile?.avatarPath} alt="" />
+                ) : (
+                  <span>{character.name.slice(0, 1)}</span>
+                )}
+              </button>
+              <div className="character-card-body">
+                <div>
+                  <h3>{character.name}</h3>
+                  <p>{characterIntro(character)}</p>
+                </div>
+                <div className="tag-row">
+                  <span className="tag primary">{character.profile?.template === "detailed" ? "详细版" : "精简版"}</span>
+                  <span className="tag">{character.profile?.basic?.occupation || "未填身份"}</span>
+                </div>
+                <button type="button" className="btn" onClick={() => startEdit(character)}>
+                  编辑
                 </button>
-              );
-            })}
-          </div>
-
-          {selectedCharacter ? (
-            <div className="detail-stack">
-              <section className="hero-card">
-                <div className="hero-card-main">
-                  <span className="avatar lg">{selectedCharacter.name?.slice(0, 1) ?? "角"}</span>
-                  <div>
-                    <h2>{selectedCharacter.name}</h2>
-                    <p className="view-sub">ID：{selectedCharacter.id}</p>
-                    <div className="tag-row">
-                      <span className="tag primary">{Array.isArray(selectedCharacter.voice?.typicalLines) ? selectedCharacter.voice?.typicalLines.length : 0} 条常用台词</span>
-                      <span className="tag">{characterRelations.length} 条关系</span>
-                      <span className="tag">{relatedEvents.length} 个相关事件</span>
-                    </div>
-                  </div>
-                </div>
-                <div className="view-actions">
-                  <button
-                    type="button"
-                    className="btn"
-                    onClick={() => {
-                      setDraft(createCharacterFormDraft(selectedCharacter));
-                      setEditorMode("edit");
-                      setSaveError(null);
-                    }}
-                  >
-                    <PencilLine size={15} strokeWidth={2} />
-                    编辑
-                  </button>
-                </div>
-              </section>
-
-              <div className="tab-strip">
-                {TABS.map((tab) => (
-                  <button
-                    type="button"
-                    key={tab.id}
-                    className={activeTab === tab.id ? "active" : ""}
-                    onClick={() => setActiveTab(tab.id)}
-                  >
-                    {tab.label}
-                  </button>
-                ))}
               </div>
-
-              <div className="detail-grid">
-                <div>
-                  {activeTab === "profile" ? (
-                    <section className="info-card">
-                      <h3>基础资料</h3>
-                      <div className="field"><span className="k">角色 ID</span><span className="v">{selectedCharacter.id}</span></div>
-                      <div className="field"><span className="k">角色弧线</span><span className="v">{String(selectedCharacter.arcRef ?? "未设置")}</span></div>
-                      <div className="field"><span className="k">链接数量</span><span className="v">{Array.isArray(selectedCharacter.links) ? selectedCharacter.links.length : 0}</span></div>
-                      <div className="field"><span className="k">关联世界书</span><span className="v">{Array.isArray(selectedCharacter.relatedWorldbook) ? selectedCharacter.relatedWorldbook.length : 0}</span></div>
-                      <div className="field"><span className="k">更新时间</span><span className="v">{String(selectedCharacter.updatedAt ?? "—")}</span></div>
-                      <div className="field"><span className="k">创建时间</span><span className="v">{String(selectedCharacter.createdAt ?? "—")}</span></div>
-                    </section>
-                  ) : null}
-
-                  {activeTab === "voice" ? (
-                    <section className="info-card">
-                      <h3>角色声音</h3>
-                      <div className="detail-section">
-                        <h4>常用台词</h4>
-                        <div className="stack-list">
-                          {(selectedCharacter.voice?.typicalLines as string[] | undefined)?.length ? (
-                            (selectedCharacter.voice?.typicalLines as string[]).map((line) => (
-                              <div className="quote-line" key={line}>{line}</div>
-                            ))
-                          ) : (
-                            <div className="faint">尚未填写常用台词</div>
-                          )}
-                        </div>
-                      </div>
-                      <div className="detail-section">
-                        <h4>禁用台词</h4>
-                        <div className="stack-list">
-                          {(selectedCharacter.voice?.forbiddenLines as string[] | undefined)?.length ? (
-                            (selectedCharacter.voice?.forbiddenLines as string[]).map((line) => (
-                              <div className="quote-line muted-line" key={line}>{line}</div>
-                            ))
-                          ) : (
-                            <div className="faint">暂无禁用台词</div>
-                          )}
-                        </div>
-                      </div>
-                      <div className="detail-section">
-                        <h4>称呼表</h4>
-                        {renderRecordRows(selectedCharacter.voice?.honorifics as Record<string, string> | undefined, "暂无称呼表")}
-                      </div>
-                      <div className="detail-section">
-                        <h4>按情境 / 情绪 / 关系阶段</h4>
-                        {renderRecordRows(selectedCharacter.voice?.bySituation as Record<string, string[]> | undefined, "暂无情境话术")}
-                        {renderRecordRows(selectedCharacter.voice?.byEmotion as Record<string, string[]> | undefined, "暂无情绪话术")}
-                        {renderRecordRows(selectedCharacter.voice?.byRelationStage as Record<string, string[]> | undefined, "暂无关系阶段话术")}
-                      </div>
-                    </section>
-                  ) : null}
-
-                  {activeTab === "state" ? (
-                    <section className="info-card">
-                      <h3>当前状态</h3>
-                      <div className="field"><span className="k">状态引用</span><span className="v stack-align-start">{String(selectedCharacter.currentStateRef ?? "未设置")}</span></div>
-                      <div className="field"><span className="k">角色弧线</span><span className="v stack-align-start">{String(selectedCharacter.arcRef ?? "未设置")}</span></div>
-                      <div className="field"><span className="k">最近活动</span><span className="v stack-align-start">{relatedEvents[0]?.title ?? "暂无事件"}</span></div>
-                    </section>
-                  ) : null}
-
-                  {activeTab === "relations" ? (
-                    <section className="info-card">
-                      <h3>关系</h3>
-                      {characterRelations.length ? (
-                        <div className="stack-list">
-                          {characterRelations.map((relation) => (
-                            <div className="mini-card" key={relation.id}>
-                              <div className="mini-card-title">{relation.type}</div>
-                              <div className="mini-card-sub">
-                                {relation.from} → {relation.to}
-                              </div>
-                              <div className="tag-row">
-                                <span className="tag">{String(relation.stage ?? "未分阶段")}</span>
-                                <span className="tag">{Array.isArray(relation.sourceChapters) ? relation.sourceChapters.length : 0} 章</span>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      ) : (
-                        <div className="faint">还没有与该角色绑定的关系。</div>
-                      )}
-                    </section>
-                  ) : null}
-
-                  {activeTab === "knowledge" ? (
-                    <section className="info-card">
-                      <h3>知情范围</h3>
-                      <div className="field"><span className="k">知情范围引用</span><span className="v stack-align-start">{String(selectedCharacter.knowledgeScopeRef ?? "未设置")}</span></div>
-                      <div className="detail-section">
-                        <h4>关联世界书</h4>
-                        <div className="tag-row">
-                          {(selectedCharacter.relatedWorldbook as string[] | undefined)?.length ? (
-                            (selectedCharacter.relatedWorldbook as string[]).map((entry) => <span className="tag primary" key={entry}>{entry}</span>)
-                          ) : (
-                            <span className="faint">暂无世界书关联</span>
-                          )}
-                        </div>
-                      </div>
-                      <div className="detail-section">
-                        <h4>线索链接</h4>
-                        <div className="stack-list">
-                          {(selectedCharacter.links as string[] | undefined)?.length ? (
-                            (selectedCharacter.links as string[]).map((entry) => <div className="quote-line" key={entry}>{entry}</div>)
-                          ) : (
-                            <div className="faint">暂无线索链接</div>
-                          )}
-                        </div>
-                      </div>
-                    </section>
-                  ) : null}
-
-                  {activeTab === "notes" ? (
-                    <section className="info-card">
-                      <h3>笔记规则</h3>
-                      <div className="detail-section">
-                        <h4>禁止写法</h4>
-                        <div className="stack-list">
-                          {(selectedCharacter.forbiddenWrites as string[] | undefined)?.length ? (
-                            (selectedCharacter.forbiddenWrites as string[]).map((entry) => <div className="quote-line muted-line" key={entry}>{entry}</div>)
-                          ) : (
-                            <div className="faint">暂无禁止写法</div>
-                          )}
-                        </div>
-                      </div>
-                    </section>
-                  ) : null}
-                </div>
-
-                <div>
-                  <section className="info-card">
-                    <h3>关系列表</h3>
-                    {characterRelations.length ? (
-                      <div className="stack-list">
-                        {characterRelations.map((relation) => (
-                          <div className="field" key={relation.id}>
-                            <span className="k">{relation.type}</span>
-                            <span className="v stack-align-start">{relation.from === selectedCharacter.id ? relation.to : relation.from}</span>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="faint">暂无关系绑定</div>
-                    )}
-                  </section>
-
-                  <section className="info-card">
-                    <h3>相关事件</h3>
-                    {relatedEvents.length ? (
-                      <div className="stack-list">
-                        {relatedEvents.map((event) => (
-                          <div className="mini-card" key={event.id}>
-                            <div className="mini-card-title">{event.title}</div>
-                            <div className="mini-card-sub">
-                              线路 {String(event.line)} · 顺位 {String(event.order)}
-                            </div>
-                            <div className="tag-row">
-                              <span className="tag primary">{Array.isArray(event.boundChapters) ? event.boundChapters.length : 0} 章</span>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="faint">暂无与该角色绑定的时间线事件</div>
-                    )}
-                  </section>
-
-                  <section className="info-card">
-                    <h3>角色信号</h3>
-                    <div className="signal-list">
-                      <div className="signal-item">
-                        <Sparkles size={16} />
-                        <div>
-                          <div className="mini-card-title">声音库</div>
-                          <div className="mini-card-sub">{Array.isArray(selectedCharacter.voice?.typicalLines) ? selectedCharacter.voice?.typicalLines.length : 0} 条常用台词</div>
-                        </div>
-                      </div>
-                      <div className="signal-item">
-                        <Users size={16} />
-                        <div>
-                          <div className="mini-card-title">关系密度</div>
-                          <div className="mini-card-sub">{characterRelations.length} 条关系</div>
-                        </div>
-                      </div>
-                      <div className="signal-item">
-                        <BookOpen size={16} />
-                        <div>
-                          <div className="mini-card-title">世界书关联</div>
-                          <div className="mini-card-sub">{Array.isArray(selectedCharacter.relatedWorldbook) ? selectedCharacter.relatedWorldbook.length : 0} 条引用</div>
-                        </div>
-                      </div>
-                    </div>
-                  </section>
-                </div>
-              </div>
-            </div>
-          ) : (
-            <CenterState loading={false} error={null} vaultMissing={false} empty emptyText="请选择左侧角色查看详情" />
-          )}
+            </article>
+          ))}
+        </div>
+      ) : (
+        <div className="list-card character-list-card">
+          {filteredCharacters.map((character) => (
+            <button type="button" className="list-row character-compact-row" key={character.id} onClick={() => startEdit(character)}>
+              <AvatarView character={character} />
+              <span className="col col-grow">
+                <div className="col-name">{character.name}</div>
+                <div className="col-sub">{characterIntro(character)}</div>
+              </span>
+              <span className="tag primary">{character.profile?.template === "detailed" ? "详细" : "精简"}</span>
+              <span className="col faint">{character.updatedAt ?? "未记录"}</span>
+            </button>
+          ))}
         </div>
       )}
+
+      {templateChoosing ? <TemplateChooser onChoose={startCreate} onCancel={() => setTemplateChoosing(false)} /> : null}
+      {editorMode && draft ? (
+        <CharacterEditor
+          mode={editorMode}
+          value={draft}
+          saving={saving}
+          error={saveError}
+          onChange={setDraft}
+          onCancel={() => {
+            setEditorMode(null);
+            setDraft(null);
+            setSaveError(null);
+          }}
+          onSubmit={() => {
+            void persistCharacter();
+          }}
+        />
+      ) : null}
     </ViewShell>
   );
 }
