@@ -492,6 +492,7 @@ input, textarea { font-family: inherit; }
 .character-template-card:hover { border-color: var(--primary); background: var(--primary-light); transform: translateY(-1px); }
 .character-template-card svg { color: var(--primary); }
 .character-template-card span { color: var(--text-secondary); font-size: 13px; line-height: 1.6; }
+.character-template-card-wide { grid-column: 1 / -1; min-height: 128px; }
 .character-modal-backdrop { align-items: center; }
 .character-modal { width: min(1080px, 100%); max-height: min(88vh, 980px); display: flex; flex-direction: column; padding: 0; overflow: hidden; }
 .character-modal-head { display: flex; justify-content: space-between; gap: 18px; align-items: flex-start; padding: 24px 28px 18px; border-bottom: 1px solid var(--border); }
@@ -525,6 +526,13 @@ input, textarea { font-family: inherit; }
 .character-assist-prompt { min-height: 120px; }
 .character-assist-note { padding: 10px 12px; border: 1px solid color-mix(in srgb, var(--warning) 38%, var(--border)); border-radius: var(--radius-sm); background: color-mix(in srgb, var(--warning) 10%, var(--bg-card)); color: var(--text-secondary); font-size: 12px; line-height: 1.6; }
 .character-assist-success { margin: 0 0 14px; padding: 11px 14px; border: 1px solid color-mix(in srgb, var(--agent-done) 42%, var(--border)); border-radius: var(--radius-sm); background: color-mix(in srgb, var(--agent-done) 12%, var(--bg-card)); color: var(--agent-done); font-size: 13px; }
+.character-delete-action { color: var(--danger); justify-content: center; }
+.character-row-actions { width: 42px; display: inline-flex; justify-content: flex-end; flex: none; }
+.character-ai-create-modal { width: min(680px, 100%); display: grid; gap: 16px; }
+.character-ai-chat { display: grid; gap: 12px; }
+.character-ai-message { width: fit-content; max-width: 92%; padding: 10px 12px; border-radius: var(--radius-md); font-size: 13px; line-height: 1.65; }
+.character-ai-message.ai { background: var(--bg-panel); border: 1px solid var(--border); color: var(--text-secondary); }
+.character-ai-extra { min-height: 88px; }
 .worldbook-origin-tabs { display: inline-flex; gap: 4px; margin: 0 0 18px; padding: 3px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--bg-card); }
 .worldbook-origin-tabs button { height: 32px; padding: 0 14px; border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--text-secondary); font-size: 13px; cursor: pointer; transition: background .16s ease, color .16s ease; }
 .worldbook-origin-tabs button:hover { background: var(--bg-hover); color: var(--text-primary); }

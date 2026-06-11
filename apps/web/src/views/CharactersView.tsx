@@ -12,6 +12,7 @@ import {
   type CharacterProfileTemplate,
   type ProjectSummary,
 } from "../api/client.js";
+import { ConfirmModal } from "../app/Modals.js";
 import { CenterState, ViewShell } from "./common.js";
 import { ProjectSelector } from "./ProjectSelector.js";
 
@@ -511,9 +512,11 @@ function profileSearchText(character: Character): string {
 
 function TemplateChooser({
   onChoose,
+  onAiGenerate,
   onCancel,
 }: {
   onChoose(template: CharacterProfileTemplate): void;
+  onAiGenerate(): void;
   onCancel(): void;
 }) {
   return (
@@ -538,6 +541,11 @@ function TemplateChooser({
             <Image size={24} />
             <strong>详细版</strong>
             <span>事无巨细地整理人设，适合主角、反派和核心群像。</span>
+          </button>
+          <button type="button" className="character-template-card character-template-card-wide" onClick={onAiGenerate}>
+            <Sparkles size={24} />
+            <strong>AI 生成</strong>
+            <span>通过几步问答生成一个新角色草稿，再进入编辑器确认和修改。</span>
           </button>
         </div>
       </div>
@@ -624,6 +632,124 @@ function CharacterAssistModal({
           </button>
         </div>
       </form>
+    </div>
+  );
+}
+
+function CharacterAiCreateModal({
+  projectId,
+  loading,
+  error,
+  onCancel,
+  onGenerate,
+}: {
+  projectId: string;
+  loading: boolean;
+  error: string | null;
+  onCancel(): void;
+  onGenerate(input: { mode: AssistMode; template: CharacterProfileTemplate; userPrompt: string; extraAnswer: string }): void;
+}) {
+  const [mode, setMode] = useState<AssistMode | null>(null);
+  const [userPrompt, setUserPrompt] = useState("");
+  const [template, setTemplate] = useState<CharacterProfileTemplate>("simple");
+  const [extraAnswer, setExtraAnswer] = useState("");
+
+  const canGenerate = Boolean(mode && userPrompt.trim() && (mode === "fanfic" || extraAnswer.trim()));
+  const step = !mode ? 1 : !userPrompt.trim() ? 2 : mode === "original" && !extraAnswer.trim() ? 3 : 4;
+
+  return (
+    <div className="vault-modal-backdrop" onMouseDown={loading ? undefined : onCancel}>
+      <div className="vault-modal character-ai-create-modal" onMouseDown={(event) => event.stopPropagation()}>
+        <div className="character-modal-head compact">
+          <div>
+            <h2>AI 生成新角色</h2>
+            <p>回答几个问题后，AI 会生成一份角色草稿并打开编辑器，保存前可继续修改。</p>
+          </div>
+          <button type="button" className="btn-icon" onClick={onCancel} disabled={loading} aria-label="关闭">
+            <X size={16} />
+          </button>
+        </div>
+
+        <div className="character-ai-chat">
+          <div className="character-ai-message ai">先告诉我，这是原创角色还是同人角色？</div>
+          <div className="character-assist-mode">
+            <button type="button" className={mode === "original" ? "active" : ""} onClick={() => setMode("original")} disabled={loading}>
+              原创角色
+            </button>
+            <button type="button" className={mode === "fanfic" ? "active" : ""} onClick={() => setMode("fanfic")} disabled={loading}>
+              同人角色
+            </button>
+          </div>
+
+          {mode ? (
+            <>
+              <div className="character-ai-message ai">
+                {mode === "fanfic" ? "写下角色名和来源作品。" : "用一句话描述你想要的角色方向。"}
+              </div>
+              <textarea
+                className="textarea character-assist-prompt"
+                value={userPrompt}
+                placeholder={mode === "fanfic" ? "例如：蝴蝶香奈惠，鬼灭之刃" : "例如：外表温和的流亡医师，真实身份是前朝密探"}
+                onChange={(event) => setUserPrompt(event.target.value)}
+                disabled={loading}
+              />
+            </>
+          ) : null}
+
+          {userPrompt.trim() ? (
+            <>
+              <div className="character-ai-message ai">这张角色卡需要精简版还是详细版？</div>
+              <div className="character-assist-mode">
+                <button type="button" className={template === "simple" ? "active" : ""} onClick={() => setTemplate("simple")} disabled={loading}>
+                  精简版
+                </button>
+                <button type="button" className={template === "detailed" ? "active" : ""} onClick={() => setTemplate("detailed")} disabled={loading}>
+                  详细版
+                </button>
+              </div>
+            </>
+          ) : null}
+
+          {mode === "original" && userPrompt.trim() ? (
+            <>
+              <div className="character-ai-message ai">再补一句关键设定：这个角色最核心的矛盾、目标或秘密是什么？</div>
+              <textarea
+                className="textarea character-ai-extra"
+                value={extraAnswer}
+                placeholder="例如：他想救所有人，却必须靠制造死亡维持自己的身份。"
+                onChange={(event) => setExtraAnswer(event.target.value)}
+                disabled={loading}
+              />
+            </>
+          ) : null}
+
+          {mode === "fanfic" && userPrompt.trim() ? (
+            <div className="character-assist-note">同人资料由 AI 依据其训练知识生成，可能不准确；不确定字段会尽量留空，请自行核对。</div>
+          ) : null}
+        </div>
+
+        {error ? <div className="err-card">{error}</div> : null}
+        <div className="vault-modal-actions">
+          <span className="faint">步骤 {step} / 4</span>
+          <span className="grow" />
+          <button type="button" className="btn btn-ghost" onClick={onCancel} disabled={loading}>
+            取消
+          </button>
+          <button
+            type="button"
+            className="btn btn-primary"
+            disabled={loading || !canGenerate || !projectId}
+            onClick={() => {
+              if (mode) {
+                onGenerate({ mode, template, userPrompt: userPrompt.trim(), extraAnswer: extraAnswer.trim() });
+              }
+            }}
+          >
+            <Sparkles size={15} />
+            {loading ? "生成中..." : "生成角色草稿"}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -906,10 +1032,15 @@ export function CharactersView() {
   const [error, setError] = useState<string | null>(null);
   const [vaultMissing, setVaultMissing] = useState(false);
   const [templateChoosing, setTemplateChoosing] = useState(false);
+  const [aiCreating, setAiCreating] = useState(false);
+  const [aiCreateLoading, setAiCreateLoading] = useState(false);
+  const [aiCreateError, setAiCreateError] = useState<string | null>(null);
   const [editorMode, setEditorMode] = useState<EditorMode | null>(null);
   const [draft, setDraft] = useState<CharacterInput | null>(null);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Character | null>(null);
+  const [feedback, setFeedback] = useState<{ kind: "success" | "error"; text: string } | null>(null);
 
   const loadData = async (targetProjectId = projectId) => {
     setLoading(true);
@@ -968,6 +1099,7 @@ export function CharactersView() {
 
   const startCreate = (template: CharacterProfileTemplate) => {
     setTemplateChoosing(false);
+    setFeedback(null);
     setDraft({
       id: "",
       name: "",
@@ -981,7 +1113,56 @@ export function CharactersView() {
     setEditorMode("create");
   };
 
+  const generateCharacterDraft = async (input: { mode: AssistMode; template: CharacterProfileTemplate; userPrompt: string; extraAnswer: string }) => {
+    const profile = createEmptyProfile(input.template);
+    const fields = collectAssistFields(profile);
+    const prompt = [
+      input.userPrompt,
+      input.mode === "original" && input.extraAnswer ? `关键补充：${input.extraAnswer}` : "",
+    ].filter(Boolean).join("\n");
+
+    setAiCreateLoading(true);
+    setAiCreateError(null);
+    setFeedback(null);
+    try {
+      const response = await api.assistCharacter({
+        mode: input.mode,
+        userPrompt: prompt,
+        template: input.template,
+        projectId,
+        fields: fields.map(({ group, key, label }) => ({ group, key, label })),
+        existingValues: collectExistingValues(profile, fields),
+      });
+      const nextProfile = mergeAssistFields(profile, fields, response.fields);
+      const name = response.fields.fullName || response.fields["角色全名"] || response.fields.oneLine || input.userPrompt.split(/[，,。\n]/)[0] || "";
+      setDraft({
+        id: "",
+        name: name.slice(0, 32),
+        links: [],
+        voice: { typicalLines: [], forbiddenLines: [], honorifics: {} },
+        forbiddenWrites: [],
+        relatedWorldbook: [],
+        profile: nextProfile,
+      });
+      setAiCreating(false);
+      setTemplateChoosing(false);
+      setEditorMode("create");
+      setSaveError(null);
+      setFeedback({
+        kind: "success",
+        text: input.mode === "fanfic"
+          ? "AI 已生成角色草稿。同人资料可能不准确，请核对后再保存。"
+          : "AI 已生成角色草稿，请检查后再保存。",
+      });
+    } catch (generateError) {
+      setAiCreateError(generateError instanceof ApiError ? generateError.message : "AI 生成角色失败");
+    } finally {
+      setAiCreateLoading(false);
+    }
+  };
+
   const startEdit = (character: Character) => {
+    setFeedback(null);
     setDraft({
       id: character.id,
       name: character.name,
@@ -996,6 +1177,26 @@ export function CharactersView() {
     });
     setSaveError(null);
     setEditorMode("edit");
+  };
+
+  const confirmDeleteCharacter = async () => {
+    if (!deleteTarget) {
+      return;
+    }
+    try {
+      await api.deleteCharacter(projectId, deleteTarget.id);
+      if (draft?.id === deleteTarget.id) {
+        setEditorMode(null);
+        setDraft(null);
+        setSaveError(null);
+      }
+      setDeleteTarget(null);
+      setFeedback({ kind: "success", text: `已删除角色「${deleteTarget.name}」。` });
+      await loadData(projectId);
+    } catch (deleteError) {
+      setFeedback({ kind: "error", text: deleteError instanceof ApiError ? deleteError.message : "删除角色失败" });
+      setDeleteTarget(null);
+    }
   };
 
   const persistCharacter = async () => {
@@ -1071,6 +1272,11 @@ export function CharactersView() {
         </div>
         <span className="faint">共 {filteredCharacters.length} / {characters.length} 位</span>
       </div>
+      {feedback ? (
+        <div className={`model-feedback ${feedback.kind === "success" ? "model-feedback-success" : "model-feedback-error"}`}>
+          {feedback.text}
+        </div>
+      ) : null}
 
       {showState ? (
         <CenterState
@@ -1103,6 +1309,17 @@ export function CharactersView() {
                 <button type="button" className="btn" onClick={() => startEdit(character)}>
                   编辑
                 </button>
+                <button
+                  type="button"
+                  className="btn btn-ghost character-delete-action"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    setDeleteTarget(character);
+                  }}
+                >
+                  <Trash2 size={15} />
+                  删除
+                </button>
               </div>
             </article>
           ))}
@@ -1110,7 +1327,19 @@ export function CharactersView() {
       ) : (
         <div className="list-card character-list-card">
           {filteredCharacters.map((character) => (
-            <button type="button" className="list-row character-compact-row" key={character.id} onClick={() => startEdit(character)}>
+            <div
+              role="button"
+              tabIndex={0}
+              className="list-row character-compact-row"
+              key={character.id}
+              onClick={() => startEdit(character)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" || event.key === " ") {
+                  event.preventDefault();
+                  startEdit(character);
+                }
+              }}
+            >
               <AvatarView character={character} />
               <span className="col col-grow">
                 <div className="col-name">{character.name}</div>
@@ -1118,12 +1347,48 @@ export function CharactersView() {
               </span>
               <span className="tag primary">{character.profile?.template === "detailed" ? "详细" : "精简"}</span>
               <span className="col faint">{character.updatedAt ?? "未记录"}</span>
-            </button>
+              <span
+                className="character-row-actions"
+                onClick={(event) => {
+                  event.stopPropagation();
+                }}
+              >
+                <button type="button" className="btn-icon danger" onClick={() => setDeleteTarget(character)} title="删除角色">
+                  <Trash2 size={15} />
+                </button>
+              </span>
+            </div>
           ))}
         </div>
       )}
 
-      {templateChoosing ? <TemplateChooser onChoose={startCreate} onCancel={() => setTemplateChoosing(false)} /> : null}
+      {templateChoosing ? (
+        <TemplateChooser
+          onChoose={startCreate}
+          onAiGenerate={() => {
+            setTemplateChoosing(false);
+            setAiCreating(true);
+            setAiCreateError(null);
+          }}
+          onCancel={() => setTemplateChoosing(false)}
+        />
+      ) : null}
+      {aiCreating ? (
+        <CharacterAiCreateModal
+          projectId={projectId}
+          loading={aiCreateLoading}
+          error={aiCreateError}
+          onCancel={() => {
+            if (!aiCreateLoading) {
+              setAiCreating(false);
+              setAiCreateError(null);
+            }
+          }}
+          onGenerate={(input) => {
+            void generateCharacterDraft(input);
+          }}
+        />
+      ) : null}
       {editorMode && draft ? (
         <CharacterEditor
           projectId={projectId}
@@ -1140,6 +1405,16 @@ export function CharactersView() {
           onSubmit={() => {
             void persistCharacter();
           }}
+        />
+      ) : null}
+      {deleteTarget ? (
+        <ConfirmModal
+          title="删除角色"
+          message={`确定删除角色「${deleteTarget.name}」吗？此操作不可恢复`}
+          confirmText="删除"
+          danger
+          onCancel={() => setDeleteTarget(null)}
+          onConfirm={confirmDeleteCharacter}
         />
       ) : null}
     </ViewShell>

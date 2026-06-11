@@ -749,6 +749,8 @@ export const api = {
       projectId,
       ...payload,
     })).character,
+  deleteCharacter: async (projectId: string, characterId: string): Promise<{ id: string; deleted: true }> =>
+    del<{ id: string; deleted: true }>(withQuery(`/knowledge/characters/${encodeURIComponent(characterId)}`, { projectId })),
   listRelations: async (): Promise<Relation[]> =>
     unwrapList<Relation>(await get("/knowledge/relations"), "relations"),
   listRelationsByProject: async (projectId: string): Promise<Relation[]> =>
