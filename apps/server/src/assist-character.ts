@@ -15,6 +15,9 @@ export interface AssistCharacterField {
 export interface AssistCharacterInput {
   mode?: "original" | "fanfic";
   userPrompt?: string;
+  characterName?: string;
+  sourceWork?: string;
+  scopeInstruction?: string;
   template?: string;
   projectId?: string;
   fields?: AssistCharacterField[];
@@ -199,6 +202,9 @@ function createFieldBatches(fields: AssistCharacterField[], template?: string): 
 function buildMessages(input: Required<Pick<AssistCharacterInput, "mode" | "userPrompt">> & {
   projectId?: string;
   template?: string;
+  characterName?: string;
+  sourceWork?: string;
+  scopeInstruction?: string;
   fields: AssistCharacterField[];
   existingValues: Record<string, string>;
   batchName: string;
@@ -220,6 +226,8 @@ function buildMessages(input: Required<Pick<AssistCharacterInput, "mode" | "user
         "用户会提供当前编辑器实时生成的字段清单，字段清单包含中文字段名，也可能包含用户自定义字段。",
         "你必须只根据这份字段清单生成内容，不要添加清单外字段，不要假设固定模板字段。",
         "默认不要覆盖 existingValues 中已经非空的字段；这些字段可以留空不返回。",
+        "如果用户明确指定了要填写的字段、字段名或大类，只生成这些范围内的字段；如果没有指定具体范围，则为本批清单中所有空字段生成内容。",
+        "用户指定范围时，你必须从本批字段清单中匹配对应字段或大类；不要生成范围外字段。",
         "输出必须是严格 JSON。不要 Markdown，不要代码块，不要解释，不要 JSON 前后的说明文字。",
         "只输出一个 JSON 对象，第一个字符必须是 {，最后一个字符必须是 }。",
         "字段值中的引号、换行和特殊字符必须符合 JSON 字符串转义规则；尽量用简洁短句，避免过长段落。",
@@ -237,6 +245,9 @@ function buildMessages(input: Required<Pick<AssistCharacterInput, "mode" | "user
         `模式：${input.mode === "fanfic" ? "同人" : "原创"}`,
         `项目：${input.projectId || "未指定"}`,
         `模板：${input.template || "未指定"}`,
+        input.mode === "fanfic" ? `角色名：${input.characterName || "未指定"}` : "",
+        input.mode === "fanfic" ? `来源作品：${input.sourceWork || "未指定"}` : "",
+        input.scopeInstruction ? `用户指定填充范围：${input.scopeInstruction}` : "用户未指定具体填充范围：请填充本批字段清单中的所有空字段。",
         `当前批次：${input.batchName}`,
         input.attempt > 1
           ? `这是第 ${input.attempt} 次请求。上一次输出不是可解析的 JSON。请只输出纯 JSON 对象，不要任何解释、标题、前后缀或 Markdown。`
@@ -290,6 +301,9 @@ async function generateFieldBatch(
   input: Required<Pick<AssistCharacterInput, "mode" | "userPrompt">> & {
     projectId?: string;
     template?: string;
+    characterName?: string;
+    sourceWork?: string;
+    scopeInstruction?: string;
     fields: AssistCharacterField[];
     existingValues: Record<string, string>;
     batchName: string;
@@ -353,6 +367,9 @@ export async function assistCharacter(
         userPrompt,
         projectId: input.projectId,
         template: input.template,
+        characterName: typeof input.characterName === "string" ? input.characterName.trim() : "",
+        sourceWork: typeof input.sourceWork === "string" ? input.sourceWork.trim() : "",
+        scopeInstruction: typeof input.scopeInstruction === "string" ? input.scopeInstruction.trim() : "",
         fields: batch.fields,
         existingValues,
         batchName: batch.name,

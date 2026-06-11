@@ -248,6 +248,9 @@ export interface AssistCharacterField {
 export interface AssistCharacterPayload {
   mode: "original" | "fanfic";
   userPrompt: string;
+  characterName?: string;
+  sourceWork?: string;
+  scopeInstruction?: string;
   template?: string;
   projectId?: string;
   fields: AssistCharacterField[];

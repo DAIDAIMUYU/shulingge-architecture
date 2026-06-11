@@ -519,6 +519,7 @@ input, textarea { font-family: inherit; }
 .character-add-custom { justify-self: start; padding-left: 0; }
 .character-avatar-large { aspect-ratio: 3 / 4; }
 .character-assist-modal { width: min(620px, 100%); display: grid; gap: 16px; }
+.character-assist-fanfic-grid { margin-bottom: 10px; }
 .character-assist-mode { display: inline-flex; width: fit-content; gap: 3px; padding: 3px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--bg-panel); }
 .character-assist-mode button { height: 30px; padding: 0 14px; border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--text-secondary); cursor: pointer; transition: background .16s ease, color .16s ease; }
 .character-assist-mode button:hover { background: var(--bg-hover); color: var(--text-primary); }

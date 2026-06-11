@@ -510,6 +510,24 @@ function profileSearchText(character: Character): string {
   return JSON.stringify(character.profile ?? {}).toLowerCase();
 }
 
+function useElapsedSeconds(active: boolean): number {
+  const [seconds, setSeconds] = useState(0);
+
+  useEffect(() => {
+    if (!active) {
+      setSeconds(0);
+      return;
+    }
+    setSeconds(0);
+    const timer = window.setInterval(() => {
+      setSeconds((value) => value + 1);
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [active]);
+
+  return seconds;
+}
+
 function TemplateChooser({
   onChoose,
   onAiGenerate,
@@ -562,18 +580,30 @@ function CharacterAssistModal({
   loading: boolean;
   error: string | null;
   onCancel(): void;
-  onSubmit(mode: AssistMode, userPrompt: string): void;
+  onSubmit(input: { mode: AssistMode; userPrompt: string; characterName?: string; sourceWork?: string; scopeInstruction?: string }): void;
 }) {
   const [mode, setMode] = useState<AssistMode>("original");
   const [userPrompt, setUserPrompt] = useState("");
+  const [characterName, setCharacterName] = useState("");
+  const [sourceWork, setSourceWork] = useState("");
+  const [scopeInstruction, setScopeInstruction] = useState("");
+  const elapsedSeconds = useElapsedSeconds(loading);
 
   const submit = (event: FormEvent) => {
     event.preventDefault();
     const prompt = userPrompt.trim();
-    if (!prompt || loading) {
+    const name = characterName.trim();
+    const work = sourceWork.trim();
+    if (loading || (mode === "original" ? !prompt : (!name || !work))) {
       return;
     }
-    onSubmit(mode, prompt);
+    onSubmit({
+      mode,
+      userPrompt: mode === "fanfic" ? [name, work, prompt].filter(Boolean).join("\n") : prompt,
+      characterName: name,
+      sourceWork: work,
+      scopeInstruction: scopeInstruction.trim(),
+    });
   };
 
   return (
@@ -607,12 +637,34 @@ function CharacterAssistModal({
         </div>
 
         <label className="form-block">
-          <span>{mode === "fanfic" ? "角色名 + 来源作品" : "想要一个什么样的角色"}</span>
+          <span>{mode === "fanfic" ? "补充要求" : "想要一个什么样的角色"}</span>
+          {mode === "fanfic" ? (
+            <div className="form-grid form-grid-2 character-assist-fanfic-grid">
+              <label className="form-block">
+                <span>角色名</span>
+                <input className="input" value={characterName} placeholder="例如：蝴蝶香奈惠" onChange={(event) => setCharacterName(event.target.value)} disabled={loading} />
+              </label>
+              <label className="form-block">
+                <span>来源作品</span>
+                <input className="input" value={sourceWork} placeholder="例如：鬼灭之刃" onChange={(event) => setSourceWork(event.target.value)} disabled={loading} />
+              </label>
+            </div>
+          ) : null}
           <textarea
             className="textarea character-assist-prompt"
             value={userPrompt}
-            placeholder={mode === "fanfic" ? "例如：蝴蝶香奈惠，鬼灭之刃" : "例如：温柔但危险的药师，背负家族旧债，擅长用谎言保护别人"}
+            placeholder={mode === "fanfic" ? "可选：只填口癖、外貌；或补充这个同人设定的偏差" : "例如：温柔但危险的药师，背负家族旧债，擅长用谎言保护别人"}
             onChange={(event) => setUserPrompt(event.target.value)}
+            disabled={loading}
+          />
+        </label>
+        <label className="form-block">
+          <span>指定填充范围</span>
+          <input
+            className="input"
+            value={scopeInstruction}
+            placeholder="可选：例如只填外貌身体，或只填基础里的兴趣爱好和身份；留空则填所有空字段"
+            onChange={(event) => setScopeInstruction(event.target.value)}
             disabled={loading}
           />
         </label>
@@ -620,15 +672,16 @@ function CharacterAssistModal({
         {mode === "fanfic" ? (
           <div className="character-assist-note">同人资料由 AI 依据其训练知识生成，可能不准确；不确定的字段会尽量留空，请自行核对。</div>
         ) : null}
+        {loading ? <div className="character-assist-note">正在生成…（已用 {elapsedSeconds} 秒）</div> : null}
         {error ? <div className="err-card">{error}</div> : null}
 
         <div className="vault-modal-actions">
           <button type="button" className="btn btn-ghost" onClick={onCancel} disabled={loading}>
             取消
           </button>
-          <button type="submit" className="btn btn-primary" disabled={loading || !userPrompt.trim()}>
+          <button type="submit" className="btn btn-primary" disabled={loading || (mode === "original" ? !userPrompt.trim() : (!characterName.trim() || !sourceWork.trim()))}>
             <Sparkles size={15} />
-            {loading ? "生成中..." : "开始填充"}
+            {loading ? `生成中...${elapsedSeconds}s` : "开始填充"}
           </button>
         </div>
       </form>
@@ -647,15 +700,20 @@ function CharacterAiCreateModal({
   loading: boolean;
   error: string | null;
   onCancel(): void;
-  onGenerate(input: { mode: AssistMode; template: CharacterProfileTemplate; userPrompt: string; extraAnswer: string }): void;
+  onGenerate(input: { mode: AssistMode; template: CharacterProfileTemplate; userPrompt: string; extraAnswer: string; characterName?: string; sourceWork?: string }): void;
 }) {
   const [mode, setMode] = useState<AssistMode | null>(null);
   const [userPrompt, setUserPrompt] = useState("");
+  const [characterName, setCharacterName] = useState("");
+  const [sourceWork, setSourceWork] = useState("");
   const [template, setTemplate] = useState<CharacterProfileTemplate>("simple");
   const [extraAnswer, setExtraAnswer] = useState("");
+  const elapsedSeconds = useElapsedSeconds(loading);
 
-  const canGenerate = Boolean(mode && userPrompt.trim() && (mode === "fanfic" || extraAnswer.trim()));
-  const step = !mode ? 1 : !userPrompt.trim() ? 2 : mode === "original" && !extraAnswer.trim() ? 3 : 4;
+  const fanficReady = Boolean(characterName.trim() && sourceWork.trim());
+  const originalReady = Boolean(userPrompt.trim() && extraAnswer.trim());
+  const canGenerate = Boolean(mode && (mode === "fanfic" ? fanficReady : originalReady));
+  const step = !mode ? 1 : mode === "fanfic" ? (fanficReady ? 4 : 2) : !userPrompt.trim() ? 2 : !extraAnswer.trim() ? 3 : 4;
 
   return (
     <div className="vault-modal-backdrop" onMouseDown={loading ? undefined : onCancel}>
@@ -681,22 +739,35 @@ function CharacterAiCreateModal({
             </button>
           </div>
 
-          {mode ? (
+          {mode === "original" ? (
             <>
-              <div className="character-ai-message ai">
-                {mode === "fanfic" ? "写下角色名和来源作品。" : "用一句话描述你想要的角色方向。"}
-              </div>
+              <div className="character-ai-message ai">用一句话描述你想要的角色方向。</div>
               <textarea
                 className="textarea character-assist-prompt"
                 value={userPrompt}
-                placeholder={mode === "fanfic" ? "例如：蝴蝶香奈惠，鬼灭之刃" : "例如：外表温和的流亡医师，真实身份是前朝密探"}
+                placeholder="例如：外表温和的流亡医师，真实身份是前朝密探"
                 onChange={(event) => setUserPrompt(event.target.value)}
                 disabled={loading}
               />
             </>
           ) : null}
+          {mode === "fanfic" ? (
+            <>
+              <div className="character-ai-message ai">分别写清楚角色名和来源作品，避免 AI 把作品名当成角色名。</div>
+              <div className="form-grid form-grid-2 character-assist-fanfic-grid">
+                <label className="form-block">
+                  <span>角色名</span>
+                  <input className="input" value={characterName} placeholder="例如：蝴蝶香奈惠" onChange={(event) => setCharacterName(event.target.value)} disabled={loading} />
+                </label>
+                <label className="form-block">
+                  <span>来源作品</span>
+                  <input className="input" value={sourceWork} placeholder="例如：鬼灭之刃" onChange={(event) => setSourceWork(event.target.value)} disabled={loading} />
+                </label>
+              </div>
+            </>
+          ) : null}
 
-          {userPrompt.trim() ? (
+          {(mode === "original" ? userPrompt.trim() : fanficReady) ? (
             <>
               <div className="character-ai-message ai">这张角色卡需要精简版还是详细版？</div>
               <div className="character-assist-mode">
@@ -723,9 +794,10 @@ function CharacterAiCreateModal({
             </>
           ) : null}
 
-          {mode === "fanfic" && userPrompt.trim() ? (
+          {mode === "fanfic" && fanficReady ? (
             <div className="character-assist-note">同人资料由 AI 依据其训练知识生成，可能不准确；不确定字段会尽量留空，请自行核对。</div>
           ) : null}
+          {loading ? <div className="character-assist-note">正在生成…（已用 {elapsedSeconds} 秒）</div> : null}
         </div>
 
         {error ? <div className="err-card">{error}</div> : null}
@@ -741,12 +813,19 @@ function CharacterAiCreateModal({
             disabled={loading || !canGenerate || !projectId}
             onClick={() => {
               if (mode) {
-                onGenerate({ mode, template, userPrompt: userPrompt.trim(), extraAnswer: extraAnswer.trim() });
+                onGenerate({
+                  mode,
+                  template,
+                  userPrompt: mode === "fanfic" ? `${characterName.trim()}（${sourceWork.trim()}）` : userPrompt.trim(),
+                  extraAnswer: extraAnswer.trim(),
+                  characterName: characterName.trim(),
+                  sourceWork: sourceWork.trim(),
+                });
               }
             }}
           >
             <Sparkles size={15} />
-            {loading ? "生成中..." : "生成角色草稿"}
+            {loading ? `生成中...${elapsedSeconds}s` : "生成角色草稿"}
           </button>
         </div>
       </div>
@@ -881,7 +960,7 @@ function CharacterEditor({
       </div>
     );
   };
-  const runAssist = async (assistMode: AssistMode, userPrompt: string) => {
+  const runAssist = async (input: { mode: AssistMode; userPrompt: string; characterName?: string; sourceWork?: string; scopeInstruction?: string }) => {
     const fields = collectAssistFields(profile);
     if (!fields.length) {
       setAssistError("当前没有可填充的字段。");
@@ -893,8 +972,11 @@ function CharacterEditor({
     setAssistNotice(null);
     try {
       const response = await api.assistCharacter({
-        mode: assistMode,
-        userPrompt,
+        mode: input.mode,
+        userPrompt: input.userPrompt,
+        characterName: input.characterName,
+        sourceWork: input.sourceWork,
+        scopeInstruction: input.scopeInstruction,
         template: profile.template,
         projectId,
         fields: fields.map(({ group, key, label }) => ({ group, key, label })),
@@ -904,7 +986,7 @@ function CharacterEditor({
       onChange({ ...value, profile: nextProfile });
       setAssistOpen(false);
       setAssistNotice(
-        assistMode === "fanfic"
+        input.mode === "fanfic"
           ? "AI 已填入空字段。同人资料可能不准确，请核对后再保存。"
           : "AI 已填入空字段，请检查后再保存角色。",
       );
@@ -1013,8 +1095,8 @@ function CharacterEditor({
               setAssistError(null);
             }
           }}
-          onSubmit={(nextMode, userPrompt) => {
-            void runAssist(nextMode, userPrompt);
+          onSubmit={(input) => {
+            void runAssist(input);
           }}
         />
       ) : null}
@@ -1113,7 +1195,7 @@ export function CharactersView() {
     setEditorMode("create");
   };
 
-  const generateCharacterDraft = async (input: { mode: AssistMode; template: CharacterProfileTemplate; userPrompt: string; extraAnswer: string }) => {
+  const generateCharacterDraft = async (input: { mode: AssistMode; template: CharacterProfileTemplate; userPrompt: string; extraAnswer: string; characterName?: string; sourceWork?: string }) => {
     const profile = createEmptyProfile(input.template);
     const fields = collectAssistFields(profile);
     const prompt = [
@@ -1128,6 +1210,8 @@ export function CharactersView() {
       const response = await api.assistCharacter({
         mode: input.mode,
         userPrompt: prompt,
+        characterName: input.characterName,
+        sourceWork: input.sourceWork,
         template: input.template,
         projectId,
         fields: fields.map(({ group, key, label }) => ({ group, key, label })),
