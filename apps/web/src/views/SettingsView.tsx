@@ -173,13 +173,12 @@ function ModelEditor({
   saving,
   apiKey,
   setApiKey,
-  onStoreKey,
-  keySaving,
   onTest,
   testing,
   feedback,
   mode,
   hasKey,
+  vaultReady,
 }: {
   draft: ModelDraft;
   onChange: (patch: Partial<ModelDraft>) => void;
@@ -187,13 +186,12 @@ function ModelEditor({
   saving: boolean;
   apiKey: string;
   setApiKey: (value: string) => void;
-  onStoreKey: () => void;
-  keySaving: boolean;
   onTest: () => void;
   testing: boolean;
   feedback: string | null;
   mode: "create" | "edit";
   hasKey: boolean;
+  vaultReady: boolean;
 }) {
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const providerKnownInSelector = PROVIDER_OPTIONS.some((option) => option.value === draft.provider);
@@ -210,7 +208,7 @@ function ModelEditor({
           <button
             type="button"
             className="btn btn-primary"
-            disabled={saving || !draft.id.trim() || !draft.model.trim()}
+            disabled={!vaultReady || saving || testing || !draft.id.trim() || !draft.model.trim()}
             onClick={onSubmit}
           >
             {saving ? "保存中…" : "保存配置"}
@@ -218,6 +216,7 @@ function ModelEditor({
         </div>
       </div>
 
+      {!vaultReady ? <div className="inspector-feedback">请先在设置页或弹窗选择资料库，再配置模型。</div> : null}
       {feedback ? <div className="inspector-feedback">{feedback}</div> : null}
 
       <div className="model-editor-section">
@@ -286,11 +285,12 @@ function ModelEditor({
             />
           </label>
           <span className={`tag ${hasKey ? "primary" : ""}`}>{hasKey ? "已存 Key" : "缺失 Key"}</span>
-          <button type="button" className="btn" disabled={keySaving || !draft.id.trim() || !apiKey.trim()} onClick={onStoreKey}>
-            <KeyRound size={15} strokeWidth={2} />
-            {keySaving ? "写入中…" : "写入 Key"}
-          </button>
-          <button type="button" className="btn btn-primary" disabled={testing || !draft.id.trim()} onClick={onTest}>
+          <button
+            type="button"
+            className="btn btn-primary"
+            disabled={!vaultReady || saving || testing || !draft.id.trim() || !draft.model.trim()}
+            onClick={onTest}
+          >
             <PlugZap size={15} strokeWidth={2} />
             {testing ? "测试中…" : "测试连通性"}
           </button>
@@ -741,7 +741,6 @@ export function SettingsView({ vaultPath, onSetVault, onClearVault }: SettingsVi
   const [modelFeedback, setModelFeedback] = useState<string | null>(null);
   const [savingModel, setSavingModel] = useState(false);
   const [apiKey, setApiKey] = useState("");
-  const [keySaving, setKeySaving] = useState(false);
   const [testingModel, setTestingModel] = useState(false);
 
   const [agents, setAgents] = useState<AgentInfo[]>([]);
@@ -857,6 +856,26 @@ export function SettingsView({ vaultPath, onSetVault, onClearVault }: SettingsVi
     setModelDraft(createModelDraft(selectedModel));
     setModelMode("edit");
   }, [selectedModel]);
+
+  async function saveModelDraftWithOptionalKey(): Promise<ModelConfig> {
+    const payload = toModelPayload(modelDraft);
+    if (!payload.id || !payload.provider || !payload.model) {
+      throw new Error("请先填写配置 ID、服务商和模型名");
+    }
+
+    const saved = modelMode === "create" || !selectedModel
+      ? await api.createModel(payload)
+      : await api.updateModel(selectedModel.id, payload);
+
+    if (apiKey.trim()) {
+      await api.storeModelApiKey(saved.id, apiKey.trim());
+      setApiKey("");
+    }
+
+    await loadModels();
+    setSelectedModelId(saved.id);
+    return saved;
+  }
 
   return (
     <ViewShell title="设置" subtitle="外观、模型、远程访问、通用偏好、Agent 与快捷键">
@@ -987,20 +1006,17 @@ export function SettingsView({ vaultPath, onSetVault, onClearVault }: SettingsVi
                 onChange={(patch) => setModelDraft((current) => ({ ...current, ...patch }))}
                 onSubmit={() => {
                   void (async () => {
+                    if (!vaultPath) {
+                      setModelFeedback("请先在设置页或弹窗选择资料库");
+                      return;
+                    }
                     setSavingModel(true);
                     setModelFeedback(null);
                     try {
-                      if (modelMode === "create") {
-                        const saved = await api.createModel(toModelPayload(modelDraft));
-                        await loadModels();
-                        setSelectedModelId(saved.id);
-                      } else if (selectedModel) {
-                        await api.updateModel(selectedModel.id, toModelPayload(modelDraft));
-                        await loadModels();
-                      }
-                      setModelFeedback("模型配置已保存");
+                      await saveModelDraftWithOptionalKey();
+                      setModelFeedback(apiKey.trim() ? "模型配置和 API Key 已保存" : "模型配置已保存");
                     } catch (error) {
-                      setModelFeedback(error instanceof ApiError ? error.message : "模型保存失败");
+                      setModelFeedback(error instanceof Error ? error.message : "模型保存失败");
                     } finally {
                       setSavingModel(false);
                     }
@@ -1009,34 +1025,20 @@ export function SettingsView({ vaultPath, onSetVault, onClearVault }: SettingsVi
                 saving={savingModel}
                 apiKey={apiKey}
                 setApiKey={setApiKey}
-                onStoreKey={() => {
-                  void (async () => {
-                    if (!modelDraft.id.trim()) return;
-                    setKeySaving(true);
-                    setModelFeedback(null);
-                    try {
-                      await api.storeModelApiKey(modelDraft.id.trim(), apiKey);
-                      setApiKey("");
-                      await loadModels();
-                      setModelFeedback("API Key 已写入系统凭据管理器");
-                    } catch (error) {
-                      setModelFeedback(error instanceof ApiError ? error.message : "写入 Key 失败");
-                    } finally {
-                      setKeySaving(false);
-                    }
-                  })();
-                }}
-                keySaving={keySaving}
                 onTest={() => {
                   void (async () => {
-                    if (!modelDraft.id.trim()) return;
+                    if (!vaultPath) {
+                      setModelFeedback("请先在设置页或弹窗选择资料库");
+                      return;
+                    }
                     setTestingModel(true);
                     setModelFeedback(null);
                     try {
-                      await api.testModelConnection(modelDraft.id.trim());
-                      setModelFeedback("连通性测试通过");
+                      const saved = await saveModelDraftWithOptionalKey();
+                      await api.testModelConnection(saved.id);
+                      setModelFeedback("连接成功，模型配置已保存");
                     } catch (error) {
-                      setModelFeedback(error instanceof ApiError ? error.message : "连通性测试失败");
+                      setModelFeedback(error instanceof Error ? error.message : "连通性测试失败");
                     } finally {
                       setTestingModel(false);
                     }
@@ -1045,6 +1047,7 @@ export function SettingsView({ vaultPath, onSetVault, onClearVault }: SettingsVi
                 testing={testingModel}
                 feedback={modelFeedback}
                 hasKey={Boolean(selectedModel?.hasKey)}
+                vaultReady={Boolean(vaultPath)}
               />
             </div>
           ) : null}

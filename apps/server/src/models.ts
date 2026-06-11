@@ -121,6 +121,14 @@ function normalizeModelConfig(input: CreateModelInput | UpdateModelInput, curren
   return modelConfigSchema.parse(modelConfig);
 }
 
+function formatErrorReason(error: unknown): string {
+  if (error instanceof Error && error.message) {
+    return error.message;
+  }
+
+  return String(error);
+}
+
 export async function listModels(
   vaultRoot: string,
   options: ModelStoreOptions,
@@ -156,7 +164,7 @@ export async function getModel(
     const model = await readJsonFile<ModelConfig>(vaultRoot, getModelRelativePath(modelId));
     return toPublicModel(model, await getHasKey(options.credentialService, model.keyRef));
   } catch {
-    throw createHttpError(404, "MODELS_NOT_FOUND", `Model config not found: ${modelId}`);
+    throw createHttpError(404, "MODELS_NOT_FOUND", `未找到模型配置：${modelId}`);
   }
 }
 
@@ -183,7 +191,7 @@ export async function updateModel(
 ): Promise<ModelRecordPublic> {
   const current = await readJsonFile<ModelConfig>(vaultRoot, getModelRelativePath(modelId)).catch(() => null);
   if (!current) {
-    throw createHttpError(404, "MODELS_NOT_FOUND", `Model config not found: ${modelId}`);
+    throw createHttpError(404, "MODELS_NOT_FOUND", `未找到模型配置：${modelId}`);
   }
 
   const next = normalizeModelConfig({ ...input, id: modelId }, current);
@@ -199,14 +207,22 @@ export async function storeModelApiKey(
 ): Promise<{ id: string; hasKey: boolean; keyRef: string }> {
   const current = await readJsonFile<ModelConfig>(vaultRoot, getModelRelativePath(modelId)).catch(() => null);
   if (!current) {
-    throw createHttpError(404, "MODELS_NOT_FOUND", `Model config not found: ${modelId}`);
+    throw createHttpError(404, "MODELS_NOT_FOUND", `未找到模型配置：${modelId}`);
   }
   if (!apiKey) {
     throw createHttpError(400, "MODELS_INVALID_API_KEY", "apiKey is required");
   }
 
   const keyRef = current.keyRef ?? `provider:${current.provider}:${modelId}`;
-  await options.credentialService.storeApiKey(keyRef, apiKey);
+  try {
+    await options.credentialService.storeApiKey(keyRef, apiKey);
+  } catch (error) {
+    throw createHttpError(
+      500,
+      "MODELS_API_KEY_STORE_FAILED",
+      `API Key 写入失败：${formatErrorReason(error)}`,
+    );
+  }
 
   if (current.keyRef !== keyRef) {
     const next = normalizeModelConfig({ keyRef }, current);
@@ -234,7 +250,7 @@ export async function testModelConnection(
   const models = await listModels(vaultRoot, options);
   const model = models.find((item) => item.id === modelId);
   if (!model) {
-    throw createHttpError(404, "MODELS_NOT_FOUND", `Model config not found: ${modelId}`);
+    throw createHttpError(404, "MODELS_NOT_FOUND", `未找到模型配置：${modelId}`);
   }
 
   const configs = Object.fromEntries(

@@ -1,4 +1,6 @@
 import { execFile } from "node:child_process";
+import { existsSync } from "node:fs";
+import path from "node:path";
 import { promisify } from "node:util";
 
 import type { CredentialRecord, CredentialStore } from "./types.js";
@@ -31,14 +33,14 @@ export class WindowsCredentialStore implements CredentialStore {
       service: record.service,
       account: record.account,
     });
-    const { stdout } = await execFileAsync("powershell.exe", powerShellArgs(script));
+    const { stdout } = await execPowerShell(script);
     const trimmed = stdout.trim();
     return trimmed ? trimmed : null;
   }
 
   async set(record: CredentialRecord): Promise<void> {
     const script = buildCredentialScript("set", record);
-    await execFileAsync("powershell.exe", powerShellArgs(script));
+    await execPowerShell(script);
   }
 
   async delete(record: Omit<CredentialRecord, "password">): Promise<boolean> {
@@ -46,7 +48,7 @@ export class WindowsCredentialStore implements CredentialStore {
       service: record.service,
       account: record.account,
     });
-    const { stdout } = await execFileAsync("powershell.exe", powerShellArgs(script));
+    const { stdout } = await execPowerShell(script);
     return stdout.trim() === "1";
   }
 }
@@ -68,6 +70,44 @@ function powerShellArgs(script: string): string[] {
     "-Command",
     script,
   ];
+}
+
+function resolvePowerShellExecutable(): string {
+  const candidates = [
+    process.env.SHULINGGE_POWERSHELL_PATH,
+    process.env.SystemRoot
+      ? path.join(process.env.SystemRoot, "System32", "WindowsPowerShell", "v1.0", "powershell.exe")
+      : undefined,
+    process.env.WINDIR
+      ? path.join(process.env.WINDIR, "System32", "WindowsPowerShell", "v1.0", "powershell.exe")
+      : undefined,
+    "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+    "C:\\Program Files\\PowerShell\\7\\pwsh.exe",
+    "powershell.exe",
+    "pwsh.exe",
+  ].filter((candidate): candidate is string => Boolean(candidate));
+
+  return candidates.find((candidate) => path.isAbsolute(candidate) && existsSync(candidate)) ?? candidates[0] ?? "powershell.exe";
+}
+
+function isSpawnNotFound(error: unknown): boolean {
+  return Boolean(error) && typeof error === "object" && (error as NodeJS.ErrnoException).code === "ENOENT";
+}
+
+async function execPowerShell(script: string): Promise<{ stdout: string; stderr: string }> {
+  try {
+    return await execFileAsync(resolvePowerShellExecutable(), powerShellArgs(script), {
+      windowsHide: true,
+    });
+  } catch (error) {
+    if (isSpawnNotFound(error)) {
+      throw new Error(
+        "无法启动 Windows PowerShell 来访问系统凭据管理器，请检查 C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe 是否存在。",
+        { cause: error },
+      );
+    }
+    throw error;
+  }
 }
 
 function psString(value: string): string {

@@ -127,7 +127,7 @@ function formatErrorReason(error: unknown): string {
 
 function requireVaultRoot(context: ServerContext): string {
   if (!context.state.vaultRoot) {
-    throw createHttpError(400, "SERVER_VAULT_NOT_SELECTED", "No vault has been selected");
+    throw createHttpError(400, "SERVER_VAULT_NOT_SELECTED", "尚未选择资料库，请先选择 Vault");
   }
 
   return context.state.vaultRoot;
