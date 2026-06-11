@@ -385,10 +385,23 @@ export interface TimelineEventInput {
   participants?: string[];
   stateSnapshotRef?: string | null;
 }
+export type WorldbookOrigin = "canon" | "original";
+export type WorldbookCategory = "place" | "organization" | "setting" | "item" | "event" | "other";
+export interface WorldbookCustomField {
+  label?: string;
+  value?: string;
+}
 export interface WorldbookEntry {
   id: string;
   title: string;
-  category?: string;
+  origin?: WorldbookOrigin;
+  category?: WorldbookCategory;
+  name?: string;
+  summary?: string;
+  description?: string;
+  relatedCharacters?: string[];
+  relatedChapters?: string[];
+  custom?: WorldbookCustomField[];
   keywords?: string[];
   content?: string;
   sections?: {
@@ -414,6 +427,14 @@ export interface WorldbookEntry {
 export interface WorldbookEntryInput {
   id: string;
   title: string;
+  origin?: WorldbookOrigin;
+  category?: WorldbookCategory;
+  name?: string;
+  summary?: string;
+  description?: string;
+  relatedCharacters?: string[];
+  relatedChapters?: string[];
+  custom?: WorldbookCustomField[];
   sections?: {
     fact?: string;
     adaptation?: string;
@@ -719,6 +740,8 @@ export const api = {
       projectId,
       ...payload,
     })).entry,
+  deleteWorldbookEntry: async (projectId: string, entryId: string): Promise<{ id: string; deleted: true }> =>
+    del<{ id: string; deleted: true }>(withQuery(`/knowledge/worldbook/${encodeURIComponent(entryId)}`, { projectId })),
   knowledgeGraph: (projectId?: string, novelId?: string) =>
     get<KnowledgeGraph>(withQuery("/knowledge/graph", { projectId, novelId })),
   listModels: async (): Promise<ModelConfig[]> => unwrapList<ModelConfig>(await get("/models"), "models"),

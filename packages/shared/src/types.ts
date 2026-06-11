@@ -25,6 +25,8 @@ import type {
   SCOPE_VALUES,
   TIMELINE_LINE_VALUES,
   WORKFLOW_FAIL_POLICY_VALUES,
+  WORLDBOOK_CATEGORY_VALUES,
+  WORLDBOOK_ORIGIN_VALUES,
   WRITE_SCOPE_VALUES,
   WRITING_FREEDOM_VALUES,
 } from "./constants.js";
@@ -359,8 +361,24 @@ export interface WorldbookTrigger {
   semantic: boolean;
 }
 
+export type WorldbookOrigin = (typeof WORLDBOOK_ORIGIN_VALUES)[number];
+export type WorldbookCategory = (typeof WORLDBOOK_CATEGORY_VALUES)[number];
+
+export interface WorldbookCustomField {
+  label?: string;
+  value?: string;
+}
+
 export interface WorldbookEntry extends Entity {
   title: string;
+  origin?: WorldbookOrigin;
+  category?: WorldbookCategory;
+  name?: string;
+  summary?: string;
+  description?: string;
+  relatedCharacters?: string[];
+  relatedChapters?: string[];
+  custom?: WorldbookCustomField[];
   sections: WorldbookSections;
   trigger: WorldbookTrigger;
   relatedNovels: string[];

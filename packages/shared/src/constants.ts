@@ -82,6 +82,20 @@ export const PROJECT_SERIES_TYPE_VALUES = [
   "blank",
 ] as const;
 
+export const WORLDBOOK_ORIGIN_VALUES = [
+  "canon",
+  "original",
+] as const;
+
+export const WORLDBOOK_CATEGORY_VALUES = [
+  "place",
+  "organization",
+  "setting",
+  "item",
+  "event",
+  "other",
+] as const;
+
 export const BRANCH_TYPE_VALUES = [
   "main",
   "if",

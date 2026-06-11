@@ -1,35 +1,35 @@
 import { useEffect, useMemo, useState } from "react";
-import { BookOpen, Globe, Plus, Save, Search, Sparkles } from "lucide-react";
+import { BookOpen, Layers, Plus, Save, Search, Trash2, X } from "lucide-react";
 
-import { api, ApiError, type WorldbookEntry, type WorldbookEntryInput } from "../api/client.js";
+import {
+  api,
+  ApiError,
+  type ProjectSummary,
+  type WorldbookCategory,
+  type WorldbookCustomField,
+  type WorldbookEntry,
+  type WorldbookEntryInput,
+  type WorldbookOrigin,
+} from "../api/client.js";
+import { ConfirmModal } from "../app/Modals.js";
 import { CenterState, ViewShell } from "./common.js";
+import { ProjectSelector } from "./ProjectSelector.js";
 
-type WorldbookTab = "overview" | "trigger" | "writing";
 type EditorMode = "create" | "edit";
 
 const DEFAULT_PROJECT_ID = "demo-series";
-const TABS: Array<{ id: WorldbookTab; label: string }> = [
-  { id: "overview", label: "基础设定" },
-  { id: "trigger", label: "触发条件" },
-  { id: "writing", label: "写作约束" },
+const ORIGIN_OPTIONS: Array<{ id: WorldbookOrigin; label: string }> = [
+  { id: "canon", label: "原作设定" },
+  { id: "original", label: "原创设定" },
 ];
-
-interface WorldbookDraft {
-  id: string;
-  title: string;
-  fact: string;
-  adaptation: string;
-  currentState: string;
-  writingHint: string;
-  forbidden: string;
-  keywordsText: string;
-  charactersText: string;
-  placesText: string;
-  timelineText: string;
-  relatedNovelsText: string;
-  appliesToAgentsText: string;
-  semantic: boolean;
-}
+const CATEGORY_OPTIONS: Array<{ id: WorldbookCategory; label: string }> = [
+  { id: "place", label: "地点" },
+  { id: "organization", label: "组织" },
+  { id: "setting", label: "设定" },
+  { id: "item", label: "物品" },
+  { id: "event", label: "事件" },
+  { id: "other", label: "其他" },
+];
 
 function readStoredProjectId(): string {
   if (typeof window === "undefined") {
@@ -58,45 +58,58 @@ function toLines(value: string[] | undefined): string {
   return (value ?? []).join("\n");
 }
 
-function createDraft(entry?: WorldbookEntry): WorldbookDraft {
+function slugify(value: string): string {
+  const ascii = value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9_-]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  return ascii || `worldbook-${Date.now().toString(36)}`;
+}
+
+function categoryLabel(category?: string): string {
+  return CATEGORY_OPTIONS.find((option) => option.id === category)?.label ?? "其他";
+}
+
+function originLabel(origin?: string): string {
+  return ORIGIN_OPTIONS.find((option) => option.id === origin)?.label ?? "原创设定";
+}
+
+function entrySummary(entry: WorldbookEntry): string {
+  return entry.summary?.trim()
+    || entry.description?.trim().slice(0, 80)
+    || entry.sections?.fact?.trim().slice(0, 80)
+    || "尚未填写简介";
+}
+
+function createDraft(origin: WorldbookOrigin, entry?: WorldbookEntry): WorldbookEntryInput {
   return {
     id: entry?.id ?? "",
     title: entry?.title ?? "",
-    fact: String(entry?.sections?.fact ?? ""),
-    adaptation: String(entry?.sections?.adaptation ?? ""),
-    currentState: String(entry?.sections?.currentState ?? ""),
-    writingHint: String(entry?.sections?.writingHint ?? ""),
-    forbidden: String(entry?.sections?.forbidden ?? ""),
-    keywordsText: toLines(entry?.trigger?.keywords),
-    charactersText: toLines(entry?.trigger?.characters),
-    placesText: toLines(entry?.trigger?.places),
-    timelineText: toLines(entry?.trigger?.timeline),
-    relatedNovelsText: toLines(entry?.relatedNovels),
-    appliesToAgentsText: toLines(entry?.appliesToAgents),
-    semantic: Boolean(entry?.trigger?.semantic),
-  };
-}
-
-function toPayload(draft: WorldbookDraft): WorldbookEntryInput {
-  return {
-    id: draft.id.trim(),
-    title: draft.title.trim(),
+    name: entry?.name ?? entry?.title ?? "",
+    origin: entry?.origin ?? origin,
+    category: entry?.category ?? "setting",
+    summary: entry?.summary ?? "",
+    description: entry?.description ?? entry?.sections?.fact ?? "",
+    relatedCharacters: entry?.relatedCharacters ?? entry?.trigger?.characters ?? [],
+    relatedChapters: entry?.relatedChapters ?? entry?.trigger?.timeline ?? [],
+    custom: entry?.custom ?? [],
     sections: {
-      fact: draft.fact.trim() || undefined,
-      adaptation: draft.adaptation.trim() || undefined,
-      currentState: draft.currentState.trim() || undefined,
-      writingHint: draft.writingHint.trim() || undefined,
-      forbidden: draft.forbidden.trim() || undefined,
+      fact: entry?.sections?.fact ?? "",
+      adaptation: entry?.sections?.adaptation ?? "",
+      currentState: entry?.sections?.currentState ?? "",
+      writingHint: entry?.sections?.writingHint ?? "",
+      forbidden: entry?.sections?.forbidden ?? "",
     },
     trigger: {
-      keywords: parseLines(draft.keywordsText),
-      characters: parseLines(draft.charactersText),
-      places: parseLines(draft.placesText),
-      timeline: parseLines(draft.timelineText),
-      semantic: draft.semantic,
+      keywords: entry?.trigger?.keywords ?? [],
+      characters: entry?.trigger?.characters ?? entry?.relatedCharacters ?? [],
+      places: entry?.trigger?.places ?? [],
+      timeline: entry?.trigger?.timeline ?? entry?.relatedChapters ?? [],
+      semantic: entry?.trigger?.semantic ?? false,
     },
-    relatedNovels: parseLines(draft.relatedNovelsText),
-    appliesToAgents: parseLines(draft.appliesToAgentsText),
+    relatedNovels: entry?.relatedNovels ?? [],
+    appliesToAgents: entry?.appliesToAgents ?? [],
   };
 }
 
@@ -106,25 +119,79 @@ function filterEntries(entries: WorldbookEntry[], query: string): WorldbookEntry
     return entries;
   }
 
-  return entries.filter((entry) => {
-    const values = [
+  return entries.filter((entry) =>
+    [
       entry.id,
       entry.title,
+      entry.name,
+      entry.summary,
+      entry.description,
       entry.sections?.fact,
-      entry.sections?.adaptation,
       ...(entry.trigger?.keywords ?? []),
-      ...(entry.trigger?.characters ?? []),
-      ...(entry.trigger?.places ?? []),
+      ...(entry.relatedCharacters ?? []),
+      ...(entry.relatedChapters ?? []),
+      JSON.stringify(entry.custom ?? []),
     ]
-      .filter(Boolean)
-      .map((item) => String(item).toLowerCase());
-    return values.some((value) => value.includes(normalized));
-  });
+      .join(" ")
+      .toLowerCase()
+      .includes(normalized),
+  );
+}
+
+function groupByCategory(entries: WorldbookEntry[]): Array<{ category: WorldbookCategory; entries: WorldbookEntry[] }> {
+  return CATEGORY_OPTIONS.map((option) => ({
+    category: option.id,
+    entries: entries.filter((entry) => (entry.category ?? "setting") === option.id),
+  })).filter((group) => group.entries.length > 0);
+}
+
+function CustomFieldsEditor({
+  rows,
+  onChange,
+}: {
+  rows: WorldbookCustomField[];
+  onChange(rows: WorldbookCustomField[]): void;
+}) {
+  return (
+    <div className="character-custom-fields">
+      {rows.map((row, index) => (
+        <div className="character-custom-row" key={index}>
+          <input
+            className="input"
+            value={row.label ?? ""}
+            placeholder="自定义标题"
+            onChange={(event) => {
+              const next = [...rows];
+              next[index] = { ...row, label: event.target.value };
+              onChange(next);
+            }}
+          />
+          <input
+            className="input"
+            value={row.value ?? ""}
+            placeholder="内容"
+            onChange={(event) => {
+              const next = [...rows];
+              next[index] = { ...row, value: event.target.value };
+              onChange(next);
+            }}
+          />
+          <button type="button" className="btn-icon danger" onClick={() => onChange(rows.filter((_, rowIndex) => rowIndex !== index))} aria-label="删除自定义字段">
+            <Trash2 size={15} />
+          </button>
+        </div>
+      ))}
+      <button type="button" className="btn btn-ghost character-add-custom" onClick={() => onChange([...rows, { label: "", value: "" }])}>
+        <Plus size={14} />
+        添加自定义字段
+      </button>
+    </div>
+  );
 }
 
 function WorldbookEditor({
   mode,
-  draft,
+  value,
   saving,
   error,
   onChange,
@@ -132,244 +199,309 @@ function WorldbookEditor({
   onSubmit,
 }: {
   mode: EditorMode;
-  draft: WorldbookDraft;
+  value: WorldbookEntryInput;
   saving: boolean;
   error: string | null;
-  onChange: (patch: Partial<WorldbookDraft>) => void;
-  onCancel: () => void;
-  onSubmit: () => void;
+  onChange(next: WorldbookEntryInput): void;
+  onCancel(): void;
+  onSubmit(): void;
 }) {
+  const updateTextLines = (key: "relatedCharacters" | "relatedChapters" | "relatedNovels" | "appliesToAgents", text: string) => {
+    onChange({ ...value, [key]: parseLines(text) });
+  };
+  const updateTriggerLines = (key: "keywords" | "characters" | "places" | "timeline", text: string) => {
+    onChange({
+      ...value,
+      trigger: {
+        keywords: value.trigger?.keywords ?? [],
+        characters: value.trigger?.characters ?? [],
+        places: value.trigger?.places ?? [],
+        timeline: value.trigger?.timeline ?? [],
+        semantic: value.trigger?.semantic ?? false,
+        [key]: parseLines(text),
+      },
+    });
+  };
+
   return (
-    <section className="editor-card">
-      <div className="editor-card-head">
-        <div>
-          <h2>{mode === "create" ? "新建世界书词条" : `编辑词条 · ${draft.title || draft.id || "未命名"}`}</h2>
-          <p className="view-sub">围绕事实、触发器和写作约束组织设定，保持与后端真实 schema 一致。</p>
+    <div className="vault-modal-backdrop character-modal-backdrop" onMouseDown={onCancel}>
+      <div className="vault-modal character-modal worldbook-modal" onMouseDown={(event) => event.stopPropagation()}>
+        <div className="character-modal-head">
+          <div>
+            <h2>{mode === "create" ? "新建设定" : `编辑设定 · ${value.title}`}</h2>
+            <p>每条设定归属于当前项目，并在项目内区分原作/原创和类型。</p>
+          </div>
+          <button type="button" className="btn-icon" onClick={onCancel} aria-label="关闭">
+            <X size={16} />
+          </button>
         </div>
-        <div className="view-actions">
+        <div className="character-modal-body">
+          {error ? <div className="err-card">保存失败：{error}</div> : null}
+          <div className="form-grid form-grid-3">
+            <label className="form-block">
+              <span>名称</span>
+              <input className="input" value={value.title} onChange={(event) => onChange({ ...value, title: event.target.value, name: event.target.value })} />
+            </label>
+            <label className="form-block">
+              <span>来源</span>
+              <select className="input" value={value.origin ?? "original"} onChange={(event) => onChange({ ...value, origin: event.target.value as WorldbookOrigin })}>
+                {ORIGIN_OPTIONS.map((option) => <option value={option.id} key={option.id}>{option.label}</option>)}
+              </select>
+            </label>
+            <label className="form-block">
+              <span>类型</span>
+              <select className="input" value={value.category ?? "setting"} onChange={(event) => onChange({ ...value, category: event.target.value as WorldbookCategory })}>
+                {CATEGORY_OPTIONS.map((option) => <option value={option.id} key={option.id}>{option.label}</option>)}
+              </select>
+            </label>
+          </div>
+          <div className="form-grid">
+            <label className="form-block">
+              <span>简介</span>
+              <input className="input" value={value.summary ?? ""} onChange={(event) => onChange({ ...value, summary: event.target.value })} />
+            </label>
+            <label className="form-block">
+              <span>详细描述</span>
+              <textarea
+                className="textarea worldbook-description"
+                value={value.description ?? ""}
+                onChange={(event) => onChange({
+                  ...value,
+                  description: event.target.value,
+                  sections: { ...value.sections, fact: event.target.value },
+                })}
+              />
+            </label>
+          </div>
+          <div className="form-grid form-grid-2">
+            <label className="form-block">
+              <span>相关角色</span>
+              <textarea className="textarea" value={toLines(value.relatedCharacters)} onChange={(event) => updateTextLines("relatedCharacters", event.target.value)} placeholder={"kanae\nshinobu"} />
+            </label>
+            <label className="form-block">
+              <span>相关章节</span>
+              <textarea className="textarea" value={toLines(value.relatedChapters)} onChange={(event) => updateTextLines("relatedChapters", event.target.value)} placeholder={"chapter-001\nchapter-004"} />
+            </label>
+          </div>
+          <div className="form-grid form-grid-2">
+            <label className="form-block">
+              <span>触发关键词</span>
+              <textarea className="textarea" value={toLines(value.trigger?.keywords)} onChange={(event) => updateTriggerLines("keywords", event.target.value)} />
+            </label>
+            <label className="form-block">
+              <span>触发地点</span>
+              <textarea className="textarea" value={toLines(value.trigger?.places)} onChange={(event) => updateTriggerLines("places", event.target.value)} />
+            </label>
+          </div>
+          <div className="form-grid form-grid-2">
+            <label className="form-block">
+              <span>适用小说</span>
+              <textarea className="textarea" value={toLines(value.relatedNovels)} onChange={(event) => updateTextLines("relatedNovels", event.target.value)} />
+            </label>
+            <label className="form-block">
+              <span>适用 Agent</span>
+              <textarea className="textarea" value={toLines(value.appliesToAgents)} onChange={(event) => updateTextLines("appliesToAgents", event.target.value)} />
+            </label>
+          </div>
+          <div className="form-grid form-grid-2">
+            <label className="form-block">
+              <span>写作提示</span>
+              <textarea className="textarea" value={value.sections?.writingHint ?? ""} onChange={(event) => onChange({ ...value, sections: { ...value.sections, writingHint: event.target.value } })} />
+            </label>
+            <label className="form-block">
+              <span>禁止写法</span>
+              <textarea className="textarea" value={value.sections?.forbidden ?? ""} onChange={(event) => onChange({ ...value, sections: { ...value.sections, forbidden: event.target.value } })} />
+            </label>
+          </div>
+          <label className="switch-row">
+            <input
+              type="checkbox"
+              checked={Boolean(value.trigger?.semantic)}
+              onChange={(event) => onChange({ ...value, trigger: { ...value.trigger, keywords: value.trigger?.keywords ?? [], characters: value.trigger?.characters ?? [], places: value.trigger?.places ?? [], semantic: event.target.checked } })}
+            />
+            <span>启用语义触发</span>
+          </label>
+          <section className="agent-editor-section">
+            <div className="model-editor-section-title">自定义字段</div>
+            <CustomFieldsEditor rows={value.custom ?? []} onChange={(rows) => onChange({ ...value, custom: rows })} />
+          </section>
+        </div>
+        <div className="agent-modal-actions view-actions">
           <button type="button" className="btn btn-ghost" onClick={onCancel}>取消</button>
-          <button type="button" className="btn btn-primary" onClick={onSubmit} disabled={saving || !draft.id.trim() || !draft.title.trim()}>
-            <Save size={15} strokeWidth={2} />
-            {saving ? "保存中…" : "保存词条"}
+          <button type="button" className="btn btn-primary" onClick={onSubmit} disabled={saving || !value.title.trim()}>
+            <Save size={15} />
+            {saving ? "保存中…" : "保存设定"}
           </button>
         </div>
       </div>
-
-      {error ? <div className="err-card">保存失败：{error}</div> : null}
-
-      <div className="form-grid form-grid-2">
-        <label className="form-block">
-          <span>词条 ID</span>
-          <input className="input" value={draft.id} onChange={(event) => onChange({ id: event.target.value })} disabled={mode === "edit"} />
-        </label>
-        <label className="form-block">
-          <span>标题</span>
-          <input className="input" value={draft.title} onChange={(event) => onChange({ title: event.target.value })} />
-        </label>
-      </div>
-
-      <div className="form-grid form-grid-2">
-        <label className="form-block">
-          <span>事实描述</span>
-          <textarea className="textarea" value={draft.fact} onChange={(event) => onChange({ fact: event.target.value })} />
-        </label>
-        <label className="form-block">
-          <span>适配 / 原作映射</span>
-          <textarea className="textarea" value={draft.adaptation} onChange={(event) => onChange({ adaptation: event.target.value })} />
-        </label>
-      </div>
-
-      <div className="form-grid form-grid-2">
-        <label className="form-block">
-          <span>当前状态</span>
-          <textarea className="textarea" value={draft.currentState} onChange={(event) => onChange({ currentState: event.target.value })} />
-        </label>
-        <label className="form-block">
-          <span>写作提示</span>
-          <textarea className="textarea" value={draft.writingHint} onChange={(event) => onChange({ writingHint: event.target.value })} />
-        </label>
-      </div>
-
-      <div className="form-grid form-grid-2">
-        <label className="form-block">
-          <span>禁写约束</span>
-          <textarea className="textarea" value={draft.forbidden} onChange={(event) => onChange({ forbidden: event.target.value })} />
-        </label>
-        <label className="form-block">
-          <span>触发关键词</span>
-          <textarea className="textarea" value={draft.keywordsText} onChange={(event) => onChange({ keywordsText: event.target.value })} placeholder={"蝶屋\n药臼"} />
-        </label>
-      </div>
-
-      <div className="form-grid form-grid-3">
-        <label className="form-block">
-          <span>触发角色</span>
-          <textarea className="textarea" value={draft.charactersText} onChange={(event) => onChange({ charactersText: event.target.value })} placeholder={"kanae\nshinobu"} />
-        </label>
-        <label className="form-block">
-          <span>触发地点</span>
-          <textarea className="textarea" value={draft.placesText} onChange={(event) => onChange({ placesText: event.target.value })} placeholder={"蝶屋\n药房"} />
-        </label>
-        <label className="form-block">
-          <span>触发时间线</span>
-          <textarea className="textarea" value={draft.timelineText} onChange={(event) => onChange({ timelineText: event.target.value })} placeholder={"chapter-001\nchapter-004"} />
-        </label>
-      </div>
-
-      <div className="form-grid form-grid-2">
-        <label className="form-block">
-          <span>适用小说</span>
-          <textarea className="textarea" value={draft.relatedNovelsText} onChange={(event) => onChange({ relatedNovelsText: event.target.value })} placeholder={"main\nbranch-a"} />
-        </label>
-        <label className="form-block">
-          <span>适用 Agent</span>
-          <textarea className="textarea" value={draft.appliesToAgentsText} onChange={(event) => onChange({ appliesToAgentsText: event.target.value })} placeholder={"writer-agent\nworldbook-agent"} />
-        </label>
-      </div>
-
-      <label className="switch-row">
-        <input type="checkbox" checked={draft.semantic} onChange={(event) => onChange({ semantic: event.target.checked })} />
-        <span>启用语义触发（semantic）</span>
-      </label>
-    </section>
+    </div>
   );
 }
 
 export function WorldbookView() {
   const [projectId, setProjectId] = useState(readStoredProjectId);
+  const [projects, setProjects] = useState<ProjectSummary[]>([]);
   const [entries, setEntries] = useState<WorldbookEntry[]>([]);
-  const [selectedEntryId, setSelectedEntryId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
-  const [tab, setTab] = useState<WorldbookTab>("overview");
+  const [origin, setOrigin] = useState<WorldbookOrigin>("canon");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [vaultMissing, setVaultMissing] = useState(false);
   const [editorMode, setEditorMode] = useState<EditorMode | null>(null);
-  const [draft, setDraft] = useState<WorldbookDraft>(createDraft());
+  const [draft, setDraft] = useState<WorldbookEntryInput | null>(null);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<WorldbookEntry | null>(null);
+
+  const loadData = async (targetProjectId = projectId) => {
+    setLoading(true);
+    setError(null);
+    setVaultMissing(false);
+    try {
+      const health = await api.health();
+      if (!health.vaultSelected) {
+        setVaultMissing(true);
+        setProjects([]);
+        setEntries([]);
+        setLoading(false);
+        return;
+      }
+      const nextProjects = await api.listProjects();
+      const resolvedProjectId = nextProjects.some((project) => project.projectId === targetProjectId)
+        ? targetProjectId
+        : nextProjects[0]?.projectId ?? targetProjectId;
+      if (resolvedProjectId !== projectId) {
+        setProjectId(resolvedProjectId);
+        writeStoredProjectId(resolvedProjectId);
+      }
+      const nextEntries = resolvedProjectId ? await api.listWorldbookByProject(resolvedProjectId) : [];
+      setProjects(nextProjects);
+      setEntries(nextEntries);
+    } catch (loadError) {
+      setError(loadError instanceof ApiError ? loadError.message : "加载世界书失败");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    writeStoredProjectId(projectId);
+    void loadData(projectId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectId]);
 
-  useEffect(() => {
-    let alive = true;
+  const filteredEntries = useMemo(
+    () => filterEntries(entries.filter((entry) => (entry.origin ?? "original") === origin), search),
+    [entries, origin, search],
+  );
+  const groupedEntries = useMemo(() => groupByCategory(filteredEntries), [filteredEntries]);
 
-    async function load() {
-      setLoading(true);
-      setError(null);
-      setVaultMissing(false);
+  const startCreate = () => {
+    setDraft(createDraft(origin));
+    setEditorMode("create");
+    setSaveError(null);
+  };
 
-      try {
-        const health = await api.health();
-        if (!health.vaultSelected) {
-          if (!alive) return;
-          setVaultMissing(true);
-          setEntries([]);
-          setLoading(false);
-          return;
-        }
+  const startEdit = (entry: WorldbookEntry) => {
+    setDraft(createDraft(origin, entry));
+    setEditorMode("edit");
+    setSaveError(null);
+  };
 
-        const nextEntries = await api.listWorldbookByProject(projectId);
-        if (!alive) return;
-        setEntries(nextEntries);
-        setSelectedEntryId((current) => {
-          if (current && nextEntries.some((entry) => entry.id === current)) {
-            return current;
-          }
-          return nextEntries[0]?.id ?? null;
-        });
-        setLoading(false);
-      } catch (loadError) {
-        if (!alive) return;
-        setError(loadError instanceof ApiError ? loadError.message : "加载失败");
-        setLoading(false);
-      }
+  const persist = async () => {
+    if (!draft) {
+      return;
+    }
+    const title = draft.title.trim();
+    if (!title) {
+      setSaveError("名称不能为空");
+      return;
     }
 
-    void load();
-    return () => {
-      alive = false;
-    };
-  }, [projectId]);
-
-  const filteredEntries = useMemo(() => filterEntries(entries, search), [entries, search]);
-  const selectedEntry = useMemo(
-    () => filteredEntries.find((entry) => entry.id === selectedEntryId) ?? entries.find((entry) => entry.id === selectedEntryId) ?? null,
-    [entries, filteredEntries, selectedEntryId],
-  );
-
-  async function persist(mode: EditorMode) {
     setSaving(true);
     setSaveError(null);
     try {
-      const payload = toPayload(draft);
-      const saved = mode === "create"
-        ? await api.createWorldbookEntry(projectId, payload)
-        : await api.updateWorldbookEntry(projectId, draft.id, payload);
-      const nextEntries = await api.listWorldbookByProject(projectId);
-      setEntries(nextEntries);
-      setSelectedEntryId(saved.id);
+      const payload: WorldbookEntryInput = {
+        ...draft,
+        id: editorMode === "create" ? slugify(draft.id || title) : draft.id,
+        title,
+        name: draft.name?.trim() || title,
+        origin: draft.origin ?? origin,
+        category: draft.category ?? "setting",
+        trigger: {
+          keywords: draft.trigger?.keywords ?? [],
+          characters: draft.trigger?.characters ?? draft.relatedCharacters ?? [],
+          places: draft.trigger?.places ?? [],
+          timeline: draft.trigger?.timeline ?? draft.relatedChapters ?? [],
+          semantic: draft.trigger?.semantic ?? false,
+        },
+        relatedNovels: draft.relatedNovels ?? [],
+        appliesToAgents: draft.appliesToAgents ?? [],
+      };
+      if (editorMode === "create") {
+        await api.createWorldbookEntry(projectId, payload);
+      } else {
+        await api.updateWorldbookEntry(projectId, payload.id, payload);
+      }
       setEditorMode(null);
-      setTab("overview");
+      setDraft(null);
+      setOrigin(payload.origin ?? origin);
+      await loadData(projectId);
     } catch (persistError) {
-      setSaveError(persistError instanceof ApiError ? persistError.message : "保存失败");
+      setSaveError(persistError instanceof ApiError ? persistError.message : "保存设定失败");
     } finally {
       setSaving(false);
     }
-  }
+  };
+
+  const deleteEntry = async (entry: WorldbookEntry) => {
+    try {
+      await api.deleteWorldbookEntry(projectId, entry.id);
+      setDeleteTarget(null);
+      await loadData(projectId);
+    } catch (deleteError) {
+      setError(deleteError instanceof ApiError ? deleteError.message : "删除设定失败");
+    }
+  };
 
   const showState = loading || error !== null || vaultMissing || filteredEntries.length === 0;
 
   return (
     <ViewShell
       title="世界书"
-      subtitle="设定词条：地点、组织、物品、概念，按关键词触发注入"
+      subtitle="在当前项目内管理原作/原创设定，并按地点、组织、设定、物品、事件归类"
       actions={
-        <button
-          type="button"
-          className="btn btn-primary"
-          onClick={() => {
-            setDraft(createDraft());
-            setEditorMode("create");
-            setSaveError(null);
-          }}
-        >
-          <Plus size={15} strokeWidth={2} />
-          新建词条
-        </button>
+        <>
+          <ProjectSelector
+            projects={projects}
+            projectId={projectId}
+            disabled={vaultMissing || loading}
+            onChange={(nextProjectId) => {
+              setProjectId(nextProjectId);
+              writeStoredProjectId(nextProjectId);
+            }}
+          />
+          <button type="button" className="btn btn-primary" onClick={startCreate} disabled={!projectId || vaultMissing || projects.length === 0}>
+            <Plus size={15} />
+            新建设定
+          </button>
+        </>
       }
     >
       <div className="toolbar-row">
         <div className="search">
           <Search size={15} />
-          <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="搜索词条、关键词、人物…" />
+          <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="搜索设定、简介、角色或关键词…" />
         </div>
-        <label className="project-inline-field">
-          <span className="faint">Project</span>
-          <input className="input" value={projectId} onChange={(event) => setProjectId(event.target.value)} />
-        </label>
         <span className="grow" />
         <span className="faint">共 {filteredEntries.length} / {entries.length} 条</span>
       </div>
-
-      {editorMode ? (
-        <WorldbookEditor
-          mode={editorMode}
-          draft={draft}
-          saving={saving}
-          error={saveError}
-          onChange={(patch) => setDraft((current) => ({ ...current, ...patch }))}
-          onCancel={() => {
-            setEditorMode(null);
-            setSaveError(null);
-          }}
-          onSubmit={() => {
-            void persist(editorMode);
-          }}
-        />
-      ) : null}
+      <div className="worldbook-origin-tabs">
+        {ORIGIN_OPTIONS.map((option) => (
+          <button type="button" key={option.id} className={origin === option.id ? "active" : ""} onClick={() => setOrigin(option.id)}>
+            {option.label}
+          </button>
+        ))}
+      </div>
 
       {showState ? (
         <CenterState
@@ -377,181 +509,77 @@ export function WorldbookView() {
           error={error}
           vaultMissing={vaultMissing}
           empty={filteredEntries.length === 0}
-          emptyText={search ? "没有匹配的世界书词条" : "还没有世界书词条"}
+          emptyText={search ? "没有找到匹配的设定" : `还没有${originLabel(origin)}，点右上角「新建设定」`}
         />
       ) : (
-        <div className="split-layout">
-          <div className="list-card">
-            <div className="list-row head">
-              <span className="col col-grow">词条</span>
-              <span className="col" style={{ width: 120 }}>关键词</span>
-              <span className="col" style={{ width: 100 }}>Agent</span>
-              <span className="col" style={{ width: 120 }}>更新时间</span>
-            </div>
-            {filteredEntries.map((entry) => (
-              <button
-                type="button"
-                className={`list-row ${selectedEntry?.id === entry.id ? "active" : ""}`}
-                key={entry.id}
-                onClick={() => {
-                  setSelectedEntryId(entry.id);
-                  setTab("overview");
-                }}
-              >
-                <span className="col col-grow">
-                  <div className="col-name">{entry.title}</div>
-                  <div className="col-sub">{entry.sections?.fact?.slice(0, 40) || "尚未填写事实描述"}</div>
-                </span>
-                <span className="col" style={{ width: 120 }}>
-                  <span className="tag primary">{entry.trigger?.keywords?.length ?? 0} 个</span>
-                </span>
-                <span className="col" style={{ width: 100 }}>
-                  <span className="tag">{entry.appliesToAgents?.length ?? 0} 个</span>
-                </span>
-                <span className="col faint" style={{ width: 120 }}>{String(entry.updatedAt ?? "—")}</span>
-              </button>
-            ))}
-          </div>
-
-          {selectedEntry ? (
-            <div className="detail-stack">
-              <section className="hero-card">
-                <div className="hero-card-main">
-                  <span className="avatar lg">设</span>
-                  <div>
-                    <h2>{selectedEntry.title}</h2>
-                    <p className="view-sub">ID：{selectedEntry.id}</p>
-                    <div className="tag-row">
-                      <span className="tag primary">{selectedEntry.trigger?.keywords?.length ?? 0} 个关键词</span>
-                      <span className="tag">{selectedEntry.relatedNovels?.length ?? 0} 条小说关联</span>
-                      <span className="tag">{selectedEntry.appliesToAgents?.length ?? 0} 个 Agent</span>
+        <div className="worldbook-group-stack">
+          {groupedEntries.map((group) => (
+            <section className="worldbook-group" key={group.category}>
+              <div className="worldbook-group-head">
+                <Layers size={16} />
+                <h3>{categoryLabel(group.category)}</h3>
+                <span>{group.entries.length} 条</span>
+              </div>
+              <div className="worldbook-entry-list">
+                {group.entries.map((entry) => (
+                  <article className="worldbook-entry-row" key={entry.id}>
+                    <div className="worldbook-entry-main">
+                      <div className="worldbook-entry-title">
+                        <BookOpen size={15} />
+                        <strong>{entry.name || entry.title}</strong>
+                        <span className="tag primary">{categoryLabel(entry.category)}</span>
+                      </div>
+                      <p>{entrySummary(entry)}</p>
+                      <div className="tag-row">
+                        <span className="tag">{originLabel(entry.origin)}</span>
+                        <span className="tag">{(entry.relatedCharacters ?? []).length} 角色</span>
+                        <span className="tag">{(entry.relatedChapters ?? []).length} 章节</span>
+                      </div>
                     </div>
-                  </div>
-                </div>
-                <div className="view-actions">
-                  <button
-                    type="button"
-                    className="btn"
-                    onClick={() => {
-                      setDraft(createDraft(selectedEntry));
-                      setEditorMode("edit");
-                      setSaveError(null);
-                    }}
-                  >
-                    <Save size={15} strokeWidth={2} />
-                    编辑词条
-                  </button>
-                </div>
-              </section>
-
-              <div className="tab-strip">
-                {TABS.map((item) => (
-                  <button type="button" key={item.id} className={tab === item.id ? "active" : ""} onClick={() => setTab(item.id)}>
-                    {item.label}
-                  </button>
+                    <div className="view-actions">
+                      <button type="button" className="btn" onClick={() => startEdit(entry)}>编辑</button>
+                      <button type="button" className="btn-icon danger" onClick={() => setDeleteTarget(entry)} aria-label="删除设定">
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
+                  </article>
                 ))}
               </div>
-
-              <div className="detail-grid">
-                <div>
-                  {tab === "overview" ? (
-                    <section className="info-card">
-                      <h3>基础设定</h3>
-                      <div className="detail-section">
-                        <h4>事实描述</h4>
-                        <div className="quote-line">{selectedEntry.sections?.fact || "尚未填写"}</div>
-                      </div>
-                      <div className="detail-section">
-                        <h4>适配 / 原作映射</h4>
-                        <div className="quote-line">{selectedEntry.sections?.adaptation || "尚未填写"}</div>
-                      </div>
-                      <div className="detail-section">
-                        <h4>当前状态</h4>
-                        <div className="quote-line">{selectedEntry.sections?.currentState || "尚未填写"}</div>
-                      </div>
-                    </section>
-                  ) : null}
-
-                  {tab === "trigger" ? (
-                    <section className="info-card">
-                      <h3>触发条件</h3>
-                      <div className="detail-section">
-                        <h4>关键词</h4>
-                        <div className="tag-row">
-                          {(selectedEntry.trigger?.keywords ?? []).map((keyword) => <span className="tag primary" key={keyword}>{keyword}</span>)}
-                          {(selectedEntry.trigger?.keywords ?? []).length === 0 ? <span className="faint">暂无关键词</span> : null}
-                        </div>
-                      </div>
-                      <div className="detail-section">
-                        <h4>角色 / 地点 / 时间线</h4>
-                        <div className="stack-list">
-                          <div className="field"><span className="k">角色</span><span className="v stack-align-start">{(selectedEntry.trigger?.characters ?? []).join(" / ") || "—"}</span></div>
-                          <div className="field"><span className="k">地点</span><span className="v stack-align-start">{(selectedEntry.trigger?.places ?? []).join(" / ") || "—"}</span></div>
-                          <div className="field"><span className="k">时间线</span><span className="v stack-align-start">{(selectedEntry.trigger?.timeline ?? []).join(" / ") || "—"}</span></div>
-                        </div>
-                      </div>
-                    </section>
-                  ) : null}
-
-                  {tab === "writing" ? (
-                    <section className="info-card">
-                      <h3>写作约束</h3>
-                      <div className="detail-section">
-                        <h4>写作提示</h4>
-                        <div className="quote-line">{selectedEntry.sections?.writingHint || "尚未填写"}</div>
-                      </div>
-                      <div className="detail-section">
-                        <h4>禁写约束</h4>
-                        <div className="quote-line muted-line">{selectedEntry.sections?.forbidden || "尚未填写"}</div>
-                      </div>
-                    </section>
-                  ) : null}
-                </div>
-
-                <div>
-                  <section className="info-card">
-                    <h3>注入范围</h3>
-                    <div className="stack-list">
-                      <div className="field"><span className="k">适用小说</span><span className="v stack-align-start">{(selectedEntry.relatedNovels ?? []).join(" / ") || "—"}</span></div>
-                      <div className="field"><span className="k">适用 Agent</span><span className="v stack-align-start">{(selectedEntry.appliesToAgents ?? []).join(" / ") || "—"}</span></div>
-                      <div className="field"><span className="k">语义触发</span><span className="v">{selectedEntry.trigger?.semantic ? "开启" : "关闭"}</span></div>
-                    </div>
-                  </section>
-
-                  <section className="info-card">
-                    <h3>设定信号</h3>
-                    <div className="signal-list">
-                      <div className="signal-item">
-                        <Globe size={16} />
-                        <div>
-                          <div className="mini-card-title">关键词密度</div>
-                          <div className="mini-card-sub">{selectedEntry.trigger?.keywords?.length ?? 0} 个关键词</div>
-                        </div>
-                      </div>
-                      <div className="signal-item">
-                        <Sparkles size={16} />
-                        <div>
-                          <div className="mini-card-title">人物触发</div>
-                          <div className="mini-card-sub">{selectedEntry.trigger?.characters?.length ?? 0} 个角色</div>
-                        </div>
-                      </div>
-                      <div className="signal-item">
-                        <BookOpen size={16} />
-                        <div>
-                          <div className="mini-card-title">Agent 覆盖</div>
-                          <div className="mini-card-sub">{selectedEntry.appliesToAgents?.length ?? 0} 个 Agent</div>
-                        </div>
-                      </div>
-                    </div>
-                  </section>
-                </div>
-              </div>
-            </div>
-          ) : (
-            <CenterState loading={false} error={null} vaultMissing={false} empty emptyText="请选择左侧词条查看详情" />
-          )}
+            </section>
+          ))}
         </div>
       )}
+
+      {editorMode && draft ? (
+        <WorldbookEditor
+          mode={editorMode}
+          value={draft}
+          saving={saving}
+          error={saveError}
+          onChange={setDraft}
+          onCancel={() => {
+            setEditorMode(null);
+            setDraft(null);
+            setSaveError(null);
+          }}
+          onSubmit={() => {
+            void persist();
+          }}
+        />
+      ) : null}
+
+      {deleteTarget ? (
+        <ConfirmModal
+          title="删除设定"
+          message={`确定删除设定「${deleteTarget.title}」吗？此操作不可恢复。`}
+          confirmText="删除"
+          danger
+          onCancel={() => setDeleteTarget(null)}
+          onConfirm={() => {
+            void deleteEntry(deleteTarget);
+          }}
+        />
+      ) : null}
     </ViewShell>
   );
 }

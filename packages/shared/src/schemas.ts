@@ -27,6 +27,8 @@ import {
   SCOPE_VALUES,
   TIMELINE_LINE_VALUES,
   WORKFLOW_FAIL_POLICY_VALUES,
+  WORLDBOOK_CATEGORY_VALUES,
+  WORLDBOOK_ORIGIN_VALUES,
   WRITE_SCOPE_VALUES,
   WRITING_FREEDOM_VALUES,
 } from "./constants.js";
@@ -348,8 +350,21 @@ export const worldbookTriggerSchema = z.object({
   semantic: z.boolean(),
 });
 
+export const worldbookCustomFieldSchema = z.object({
+  label: z.string().optional(),
+  value: z.string().optional(),
+});
+
 export const worldbookEntrySchema = entitySchema.extend({
   title: z.string().min(1),
+  origin: z.enum(WORLDBOOK_ORIGIN_VALUES).optional(),
+  category: z.enum(WORLDBOOK_CATEGORY_VALUES).optional(),
+  name: z.string().optional(),
+  summary: z.string().optional(),
+  description: z.string().optional(),
+  relatedCharacters: stringArraySchema.optional(),
+  relatedChapters: stringArraySchema.optional(),
+  custom: z.array(worldbookCustomFieldSchema).optional(),
   sections: worldbookSectionsSchema,
   trigger: worldbookTriggerSchema,
   relatedNovels: stringArraySchema,

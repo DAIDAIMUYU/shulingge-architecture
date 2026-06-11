@@ -517,6 +517,25 @@ input, textarea { font-family: inherit; }
 .character-custom-row { display: grid; grid-template-columns: minmax(120px, 180px) minmax(0, 1fr) 32px; gap: 8px; align-items: center; }
 .character-add-custom { justify-self: start; padding-left: 0; }
 .character-avatar-large { aspect-ratio: 3 / 4; }
+.worldbook-origin-tabs { display: inline-flex; gap: 4px; margin: 0 0 18px; padding: 3px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--bg-card); }
+.worldbook-origin-tabs button { height: 32px; padding: 0 14px; border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--text-secondary); font-size: 13px; cursor: pointer; transition: background .16s ease, color .16s ease; }
+.worldbook-origin-tabs button:hover { background: var(--bg-hover); color: var(--text-primary); }
+.worldbook-origin-tabs button.active { background: var(--primary-light); color: var(--primary); font-weight: 600; }
+.worldbook-group-stack { display: grid; gap: 18px; }
+.worldbook-group { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-md); box-shadow: var(--shadow-card); overflow: hidden; }
+.worldbook-group-head { min-height: 46px; display: flex; align-items: center; gap: 9px; padding: 0 16px; border-bottom: 1px solid var(--border); color: var(--text-secondary); }
+.worldbook-group-head h3 { margin: 0; color: var(--text-primary); font-size: 14px; }
+.worldbook-group-head span { margin-left: auto; color: var(--text-muted); font-size: 12px; }
+.worldbook-entry-list { display: grid; }
+.worldbook-entry-row { display: flex; justify-content: space-between; gap: 16px; padding: 16px; border-bottom: 1px solid var(--border); }
+.worldbook-entry-row:last-child { border-bottom: 0; }
+.worldbook-entry-row:hover { background: var(--bg-panel); }
+.worldbook-entry-main { display: grid; gap: 8px; min-width: 0; }
+.worldbook-entry-title { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.worldbook-entry-title strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.worldbook-entry-title svg { color: var(--primary); flex: none; }
+.worldbook-entry-main p { margin: 0; color: var(--text-secondary); font-size: 13px; line-height: 1.6; }
+.worldbook-description { min-height: 160px; }
 
 .card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 18px; }
 .project-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-md); box-shadow: var(--shadow-card); overflow: hidden; cursor: pointer; transition: box-shadow .16s ease, transform .16s ease; }

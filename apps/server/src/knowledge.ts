@@ -214,6 +214,14 @@ function normalizeWorldbook(input: WorldbookInput, current?: WorldbookEntry): Wo
   return worldbookEntrySchema.parse({
     id: input.id ?? current?.id ?? "",
     title: input.title ?? current?.title ?? "",
+    origin: input.origin ?? current?.origin ?? "original",
+    category: input.category ?? current?.category ?? "setting",
+    name: input.name ?? current?.name ?? input.title ?? current?.title,
+    summary: input.summary ?? current?.summary,
+    description: input.description ?? current?.description,
+    relatedCharacters: input.relatedCharacters ?? current?.relatedCharacters ?? [],
+    relatedChapters: input.relatedChapters ?? current?.relatedChapters ?? [],
+    custom: input.custom ?? current?.custom ?? [],
     sections: {
       fact: input.sections?.fact ?? current?.sections.fact ?? "",
       adaptation: input.sections?.adaptation ?? current?.sections.adaptation ?? "",
