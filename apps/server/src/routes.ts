@@ -39,7 +39,7 @@ import {
 import { readFile } from "node:fs/promises";
 import { completeBootstrap, getBootstrapStatus } from "./bootstrap.js";
 import { exportDiagnosticsBundle } from "./diagnostics.js";
-import { chatWithDirector, executeDirectorTask } from "./director-chat.js";
+import { chatWithDirector, executeDirectorTask, reviewChapterWithDirector } from "./director-chat.js";
 import { buildHealthReport } from "./doctor.js";
 import {
   createAgent,
@@ -383,6 +383,18 @@ export const routeDefinitions: RouteDefinition[] = [
     async handler(request, context) {
       const vaultRoot = requireVaultRoot(context);
       return await executeDirectorTask(
+        vaultRoot,
+        (request.body as Record<string, unknown> | undefined) ?? {},
+        getModelOptions(context),
+      );
+    },
+  },
+  {
+    method: "POST",
+    path: "/api/v1/director/review",
+    async handler(request, context) {
+      const vaultRoot = requireVaultRoot(context);
+      return await reviewChapterWithDirector(
         vaultRoot,
         (request.body as Record<string, unknown> | undefined) ?? {},
         getModelOptions(context),

@@ -32,6 +32,7 @@ import {
   type AgentInfo,
   type AnnotationRecord,
   type DirectorChatMessage,
+  type DirectorReviewReport,
   type DirectorTaskSuggestion,
   type EditorChapter,
   type LockRecord,
@@ -239,6 +240,11 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
   const [running, setRunning] = useState(false);
   const [chatSending, setChatSending] = useState(false);
   const [executingTaskId, setExecutingTaskId] = useState<number | null>(null);
+  const [reviewing, setReviewing] = useState(false);
+  const [reviewStartedAt, setReviewStartedAt] = useState<number | null>(null);
+  const [reviewElapsedSeconds, setReviewElapsedSeconds] = useState(0);
+  const [reviewReports, setReviewReports] = useState<DirectorReviewReport[] | null>(null);
+  const [reviewError, setReviewError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [inspectorTab, setInspectorTab] = useState<InspectorTab>(preferences.defaultInspectorTab);
   const [showInspector] = useState(false);
@@ -291,6 +297,12 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
   const hasAnyChapter = allChapters.length > 0;
   const hasValidActiveChapter = Boolean(activeId && chapter && allChapters.some((chapterItem) => chapterItem.id === activeId));
   const totalWordCount = allChapters.reduce((sum, chapterItem) => sum + chapterItem.wordCount, 0);
+  const reviewAgents = useMemo(
+    () => agents
+      .filter((agent) => agent.enabled !== false && (agent.type === "checker" || agent.type === "blocker"))
+      .sort((left, right) => (left.order ?? 0) - (right.order ?? 0) || left.id.localeCompare(right.id)),
+    [agents],
+  );
 
   const openPrompt = (request: PromptRequest) => {
     setPromptRequest(request);
@@ -595,6 +607,19 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, run]);
+
+  useEffect(() => {
+    if (!reviewing || reviewStartedAt === null) {
+      setReviewElapsedSeconds(0);
+      return;
+    }
+
+    setReviewElapsedSeconds(Math.max(0, Math.floor((Date.now() - reviewStartedAt) / 1000)));
+    const timer = window.setInterval(() => {
+      setReviewElapsedSeconds(Math.max(0, Math.floor((Date.now() - reviewStartedAt) / 1000)));
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [reviewing, reviewStartedAt]);
 
   const syncSelection = () => {
     const node = textareaRef.current;
@@ -1160,6 +1185,66 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
     ]);
   };
 
+  const runChapterReview = async () => {
+    closeConfirm();
+    if (!locator.projectId || !locator.novelId || !locator.chapterId || !chapter) {
+      setReviewError("请先打开一个章节，再进行质检。");
+      setReviewReports(null);
+      return;
+    }
+    if (!draft.trim()) {
+      setReviewError("请先打开有正文的章节。");
+      setReviewReports(null);
+      return;
+    }
+
+    setReviewing(true);
+    setReviewStartedAt(Date.now());
+    setReviewError(null);
+    setReviewReports(null);
+    try {
+      const result = await api.reviewChapter({
+        projectId: locator.projectId,
+        novelId: locator.novelId,
+        chapterId: locator.chapterId,
+        currentContent: draft,
+      });
+      setReviewReports(result.reports);
+    } catch (err) {
+      setReviewError(err instanceof ApiError ? err.message : "一键质检失败，请稍后再试");
+    } finally {
+      setReviewing(false);
+      setReviewStartedAt(null);
+    }
+  };
+
+  const openReviewConfirm = () => {
+    if (!hasValidActiveChapter) {
+      setReviewError("请先打开一个章节，再进行质检。");
+      setReviewReports(null);
+      return;
+    }
+    if (!draft.trim()) {
+      setReviewError("请先打开有正文的章节。");
+      setReviewReports(null);
+      return;
+    }
+    if (reviewAgents.length === 0) {
+      setReviewError("当前没有启用的检查类 Agent，请先在 Agent 管理页启用 checker 或 blocker 类型 Agent。");
+      setReviewReports(null);
+      return;
+    }
+
+    openConfirm({
+      title: "一键质检",
+      message: `将依次运行：${reviewAgents.map((agent) => agent.name).join("、")}，对当前章节进行检查。确认开始？`,
+      confirmText: "开始质检",
+      onConfirm: () => {
+        void runChapterReview();
+      },
+    });
+  };
+
   const onSend = async () => {
     const text = chatInput.trim();
     if (!text || chatSending) {
@@ -1685,6 +1770,15 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
                   ),
                 )}
                 <span className="grow" />
+                <button
+                  type="button"
+                  className="btn"
+                  onClick={openReviewConfirm}
+                  disabled={reviewing || !hasValidActiveChapter}
+                >
+                  <Check size={15} strokeWidth={2} />
+                  {reviewing ? `质检中 ${reviewElapsedSeconds}s` : "一键质检"}
+                </button>
                 <button type="button" className="btn" onClick={toggleFocusMode}>
                   {focusMode ? <Minimize2 size={15} strokeWidth={2} /> : <Maximize2 size={15} strokeWidth={2} />}
                   {focusMode ? "退出专注" : "专注模式"}
@@ -2245,7 +2339,96 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
         onCancel={closeConfirm}
       />
     ) : null}
+    {reviewing || reviewReports || reviewError ? (
+      <ReviewReportModal
+        reviewing={reviewing}
+        elapsedSeconds={reviewElapsedSeconds}
+        reports={reviewReports}
+        error={reviewError}
+        onClose={() => {
+          if (!reviewing) {
+            setReviewReports(null);
+            setReviewError(null);
+          }
+        }}
+      />
+    ) : null}
     </>
+  );
+}
+
+function ReviewReportModal({
+  reviewing,
+  elapsedSeconds,
+  reports,
+  error,
+  onClose,
+}: {
+  reviewing: boolean;
+  elapsedSeconds: number;
+  reports: DirectorReviewReport[] | null;
+  error: string | null;
+  onClose(): void;
+}) {
+  const successCount = reports?.filter((report) => report.status === "success").length ?? 0;
+  const failedCount = reports?.filter((report) => report.status === "failed").length ?? 0;
+
+  return (
+    <div className="vault-modal-backdrop" onMouseDown={reviewing ? undefined : onClose}>
+      <div className="vault-modal review-report-modal" role="dialog" aria-modal="true" onMouseDown={(event) => event.stopPropagation()}>
+        <div className="review-report-head">
+          <div>
+            <h2>章节质检报告</h2>
+            <p>本报告只用于检查问题，不会修改正文。</p>
+          </div>
+          <button type="button" className="btn-icon" onClick={onClose} disabled={reviewing} aria-label="关闭">
+            <X size={16} strokeWidth={2} />
+          </button>
+        </div>
+
+        {reviewing ? (
+          <div className="review-running-card">
+            <RefreshCw size={17} strokeWidth={2} className="spin-icon" />
+            <span>检查类 Agent 正在串行质检…（已用 {elapsedSeconds} 秒）</span>
+          </div>
+        ) : null}
+
+        {error ? <div className="err-card">{error}</div> : null}
+
+        {reports ? (
+          <>
+            <div className="tag-row review-report-summary">
+              <span className="tag primary">完成 {successCount}</span>
+              {failedCount > 0 ? <span className="tag">失败 {failedCount}</span> : null}
+              <span className="tag">只查不改</span>
+            </div>
+            <div className="review-report-list">
+              {reports.map((report) => (
+                <section className={`review-report-card ${report.status}`} key={report.agentId}>
+                  <div className="review-report-card-head">
+                    <div>
+                      <strong>{report.agentName}</strong>
+                      <span>{report.agentId}</span>
+                    </div>
+                    <span className={report.status === "success" ? "tag primary" : "tag"}>
+                      {report.status === "success" ? "已完成" : "检查失败"}
+                    </span>
+                  </div>
+                  {report.modelId ? <div className="mini-card-sub">模型：{report.modelId}</div> : null}
+                  <pre className="review-report-text">{report.text || "未发现问题"}</pre>
+                </section>
+              ))}
+            </div>
+          </>
+        ) : null}
+
+        <div className="vault-modal-actions">
+          <button type="button" className="btn btn-primary" onClick={onClose} disabled={reviewing}>
+            关闭
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 

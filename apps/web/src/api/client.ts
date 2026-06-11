@@ -240,6 +240,22 @@ export interface DirectorExecuteResponse {
   modelId: string;
   newContent: string;
 }
+export interface DirectorReviewPayload {
+  projectId?: string;
+  novelId?: string;
+  chapterId?: string;
+  currentContent?: string;
+}
+export interface DirectorReviewReport {
+  agentId: string;
+  agentName: string;
+  status: "success" | "failed";
+  modelId?: string;
+  text: string;
+}
+export interface DirectorReviewResponse {
+  reports: DirectorReviewReport[];
+}
 export interface AssistCharacterField {
   group: string;
   key: string;
@@ -760,6 +776,8 @@ export const api = {
     post<DirectorChatResponse>("/director/chat", payload),
   executeDirectorTask: async (payload: DirectorExecutePayload): Promise<DirectorExecuteResponse> =>
     post<DirectorExecuteResponse>("/director/execute", payload),
+  reviewChapter: async (payload: DirectorReviewPayload): Promise<DirectorReviewResponse> =>
+    post<DirectorReviewResponse>("/director/review", payload),
   assistCharacter: async (payload: AssistCharacterPayload): Promise<AssistCharacterResponse> =>
     post<AssistCharacterResponse>("/assist/character", payload),
   assistWorldbook: async (payload: AssistWorldbookPayload): Promise<AssistWorldbookResponse> =>

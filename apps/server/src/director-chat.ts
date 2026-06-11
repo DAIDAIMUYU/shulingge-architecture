@@ -6,6 +6,7 @@ import { readJsonFile } from "@shulingge/vault-core";
 import { getAgent, listAgents } from "./agents.js";
 import { loadEditorChapter } from "./editor.js";
 import { createHttpError } from "./errors.js";
+import { listCharacters, listRelations, listTimelineEvents, listWorldbookEntries } from "./knowledge.js";
 import { listModels } from "./models.js";
 
 const MAX_CONTEXT_CHARS = 12_000;
@@ -55,6 +56,25 @@ export interface DirectorExecuteResponse {
   agentName: string;
   modelId: string;
   newContent: string;
+}
+
+export interface DirectorReviewInput {
+  projectId?: string;
+  novelId?: string;
+  chapterId?: string;
+  currentContent?: string;
+}
+
+export interface DirectorReviewReport {
+  agentId: string;
+  agentName: string;
+  status: "success" | "failed";
+  modelId?: string;
+  text: string;
+}
+
+export interface DirectorReviewResponse {
+  reports: DirectorReviewReport[];
 }
 
 export interface DirectorChatOptions {
@@ -210,6 +230,12 @@ function cleanGeneratedManuscript(raw: string): string {
   return stripCodeFence(raw)
     .replace(/^以下是(?:修改|改写|润色|续写)后的(?:完整)?正文[:：]\s*/i, "")
     .replace(/^修改后的(?:完整)?正文[:：]\s*/i, "")
+    .trim();
+}
+
+function cleanReviewText(raw: string): string {
+  return stripCodeFence(raw)
+    .replace(/^检查报告[:：]\s*/i, "")
     .trim();
 }
 
@@ -432,4 +458,150 @@ export async function executeDirectorTask(
       `Agent 执行失败：${error instanceof Error ? error.message : String(error)}`,
     );
   }
+}
+
+function clipJsonContext(value: unknown, maxChars = 18_000): string {
+  const text = JSON.stringify(value, null, 2);
+  if (text.length <= maxChars) {
+    return text;
+  }
+
+  return `${text.slice(0, maxChars)}\n...【资料过长，已截取前 ${maxChars.toLocaleString("zh-CN")} 字】`;
+}
+
+function shouldIncludeScope(agent: Agent, scope: string): boolean {
+  if (!agent.readScope.length) {
+    return true;
+  }
+  return agent.readScope.includes(scope);
+}
+
+async function buildReviewKnowledgeContext(vaultRoot: string, projectId: string, agent: Agent): Promise<string> {
+  const [characters, worldbook, relations, timeline] = await Promise.all([
+    shouldIncludeScope(agent, "characters") || shouldIncludeScope(agent, "character") ? listCharacters(vaultRoot, { projectId }) : Promise.resolve([]),
+    shouldIncludeScope(agent, "worldbook") ? listWorldbookEntries(vaultRoot, { projectId }) : Promise.resolve([]),
+    shouldIncludeScope(agent, "relations") || shouldIncludeScope(agent, "relation") ? listRelations(vaultRoot, { projectId }) : Promise.resolve([]),
+    shouldIncludeScope(agent, "timeline") ? listTimelineEvents(vaultRoot, { projectId }) : Promise.resolve([]),
+  ]);
+
+  return [
+    "【项目资料】",
+    "以下资料只用于检查，不得据此改写正文。",
+    "",
+    "【角色】",
+    clipJsonContext(characters),
+    "",
+    "【世界大纲】",
+    clipJsonContext(worldbook),
+    "",
+    "【关系】",
+    clipJsonContext(relations),
+    "",
+    "【时间线】",
+    clipJsonContext(timeline),
+  ].join("\n");
+}
+
+async function runReviewAgent(input: {
+  vaultRoot: string;
+  options: DirectorChatOptions;
+  agent: Agent;
+  currentContent: string;
+  knowledgeContext: string;
+}): Promise<DirectorReviewReport> {
+  try {
+    const { modelId, registry } = await resolveDirectorModel(input.vaultRoot, input.options, resolveAgentModelId(input.agent));
+    const messages: ChatMessage[] = [
+      {
+        role: "system",
+        content: [
+          `你是【${input.agent.name}】。`,
+          input.agent.description || "你是一名小说章节检查 Agent。",
+          "",
+          "你的任务是检查当前章节正文与项目资料之间的问题，只诊断，不改写。",
+          "绝对不要输出修改后的正文，不要重写段落，不要提供可直接替换的完整正文。",
+          "请输出清晰的中文检查报告：",
+          "1. 若发现问题，逐条列出：问题描述、涉及的正文位置或线索、原因、建议。",
+          "2. 若没有发现问题，明确写「未发现问题」。",
+          "3. 建议只能是人工修改建议，不要声称已经修改正文。",
+        ].join("\n"),
+      },
+      {
+        role: "user",
+        content: [
+          input.knowledgeContext,
+          "",
+          "【当前章节正文】",
+          clipContext(input.currentContent),
+          "",
+          "请开始检查，并只输出检查报告。",
+        ].join("\n"),
+      },
+    ];
+
+    const result = await registry.chat(modelId, {
+      messages,
+      stream: false,
+      jsonMode: false,
+      maxTokens: 4000,
+      temperature: 0.2,
+    });
+    const response = await result;
+    if (isAsyncIterable(response)) {
+      throw new Error("模型返回了流式响应，当前质检接口期望完整文本响应");
+    }
+
+    const text = cleanReviewText(response.content);
+    return {
+      agentId: input.agent.id,
+      agentName: input.agent.name,
+      status: "success",
+      modelId,
+      text: text || "未发现问题",
+    };
+  } catch (error) {
+    return {
+      agentId: input.agent.id,
+      agentName: input.agent.name,
+      status: "failed",
+      text: `检查失败：${error instanceof Error ? error.message : String(error)}`,
+    };
+  }
+}
+
+export async function reviewChapterWithDirector(
+  vaultRoot: string,
+  input: DirectorReviewInput,
+  options: DirectorChatOptions,
+): Promise<DirectorReviewResponse> {
+  if (!input.projectId) {
+    throw createHttpError(400, "DIRECTOR_REVIEW_PROJECT_REQUIRED", "缺少项目 ID");
+  }
+
+  const currentContent = await readChapterContent(vaultRoot, input);
+  if (!currentContent.trim()) {
+    throw createHttpError(400, "DIRECTOR_REVIEW_CONTENT_REQUIRED", "请先打开有正文的章节");
+  }
+
+  const reviewAgents = (await listAgents(vaultRoot))
+    .filter((agent) => agent.enabled && (agent.type === "checker" || agent.type === "blocker"))
+    .sort((left, right) => left.order - right.order || left.id.localeCompare(right.id));
+
+  if (reviewAgents.length === 0) {
+    throw createHttpError(400, "DIRECTOR_REVIEW_NO_AGENTS", "当前没有启用的检查类 Agent，请先在 Agent 管理页启用 checker 或 blocker 类型 Agent");
+  }
+
+  const reports: DirectorReviewReport[] = [];
+  for (const agent of reviewAgents) {
+    const knowledgeContext = await buildReviewKnowledgeContext(vaultRoot, input.projectId, agent);
+    reports.push(await runReviewAgent({
+      vaultRoot,
+      options,
+      agent,
+      currentContent,
+      knowledgeContext,
+    }));
+  }
+
+  return { reports };
 }

@@ -272,6 +272,18 @@ input, textarea { font-family: inherit; }
 .task-confirm-meta { display: flex; justify-content: space-between; gap: 10px; margin-top: 8px; color: var(--text-muted); font-size: 12px; }
 .task-confirm-actions { display: flex; gap: 8px; margin-top: 12px; }
 .task-confirm-actions .btn { height: 30px; padding: 0 10px; font-size: 12px; }
+.review-report-modal { width: min(760px, 100%); max-height: min(760px, calc(100vh - 48px)); overflow: auto; }
+.review-report-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; margin-bottom: 14px; }
+.review-report-head p { margin-bottom: 0; }
+.review-running-card { display: flex; align-items: center; gap: 10px; padding: 12px 14px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--bg-panel); color: var(--text-secondary); }
+.review-report-summary { margin: 12px 0; }
+.review-report-list { display: grid; gap: 12px; }
+.review-report-card { padding: 14px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--bg-panel); }
+.review-report-card.failed { border-color: color-mix(in srgb, var(--danger) 36%, var(--border)); background: color-mix(in srgb, var(--danger) 6%, var(--bg-panel)); }
+.review-report-card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 8px; }
+.review-report-card-head strong { display: block; color: var(--text-primary); }
+.review-report-card-head span { font-size: 12px; color: var(--text-muted); }
+.review-report-text { margin: 10px 0 0; white-space: pre-wrap; word-break: break-word; font: inherit; line-height: 1.75; color: var(--text-primary); }
 
 /* 对话内的 Agent 执行卡片 */
 .run-inline { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 14px; margin-left: 38px; box-shadow: var(--shadow-card); }
