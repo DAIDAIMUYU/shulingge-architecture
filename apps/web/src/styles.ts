@@ -517,6 +517,14 @@ input, textarea { font-family: inherit; }
 .character-custom-row { display: grid; grid-template-columns: minmax(120px, 180px) minmax(0, 1fr) 32px; gap: 8px; align-items: center; }
 .character-add-custom { justify-self: start; padding-left: 0; }
 .character-avatar-large { aspect-ratio: 3 / 4; }
+.character-assist-modal { width: min(620px, 100%); display: grid; gap: 16px; }
+.character-assist-mode { display: inline-flex; width: fit-content; gap: 3px; padding: 3px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--bg-panel); }
+.character-assist-mode button { height: 30px; padding: 0 14px; border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--text-secondary); cursor: pointer; transition: background .16s ease, color .16s ease; }
+.character-assist-mode button:hover { background: var(--bg-hover); color: var(--text-primary); }
+.character-assist-mode button.active { background: var(--primary-light); color: var(--primary); font-weight: 600; }
+.character-assist-prompt { min-height: 120px; }
+.character-assist-note { padding: 10px 12px; border: 1px solid color-mix(in srgb, var(--warning) 38%, var(--border)); border-radius: var(--radius-sm); background: color-mix(in srgb, var(--warning) 10%, var(--bg-card)); color: var(--text-secondary); font-size: 12px; line-height: 1.6; }
+.character-assist-success { margin: 0 0 14px; padding: 11px 14px; border: 1px solid color-mix(in srgb, var(--agent-done) 42%, var(--border)); border-radius: var(--radius-sm); background: color-mix(in srgb, var(--agent-done) 12%, var(--bg-card)); color: var(--agent-done); font-size: 13px; }
 .worldbook-origin-tabs { display: inline-flex; gap: 4px; margin: 0 0 18px; padding: 3px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--bg-card); }
 .worldbook-origin-tabs button { height: 32px; padding: 0 14px; border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--text-secondary); font-size: 13px; cursor: pointer; transition: background .16s ease, color .16s ease; }
 .worldbook-origin-tabs button:hover { background: var(--bg-hover); color: var(--text-primary); }

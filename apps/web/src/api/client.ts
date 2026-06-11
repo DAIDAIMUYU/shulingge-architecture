@@ -240,6 +240,23 @@ export interface DirectorExecuteResponse {
   modelId: string;
   newContent: string;
 }
+export interface AssistCharacterField {
+  group: string;
+  key: string;
+  label: string;
+}
+export interface AssistCharacterPayload {
+  mode: "original" | "fanfic";
+  userPrompt: string;
+  template?: string;
+  projectId?: string;
+  fields: AssistCharacterField[];
+  existingValues: Record<string, string>;
+}
+export interface AssistCharacterResponse {
+  modelId: string;
+  fields: Record<string, string>;
+}
 export interface TextRange {
   start: number;
   end: number;
@@ -627,6 +644,8 @@ export const api = {
     post<DirectorChatResponse>("/director/chat", payload),
   executeDirectorTask: async (payload: DirectorExecutePayload): Promise<DirectorExecuteResponse> =>
     post<DirectorExecuteResponse>("/director/execute", payload),
+  assistCharacter: async (payload: AssistCharacterPayload): Promise<AssistCharacterResponse> =>
+    post<AssistCharacterResponse>("/assist/character", payload),
 
   listProjects: async (): Promise<ProjectSummary[]> =>
     unwrapList<ProjectSummary>(await get("/projects"), "projects"),

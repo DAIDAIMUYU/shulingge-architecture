@@ -105,6 +105,7 @@ import { executeSkill } from "./skills.js";
 import { invokePluginHook, listPlugins, registerPlugin, updatePluginState } from "./plugins.js";
 import { createCollaborationSession, listCollaborationSessions, updateCollaborationSession } from "./collaboration.js";
 import { buildRelationReplay } from "./graph-replay.js";
+import { assistCharacter } from "./assist-character.js";
 import { listThemeCommunity, publishThemeCommunityEntry } from "./theme-market.js";
 import {
   applyDownloadedUpdate,
@@ -380,6 +381,18 @@ export const routeDefinitions: RouteDefinition[] = [
     async handler(request, context) {
       const vaultRoot = requireVaultRoot(context);
       return await executeDirectorTask(
+        vaultRoot,
+        (request.body as Record<string, unknown> | undefined) ?? {},
+        getModelOptions(context),
+      );
+    },
+  },
+  {
+    method: "POST",
+    path: "/api/v1/assist/character",
+    async handler(request, context) {
+      const vaultRoot = requireVaultRoot(context);
+      return await assistCharacter(
         vaultRoot,
         (request.body as Record<string, unknown> | undefined) ?? {},
         getModelOptions(context),

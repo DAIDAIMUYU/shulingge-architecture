@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useState } from "react";
-import { ChevronDown, ChevronRight, Image, LayoutGrid, List, Plus, Save, Search, Trash2, UserRound, X } from "lucide-react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { ChevronDown, ChevronRight, Image, LayoutGrid, List, Plus, Save, Search, Sparkles, Trash2, UserRound, X } from "lucide-react";
 
 import {
   api,
   ApiError,
+  type AssistCharacterField,
   type Character,
   type CharacterInput,
   type CharacterProfile,
@@ -16,6 +17,7 @@ import { ProjectSelector } from "./ProjectSelector.js";
 
 type CharacterViewMode = "card" | "list";
 type EditorMode = "create" | "edit";
+type AssistMode = "original" | "fanfic";
 
 interface CharacterField {
   key: string;
@@ -32,6 +34,10 @@ interface CharacterGroupDefinition {
   title: string;
   simpleTitle?: string;
   subsections: CharacterSubsection[];
+}
+
+interface CharacterAssistField extends AssistCharacterField {
+  custom?: boolean;
 }
 
 const DEFAULT_PROJECT_ID = "demo-series";
@@ -381,6 +387,97 @@ function normalizeProfile(profile?: CharacterProfile, template: CharacterProfile
   };
 }
 
+function collectAssistFields(profile: CharacterProfile): CharacterAssistField[] {
+  const detailed = profile.template === "detailed";
+  const fields: CharacterAssistField[] = [];
+
+  for (const group of GROUP_DEFINITIONS) {
+    const allowed = detailed ? null : new Set(SIMPLE_FIELDS[group.id] ?? []);
+    for (const subsection of group.subsections) {
+      for (const field of subsection.fields) {
+        if (!allowed || allowed.has(field.key)) {
+          fields.push({
+            group: group.simpleTitle ?? group.title,
+            key: field.key,
+            label: field.label,
+          });
+        }
+      }
+    }
+
+    for (const row of profile.custom?.[group.id] ?? []) {
+      const label = row.label?.trim();
+      if (label) {
+        fields.push({
+          group: group.simpleTitle ?? group.title,
+          key: label,
+          label,
+          custom: true,
+        });
+      }
+    }
+  }
+
+  return fields;
+}
+
+function collectExistingValues(profile: CharacterProfile, fields: CharacterAssistField[]): Record<string, string> {
+  const values: Record<string, string> = {};
+  for (const field of fields) {
+    if (field.custom) {
+      const rows = profile.custom?.[GROUP_DEFINITIONS.find((group) => (group.simpleTitle ?? group.title) === field.group)?.id ?? "basic"] ?? [];
+      const row = rows.find((item) => item.label?.trim() === field.label);
+      values[field.key] = row?.value?.trim() ?? "";
+      continue;
+    }
+
+    const groupId = GROUP_DEFINITIONS.find((group) =>
+      group.subsections.some((section) => section.fields.some((item) => item.key === field.key)),
+    )?.id;
+    values[field.key] = groupId ? profile[groupId]?.[field.key]?.trim() ?? "" : "";
+  }
+  return values;
+}
+
+function mergeAssistFields(profile: CharacterProfile, fields: CharacterAssistField[], generated: Record<string, string>): CharacterProfile {
+  let next = normalizeProfile(profile);
+
+  for (const field of fields) {
+    const generatedValue = (generated[field.key] ?? generated[field.label])?.trim();
+    if (!generatedValue) {
+      continue;
+    }
+
+    const groupDefinition = GROUP_DEFINITIONS.find((group) => (group.simpleTitle ?? group.title) === field.group);
+    if (!groupDefinition) {
+      continue;
+    }
+
+    if (field.custom) {
+      const rows = [...(next.custom?.[groupDefinition.id] ?? [])];
+      const rowIndex = rows.findIndex((row) => row.label?.trim() === field.label);
+      if (rowIndex >= 0 && !rows[rowIndex].value?.trim()) {
+        rows[rowIndex] = { ...rows[rowIndex], value: generatedValue };
+        next = { ...next, custom: { ...next.custom, [groupDefinition.id]: rows } };
+      }
+      continue;
+    }
+
+    const currentValue = next[groupDefinition.id]?.[field.key]?.trim();
+    if (!currentValue) {
+      next = {
+        ...next,
+        [groupDefinition.id]: {
+          ...(next[groupDefinition.id] ?? {}),
+          [field.key]: generatedValue,
+        },
+      };
+    }
+  }
+
+  return next;
+}
+
 function slugify(value: string): string {
   const ascii = value
     .trim()
@@ -448,6 +545,89 @@ function TemplateChooser({
   );
 }
 
+function CharacterAssistModal({
+  loading,
+  error,
+  onCancel,
+  onSubmit,
+}: {
+  loading: boolean;
+  error: string | null;
+  onCancel(): void;
+  onSubmit(mode: AssistMode, userPrompt: string): void;
+}) {
+  const [mode, setMode] = useState<AssistMode>("original");
+  const [userPrompt, setUserPrompt] = useState("");
+
+  const submit = (event: FormEvent) => {
+    event.preventDefault();
+    const prompt = userPrompt.trim();
+    if (!prompt || loading) {
+      return;
+    }
+    onSubmit(mode, prompt);
+  };
+
+  return (
+    <div
+      className="vault-modal-backdrop"
+      onMouseDown={(event) => {
+        event.stopPropagation();
+        if (!loading) {
+          onCancel();
+        }
+      }}
+    >
+      <form className="vault-modal character-assist-modal" onSubmit={submit} onMouseDown={(event) => event.stopPropagation()}>
+        <div className="character-modal-head compact">
+          <div>
+            <h2>AI 辅助填充</h2>
+            <p>AI 会读取当前模板字段和你添加的自定义字段，只把生成内容填进空字段，保存前仍可修改。</p>
+          </div>
+          <button type="button" className="btn-icon" onClick={onCancel} disabled={loading} aria-label="关闭">
+            <X size={16} />
+          </button>
+        </div>
+
+        <div className="character-assist-mode">
+          <button type="button" className={mode === "original" ? "active" : ""} onClick={() => setMode("original")} disabled={loading}>
+            原创
+          </button>
+          <button type="button" className={mode === "fanfic" ? "active" : ""} onClick={() => setMode("fanfic")} disabled={loading}>
+            同人
+          </button>
+        </div>
+
+        <label className="form-block">
+          <span>{mode === "fanfic" ? "角色名 + 来源作品" : "想要一个什么样的角色"}</span>
+          <textarea
+            className="textarea character-assist-prompt"
+            value={userPrompt}
+            placeholder={mode === "fanfic" ? "例如：蝴蝶香奈惠，鬼灭之刃" : "例如：温柔但危险的药师，背负家族旧债，擅长用谎言保护别人"}
+            onChange={(event) => setUserPrompt(event.target.value)}
+            disabled={loading}
+          />
+        </label>
+
+        {mode === "fanfic" ? (
+          <div className="character-assist-note">同人资料由 AI 依据其训练知识生成，可能不准确；不确定的字段会尽量留空，请自行核对。</div>
+        ) : null}
+        {error ? <div className="err-card">{error}</div> : null}
+
+        <div className="vault-modal-actions">
+          <button type="button" className="btn btn-ghost" onClick={onCancel} disabled={loading}>
+            取消
+          </button>
+          <button type="submit" className="btn btn-primary" disabled={loading || !userPrompt.trim()}>
+            <Sparkles size={15} />
+            {loading ? "生成中..." : "开始填充"}
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
 function AvatarView({ character, large = false }: { character: Character; large?: boolean }) {
   const avatarPath = character.profile?.avatarPath?.trim();
   return (
@@ -458,6 +638,7 @@ function AvatarView({ character, large = false }: { character: Character; large?
 }
 
 function CharacterEditor({
+  projectId,
   mode,
   value,
   saving,
@@ -466,6 +647,7 @@ function CharacterEditor({
   onCancel,
   onSubmit,
 }: {
+  projectId: string;
   mode: EditorMode;
   value: CharacterInput;
   saving: boolean;
@@ -476,6 +658,10 @@ function CharacterEditor({
 }) {
   const profile = normalizeProfile(value.profile);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  const [assistOpen, setAssistOpen] = useState(false);
+  const [assistLoading, setAssistLoading] = useState(false);
+  const [assistError, setAssistError] = useState<string | null>(null);
+  const [assistNotice, setAssistNotice] = useState<string | null>(null);
   const isDetailed = profile.template === "detailed";
 
   const updateProfile = (nextProfile: CharacterProfile) => {
@@ -569,6 +755,39 @@ function CharacterEditor({
       </div>
     );
   };
+  const runAssist = async (assistMode: AssistMode, userPrompt: string) => {
+    const fields = collectAssistFields(profile);
+    if (!fields.length) {
+      setAssistError("当前没有可填充的字段。");
+      return;
+    }
+
+    setAssistLoading(true);
+    setAssistError(null);
+    setAssistNotice(null);
+    try {
+      const response = await api.assistCharacter({
+        mode: assistMode,
+        userPrompt,
+        template: profile.template,
+        projectId,
+        fields: fields.map(({ group, key, label }) => ({ group, key, label })),
+        existingValues: collectExistingValues(profile, fields),
+      });
+      const nextProfile = mergeAssistFields(profile, fields, response.fields);
+      onChange({ ...value, profile: nextProfile });
+      setAssistOpen(false);
+      setAssistNotice(
+        assistMode === "fanfic"
+          ? "AI 已填入空字段。同人资料可能不准确，请核对后再保存。"
+          : "AI 已填入空字段，请检查后再保存角色。",
+      );
+    } catch (assistErrorValue) {
+      setAssistError(assistErrorValue instanceof ApiError ? assistErrorValue.message : "AI 辅助填充失败");
+    } finally {
+      setAssistLoading(false);
+    }
+  };
 
   return (
     <div className="vault-modal-backdrop character-modal-backdrop" onMouseDown={onCancel}>
@@ -584,6 +803,7 @@ function CharacterEditor({
         </div>
         <div className="character-modal-body">
           {error ? <div className="err-card">保存失败：{error}</div> : null}
+          {assistNotice ? <div className="character-assist-success">{assistNotice}</div> : null}
           <section className="character-editor-top">
             <div className="character-avatar-uploader">
               {isLikelyImagePath(profile.avatarPath) ? <img src={profile.avatarPath} alt="" /> : <Image size={28} />}
@@ -636,6 +856,18 @@ function CharacterEditor({
           )}
         </div>
         <div className="agent-modal-actions view-actions">
+          <button
+            type="button"
+            className="btn"
+            onClick={() => {
+              setAssistOpen(true);
+              setAssistError(null);
+            }}
+          >
+            <Sparkles size={15} />
+            AI 辅助填充
+          </button>
+          <span className="grow" />
           <button type="button" className="btn btn-ghost" onClick={onCancel}>
             取消
           </button>
@@ -645,6 +877,21 @@ function CharacterEditor({
           </button>
         </div>
       </div>
+      {assistOpen ? (
+        <CharacterAssistModal
+          loading={assistLoading}
+          error={assistError}
+          onCancel={() => {
+            if (!assistLoading) {
+              setAssistOpen(false);
+              setAssistError(null);
+            }
+          }}
+          onSubmit={(nextMode, userPrompt) => {
+            void runAssist(nextMode, userPrompt);
+          }}
+        />
+      ) : null}
     </div>
   );
 }
@@ -879,6 +1126,7 @@ export function CharactersView() {
       {templateChoosing ? <TemplateChooser onChoose={startCreate} onCancel={() => setTemplateChoosing(false)} /> : null}
       {editorMode && draft ? (
         <CharacterEditor
+          projectId={projectId}
           mode={editorMode}
           value={draft}
           saving={saving}
