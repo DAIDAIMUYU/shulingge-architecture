@@ -105,6 +105,7 @@ input, textarea { font-family: inherit; }
 .btn-icon { width: 32px; height: 32px; padding: 0; border: 0; background: transparent; color: var(--text-secondary); border-radius: var(--radius-sm); display: grid; place-items: center; transition: background .16s ease, color .16s ease; }
 .btn-icon:hover { background: var(--bg-hover); color: var(--text-primary); }
 .btn-icon.active { background: var(--primary-light); color: var(--primary); }
+.btn-icon.danger:hover { background: rgba(169,68,66,.10); color: var(--danger); }
 .btn:disabled { opacity: .45; cursor: not-allowed; }
 .input { height: 34px; padding: 0 12px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--bg-card); color: var(--text-primary); font-size: 13px; transition: border-color .16s ease, box-shadow .16s ease; outline: none; }
 .input:focus { border-color: var(--primary); box-shadow: 0 0 0 2px var(--primary-light); }
@@ -389,6 +390,13 @@ input, textarea { font-family: inherit; }
 .model-editor-section-title { font-size: 13px; font-weight: 600; color: var(--text-secondary); }
 .model-key-row { display: flex; align-items: end; gap: 10px; flex-wrap: wrap; }
 .model-key-input { flex: 1 1 320px; min-width: 220px; }
+.model-feedback { margin-top: 16px; display: flex; align-items: center; gap: 8px; padding: 12px 14px; border-radius: var(--radius-sm); border: 1px solid var(--border); font-size: 13px; font-weight: 500; }
+.model-feedback-info { background: var(--bg-panel); color: var(--text-secondary); }
+.model-feedback-success { background: color-mix(in srgb, var(--agent-done) 14%, var(--bg-card)); border-color: color-mix(in srgb, var(--agent-done) 42%, var(--border)); color: var(--agent-done); }
+.model-feedback-error { background: color-mix(in srgb, var(--danger) 12%, var(--bg-card)); border-color: color-mix(in srgb, var(--danger) 42%, var(--border)); color: var(--danger); }
+.model-list-row { cursor: pointer; }
+.model-row-actions { display: inline-flex; align-items: center; gap: 4px; margin-left: auto; opacity: .62; transition: opacity .16s ease; }
+.model-list-row:hover .model-row-actions, .model-list-row:focus-within .model-row-actions { opacity: 1; }
 .model-advanced { margin-top: 16px; border-top: 1px solid var(--border); padding-top: 12px; }
 .model-advanced-toggle { display: inline-flex; align-items: center; gap: 6px; border: 0; background: transparent; color: var(--text-secondary); font-size: 13px; cursor: pointer; padding: 4px 0; }
 .model-advanced-toggle:hover { color: var(--text-primary); }

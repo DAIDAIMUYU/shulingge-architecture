@@ -1,4 +1,4 @@
-import { readdir } from "node:fs/promises";
+import { readdir, rm } from "node:fs/promises";
 import path from "node:path";
 
 import { ProviderRegistry, type ProviderEndpointConfig } from "@shulingge/provider-adapters";
@@ -197,6 +197,28 @@ export async function updateModel(
   const next = normalizeModelConfig({ ...input, id: modelId }, current);
   await writeJsonFile(vaultRoot, getModelRelativePath(modelId), next);
   return toPublicModel(next, await getHasKey(options.credentialService, next.keyRef));
+}
+
+export async function deleteModel(
+  vaultRoot: string,
+  modelId: string,
+  options: ModelStoreOptions,
+): Promise<{ deleted: true; modelId: string }> {
+  const current = await readJsonFile<ModelConfig>(vaultRoot, getModelRelativePath(modelId)).catch(() => null);
+  if (!current) {
+    throw createHttpError(404, "MODELS_NOT_FOUND", `未找到模型配置：${modelId}`);
+  }
+
+  await rm(resolveSafePath(vaultRoot, getModelRelativePath(modelId)), { force: true });
+
+  if (current.keyRef) {
+    await options.credentialService.deleteApiKey(current.keyRef).catch(() => false);
+  }
+
+  return {
+    deleted: true,
+    modelId,
+  };
 }
 
 export async function storeModelApiKey(

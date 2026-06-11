@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   Bot,
+  AlertCircle,
   CheckCircle2,
   ChevronDown,
   ChevronRight,
   CloudOff,
+  Pencil,
   Keyboard,
   KeyRound,
   Languages,
@@ -12,6 +14,7 @@ import {
   RefreshCw,
   ServerCog,
   TimerReset,
+  Trash2,
 } from "lucide-react";
 
 import {
@@ -103,6 +106,13 @@ interface ModelDraft {
   jsonMode: boolean;
 }
 
+type FeedbackKind = "info" | "success" | "error";
+
+interface FeedbackState {
+  kind: FeedbackKind;
+  message: string;
+}
+
 function currentTheme(): "light" | "dark" {
   if (typeof document === "undefined") {
     return "light";
@@ -188,7 +198,7 @@ function ModelEditor({
   setApiKey: (value: string) => void;
   onTest: () => void;
   testing: boolean;
-  feedback: string | null;
+  feedback: FeedbackState | null;
   mode: "create" | "edit";
   hasKey: boolean;
   vaultReady: boolean;
@@ -217,7 +227,12 @@ function ModelEditor({
       </div>
 
       {!vaultReady ? <div className="inspector-feedback">请先在设置页或弹窗选择资料库，再配置模型。</div> : null}
-      {feedback ? <div className="inspector-feedback">{feedback}</div> : null}
+      {feedback ? (
+        <div className={`model-feedback model-feedback-${feedback.kind}`}>
+          {feedback.kind === "success" ? <CheckCircle2 size={16} /> : feedback.kind === "error" ? <AlertCircle size={16} /> : null}
+          <span>{feedback.message}</span>
+        </div>
+      ) : null}
 
       <div className="model-editor-section">
         <div className="model-editor-section-title">基础配置</div>
@@ -738,10 +753,11 @@ export function SettingsView({ vaultPath, onSetVault, onClearVault }: SettingsVi
   const [modelDraft, setModelDraft] = useState<ModelDraft>(createModelDraft());
   const [modelMode, setModelMode] = useState<"create" | "edit">("create");
   const [modelsLoading, setModelsLoading] = useState(false);
-  const [modelFeedback, setModelFeedback] = useState<string | null>(null);
+  const [modelFeedback, setModelFeedback] = useState<FeedbackState | null>(null);
   const [savingModel, setSavingModel] = useState(false);
   const [apiKey, setApiKey] = useState("");
   const [testingModel, setTestingModel] = useState(false);
+  const [modelToDelete, setModelToDelete] = useState<ModelConfig | null>(null);
 
   const [agents, setAgents] = useState<AgentInfo[]>([]);
   const [agentsLoading, setAgentsLoading] = useState(false);
@@ -768,9 +784,9 @@ export function SettingsView({ vaultPath, onSetVault, onClearVault }: SettingsVi
     try {
       const list = await api.listModels();
       setModels(list);
-      setSelectedModelId((current) => current && list.some((model) => model.id === current) ? current : list[0]?.id ?? null);
+      setSelectedModelId((current) => current && list.some((model) => model.id === current) ? current : null);
     } catch (error) {
-      setModelFeedback(error instanceof ApiError ? error.message : "模型加载失败");
+      setModelFeedback({ kind: "error", message: error instanceof ApiError ? error.message : "模型加载失败" });
     } finally {
       setModelsLoading(false);
     }
@@ -857,15 +873,21 @@ export function SettingsView({ vaultPath, onSetVault, onClearVault }: SettingsVi
     setModelMode("edit");
   }, [selectedModel]);
 
-  async function saveModelDraftWithOptionalKey(): Promise<ModelConfig> {
+  function resetModelEditor(): void {
+    setSelectedModelId(null);
+    setModelDraft(createModelDraft());
+    setModelMode("create");
+    setApiKey("");
+  }
+
+  async function saveModelDraftWithOptionalKey(): Promise<{ saved: ModelConfig; wasCreate: boolean }> {
     const payload = toModelPayload(modelDraft);
     if (!payload.id || !payload.provider || !payload.model) {
       throw new Error("请先填写配置 ID、服务商和模型名");
     }
 
-    const saved = modelMode === "create" || !selectedModel
-      ? await api.createModel(payload)
-      : await api.updateModel(selectedModel.id, payload);
+    const wasCreate = modelMode === "create" || !selectedModel;
+    const saved = wasCreate ? await api.createModel(payload) : await api.updateModel(selectedModel.id, payload);
 
     if (apiKey.trim()) {
       await api.storeModelApiKey(saved.id, apiKey.trim());
@@ -873,8 +895,12 @@ export function SettingsView({ vaultPath, onSetVault, onClearVault }: SettingsVi
     }
 
     await loadModels();
-    setSelectedModelId(saved.id);
-    return saved;
+    if (wasCreate) {
+      resetModelEditor();
+    } else {
+      setSelectedModelId(saved.id);
+    }
+    return { saved, wasCreate };
   }
 
   return (
@@ -958,9 +984,7 @@ export function SettingsView({ vaultPath, onSetVault, onClearVault }: SettingsVi
                         type="button"
                         className="btn btn-primary"
                         onClick={() => {
-                          setSelectedModelId(null);
-                          setModelDraft(createModelDraft());
-                          setModelMode("create");
+                          resetModelEditor();
                           setModelFeedback(null);
                         }}
                       >
@@ -974,26 +998,61 @@ export function SettingsView({ vaultPath, onSetVault, onClearVault }: SettingsVi
                         <span className="col" style={{ width: 90 }}>Key</span>
                       </div>
                       {models.map((model) => (
-                        <button
-                          type="button"
-                          className={`list-row ${selectedModel?.id === model.id ? "active" : ""}`}
+                        <div
+                          className={`list-row model-list-row ${selectedModel?.id === model.id ? "active" : ""}`}
                           key={model.id}
+                          role="button"
+                          tabIndex={0}
                           onClick={() => {
                             setSelectedModelId(model.id);
                             setModelFeedback(null);
                           }}
+                          onKeyDown={(event) => {
+                            if (event.key === "Enter" || event.key === " ") {
+                              event.preventDefault();
+                              setSelectedModelId(model.id);
+                              setModelFeedback(null);
+                            }
+                          }}
                         >
-                        <span className="col col-grow">
-                          <div className="col-name">{model.id}</div>
-                          <div className="col-sub">{model.model ?? "未设置模型名"} · {model.baseUrl ?? "默认 API 地址"}</div>
-                        </span>
-                        <span className="col" style={{ width: 120 }}>
-                          <span className="tag">{PROVIDER_LABELS[String(model.provider ?? "")] ?? model.provider ?? "—"}</span>
-                        </span>
+                          <span className="col col-grow">
+                            <div className="col-name">{model.id}</div>
+                            <div className="col-sub">{model.model ?? "未设置模型名"} · {model.baseUrl ?? "默认 API 地址"}</div>
+                          </span>
+                          <span className="col" style={{ width: 120 }}>
+                            <span className="tag">{PROVIDER_LABELS[String(model.provider ?? "")] ?? model.provider ?? "—"}</span>
+                          </span>
                           <span className="col" style={{ width: 90 }}>
                             <span className={`tag ${model.hasKey ? "primary" : ""}`}>{model.hasKey ? "已存" : "缺失"}</span>
                           </span>
-                        </button>
+                          <span className="model-row-actions">
+                            <button
+                              type="button"
+                              className="btn-icon"
+                              title="编辑模型"
+                              aria-label={`编辑模型 ${model.id}`}
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                setSelectedModelId(model.id);
+                                setModelFeedback(null);
+                              }}
+                            >
+                              <Pencil size={15} />
+                            </button>
+                            <button
+                              type="button"
+                              className="btn-icon danger"
+                              title="删除模型"
+                              aria-label={`删除模型 ${model.id}`}
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                setModelToDelete(model);
+                              }}
+                            >
+                              <Trash2 size={15} />
+                            </button>
+                          </span>
+                        </div>
                       ))}
                     </div>
                   </div>
@@ -1007,16 +1066,23 @@ export function SettingsView({ vaultPath, onSetVault, onClearVault }: SettingsVi
                 onSubmit={() => {
                   void (async () => {
                     if (!vaultPath) {
-                      setModelFeedback("请先在设置页或弹窗选择资料库");
+                      setModelFeedback({ kind: "error", message: "请先在设置页或弹窗选择资料库" });
                       return;
                     }
                     setSavingModel(true);
                     setModelFeedback(null);
                     try {
-                      await saveModelDraftWithOptionalKey();
-                      setModelFeedback(apiKey.trim() ? "模型配置和 API Key 已保存" : "模型配置已保存");
+                      const { wasCreate } = await saveModelDraftWithOptionalKey();
+                      setModelFeedback({
+                        kind: "success",
+                        message: wasCreate
+                          ? "模型配置已保存，可以继续新建下一个"
+                          : apiKey.trim()
+                            ? "模型配置和 API Key 已保存"
+                            : "模型配置已保存",
+                      });
                     } catch (error) {
-                      setModelFeedback(error instanceof Error ? error.message : "模型保存失败");
+                      setModelFeedback({ kind: "error", message: error instanceof Error ? error.message : "模型保存失败" });
                     } finally {
                       setSavingModel(false);
                     }
@@ -1028,17 +1094,17 @@ export function SettingsView({ vaultPath, onSetVault, onClearVault }: SettingsVi
                 onTest={() => {
                   void (async () => {
                     if (!vaultPath) {
-                      setModelFeedback("请先在设置页或弹窗选择资料库");
+                      setModelFeedback({ kind: "error", message: "请先在设置页或弹窗选择资料库" });
                       return;
                     }
                     setTestingModel(true);
                     setModelFeedback(null);
                     try {
-                      const saved = await saveModelDraftWithOptionalKey();
+                      const { saved } = await saveModelDraftWithOptionalKey();
                       await api.testModelConnection(saved.id);
-                      setModelFeedback("连接成功，模型配置已保存");
+                      setModelFeedback({ kind: "success", message: "连接成功，配置已保存" });
                     } catch (error) {
-                      setModelFeedback(error instanceof Error ? error.message : "连通性测试失败");
+                      setModelFeedback({ kind: "error", message: error instanceof Error ? error.message : "连通性测试失败" });
                     } finally {
                       setTestingModel(false);
                     }
@@ -1184,6 +1250,32 @@ export function SettingsView({ vaultPath, onSetVault, onClearVault }: SettingsVi
           danger
           onConfirm={clearVault}
           onCancel={() => setConfirmClearVault(false)}
+        />
+      ) : null}
+      {modelToDelete ? (
+        <ConfirmModal
+          title="删除模型配置"
+          message={`确定删除模型配置「${modelToDelete.id}」吗？`}
+          confirmText="删除"
+          danger
+          onConfirm={() => {
+            void (async () => {
+              const deleting = modelToDelete;
+              setModelToDelete(null);
+              setModelFeedback(null);
+              try {
+                await api.deleteModel(deleting.id);
+                await loadModels();
+                if (selectedModelId === deleting.id) {
+                  resetModelEditor();
+                }
+                setModelFeedback({ kind: "success", message: `模型配置「${deleting.id}」已删除` });
+              } catch (error) {
+                setModelFeedback({ kind: "error", message: error instanceof Error ? error.message : "删除模型配置失败" });
+              }
+            })();
+          }}
+          onCancel={() => setModelToDelete(null)}
         />
       ) : null}
     </ViewShell>

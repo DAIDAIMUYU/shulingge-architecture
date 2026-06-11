@@ -29,6 +29,7 @@ import type { Rule } from "@shulingge/shared";
 import { initializeVault } from "@shulingge/vault-core";
 import {
   createModel,
+  deleteModel,
   getModel,
   listModels,
   storeModelApiKey,
@@ -1096,6 +1097,14 @@ export const routeDefinitions: RouteDefinition[] = [
           getModelOptions(context),
         ),
       };
+    },
+  },
+  {
+    method: "DELETE",
+    path: "/api/v1/models/:modelId",
+    async handler(request, context) {
+      const vaultRoot = requireVaultRoot(context);
+      return await deleteModel(vaultRoot, request.params.modelId, getModelOptions(context));
     },
   },
   {

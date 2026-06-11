@@ -46,6 +46,10 @@ const patch = <T>(path: string, payload?: unknown) =>
     method: "PATCH",
     body: payload === undefined ? undefined : JSON.stringify(payload),
   });
+const del = <T>(path: string) =>
+  request<T>(path, {
+    method: "DELETE",
+  });
 
 function withQuery(path: string, query: Record<string, string | null | undefined>): string {
   const params = new URLSearchParams();
@@ -588,6 +592,8 @@ export const api = {
     (await post<{ model: ModelConfig }>("/models", payload)).model,
   updateModel: async (modelId: string, payload: Partial<ModelConfigInput>): Promise<ModelConfig> =>
     (await patch<{ model: ModelConfig }>(`/models/${encodeURIComponent(modelId)}`, payload)).model,
+  deleteModel: async (modelId: string): Promise<{ deleted: true; modelId: string }> =>
+    del<{ deleted: true; modelId: string }>(`/models/${encodeURIComponent(modelId)}`),
   storeModelApiKey: async (modelId: string, apiKey: string): Promise<{ hasKey: boolean; keyRef?: string }> =>
     post<{ hasKey: boolean; keyRef?: string }>(`/models/${encodeURIComponent(modelId)}/key`, { apiKey }),
   testModelConnection: async (modelId: string): Promise<Record<string, unknown>> =>
