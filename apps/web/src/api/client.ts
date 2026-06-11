@@ -226,6 +226,20 @@ export interface DirectorChatResponse {
   reply?: string;
   task?: DirectorTaskSuggestion;
 }
+export interface DirectorExecutePayload {
+  agentId: string;
+  taskDescription: string;
+  projectId?: string;
+  novelId?: string;
+  chapterId?: string;
+  currentContent?: string;
+}
+export interface DirectorExecuteResponse {
+  agentId: string;
+  agentName: string;
+  modelId: string;
+  newContent: string;
+}
 export interface TextRange {
   start: number;
   end: number;
@@ -549,6 +563,8 @@ export const api = {
     post<RebuildIndexResult>("/index/rebuild", {}),
   chatWithDirector: async (payload: DirectorChatPayload): Promise<DirectorChatResponse> =>
     post<DirectorChatResponse>("/director/chat", payload),
+  executeDirectorTask: async (payload: DirectorExecutePayload): Promise<DirectorExecuteResponse> =>
+    post<DirectorExecuteResponse>("/director/execute", payload),
 
   listProjects: async (): Promise<ProjectSummary[]> =>
     unwrapList<ProjectSummary>(await get("/projects"), "projects"),

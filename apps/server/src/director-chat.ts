@@ -1,9 +1,9 @@
 import { ProviderRegistry, type ChatMessage, type ProviderEndpointConfig } from "@shulingge/provider-adapters";
 import { CredentialService } from "@shulingge/security";
-import type { ModelConfig } from "@shulingge/shared";
+import type { Agent, ModelConfig } from "@shulingge/shared";
 import { readJsonFile } from "@shulingge/vault-core";
 
-import { listAgents } from "./agents.js";
+import { getAgent, listAgents } from "./agents.js";
 import { loadEditorChapter } from "./editor.js";
 import { createHttpError } from "./errors.js";
 import { listModels } from "./models.js";
@@ -41,6 +41,22 @@ export type DirectorChatResponse =
       task: DirectorTaskSuggestion;
     };
 
+export interface DirectorExecuteInput {
+  agentId?: string;
+  taskDescription?: string;
+  projectId?: string;
+  novelId?: string;
+  chapterId?: string;
+  currentContent?: string;
+}
+
+export interface DirectorExecuteResponse {
+  agentId: string;
+  agentName: string;
+  modelId: string;
+  newContent: string;
+}
+
 export interface DirectorChatOptions {
   credentialService: CredentialService;
   fetchImpl?: typeof fetch;
@@ -51,6 +67,11 @@ interface AgentRosterItem {
   id: string;
   name: string;
   description: string;
+}
+
+interface ResolvedDirectorModel {
+  modelId: string;
+  registry: ProviderRegistry;
 }
 
 function isAsyncIterable(value: unknown): value is AsyncIterable<unknown> {
@@ -79,6 +100,40 @@ async function readModelConfigs(vaultRoot: string, models: Array<{ id: string }>
       ]),
     ),
   );
+}
+
+async function resolveDirectorModel(
+  vaultRoot: string,
+  options: DirectorChatOptions,
+  preferredModelId?: string,
+): Promise<ResolvedDirectorModel> {
+  const models = await listModels(vaultRoot, options);
+  const availableModels = models.filter((model) => model.hasKey);
+  const selectedModel = (preferredModelId
+    ? availableModels.find((model) => model.id === preferredModelId)
+    : undefined) ?? availableModels[0];
+
+  if (!selectedModel) {
+    throw createHttpError(400, "DIRECTOR_MODEL_NOT_CONFIGURED", "请先在设置页配置并测试一个模型");
+  }
+
+  const configs = await readModelConfigs(vaultRoot, models);
+  return {
+    modelId: selectedModel.id,
+    registry: new ProviderRegistry(
+      {
+        models: configs,
+        endpoints: options.endpoints,
+        fetchImpl: options.fetchImpl,
+      },
+      options.credentialService,
+    ),
+  };
+}
+
+function resolveAgentModelId(agent: Agent): string | undefined {
+  const modelConfigId = agent.modelConfigId?.trim();
+  return modelConfigId || undefined;
 }
 
 function clipContext(content: string): string {
@@ -145,6 +200,19 @@ function extractJsonObject(raw: string): unknown | null {
   }
 }
 
+function stripCodeFence(raw: string): string {
+  const trimmed = raw.trim();
+  const match = trimmed.match(/^```(?:markdown|md|text)?\s*([\s\S]*?)\s*```$/i);
+  return (match ? match[1] : trimmed).trim();
+}
+
+function cleanGeneratedManuscript(raw: string): string {
+  return stripCodeFence(raw)
+    .replace(/^以下是(?:修改|改写|润色|续写)后的(?:完整)?正文[:：]\s*/i, "")
+    .replace(/^修改后的(?:完整)?正文[:：]\s*/i, "")
+    .trim();
+}
+
 function asString(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
 }
@@ -199,21 +267,32 @@ function normalizeDirectorOutput(
   };
 }
 
+async function readChapterContent(
+  vaultRoot: string,
+  input: { projectId?: string; novelId?: string; chapterId?: string; currentContent?: string },
+): Promise<string> {
+  if (typeof input.currentContent === "string") {
+    return input.currentContent;
+  }
+
+  if (!input.projectId || !input.novelId || !input.chapterId) {
+    return "";
+  }
+
+  const chapter = await loadEditorChapter(vaultRoot, {
+    projectId: input.projectId,
+    novelId: input.novelId,
+    chapterId: input.chapterId,
+  }).catch(() => null);
+  return chapter?.content ?? "";
+}
+
 export async function chatWithDirector(
   vaultRoot: string,
   input: DirectorChatInput,
   options: DirectorChatOptions,
 ): Promise<DirectorChatResponse> {
-  const models = await listModels(vaultRoot, options);
-  const availableModels = models.filter((model) => model.hasKey);
-  const selectedModel = (input.modelId
-    ? availableModels.find((model) => model.id === input.modelId)
-    : undefined) ?? availableModels[0];
-
-  if (!selectedModel) {
-    throw createHttpError(400, "DIRECTOR_MODEL_NOT_CONFIGURED", "请先在设置页配置并测试一个模型");
-  }
-
+  const { modelId, registry } = await resolveDirectorModel(vaultRoot, options, input.modelId);
   const enabledAgents = (await listAgents(vaultRoot)).filter((agent) => agent.enabled);
   const roster = enabledAgents.map((agent) => ({
     id: agent.id,
@@ -248,18 +327,8 @@ export async function chatWithDirector(
 
   messages.push(...normalizeChatMessages(input.messages));
 
-  const configs = await readModelConfigs(vaultRoot, models);
-  const registry = new ProviderRegistry(
-    {
-      models: configs,
-      endpoints: options.endpoints,
-      fetchImpl: options.fetchImpl,
-    },
-    options.credentialService,
-  );
-
   try {
-    const result = await registry.chat(selectedModel.id, {
+    const result = await registry.chat(modelId, {
       messages,
       stream: false,
       jsonMode: true,
@@ -271,12 +340,96 @@ export async function chatWithDirector(
       throw new Error("模型返回了流式响应，当前总控对话接口期望完整文本响应");
     }
 
-    return normalizeDirectorOutput(selectedModel.id, response.content, roster);
+    return normalizeDirectorOutput(modelId, response.content, roster);
   } catch (error) {
     throw createHttpError(
       502,
       "DIRECTOR_CHAT_FAILED",
       `总控对话失败：${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
+}
+
+export async function executeDirectorTask(
+  vaultRoot: string,
+  input: DirectorExecuteInput,
+  options: DirectorChatOptions,
+): Promise<DirectorExecuteResponse> {
+  const agentId = input.agentId?.trim();
+  const taskDescription = input.taskDescription?.trim();
+  if (!agentId) {
+    throw createHttpError(400, "DIRECTOR_EXECUTE_AGENT_REQUIRED", "缺少要执行的 Agent");
+  }
+  if (!taskDescription) {
+    throw createHttpError(400, "DIRECTOR_EXECUTE_TASK_REQUIRED", "缺少任务描述");
+  }
+
+  const agent = await getAgent(vaultRoot, agentId);
+  if (!agent.enabled) {
+    throw createHttpError(400, "DIRECTOR_EXECUTE_AGENT_DISABLED", `Agent「${agent.name}」未启用`);
+  }
+
+  const currentContent = await readChapterContent(vaultRoot, input);
+  if (!currentContent.trim()) {
+    throw createHttpError(400, "DIRECTOR_EXECUTE_CONTENT_REQUIRED", "当前没有可改写的正文，请先打开一个有正文的章节");
+  }
+
+  const { modelId, registry } = await resolveDirectorModel(vaultRoot, options, resolveAgentModelId(agent));
+  const messages: ChatMessage[] = [
+    {
+      role: "system",
+      content: [
+        `你是【${agent.name}】。`,
+        agent.description || "你是一名小说创作与文本改写助手。",
+        "",
+        "请严格只输出修改后的完整正文内容。",
+        "不要输出解释、总结、标题、frontmatter、Markdown 代码块或任何额外说明。",
+        "不要省略未修改的段落；返回的内容必须是可直接替换当前章节的完整正文。",
+      ].join("\n"),
+    },
+    {
+      role: "user",
+      content: [
+        "【任务】",
+        taskDescription,
+        "",
+        "【当前正文】",
+        currentContent,
+      ].join("\n"),
+    },
+  ];
+
+  try {
+    const result = await registry.chat(modelId, {
+      messages,
+      stream: false,
+      jsonMode: false,
+      maxTokens: 8000,
+    });
+    const response = await result;
+    if (isAsyncIterable(response)) {
+      throw new Error("模型返回了流式响应，当前 Agent 执行接口期望完整文本响应");
+    }
+
+    const newContent = cleanGeneratedManuscript(response.content);
+    if (!newContent) {
+      throw createHttpError(502, "DIRECTOR_EXECUTE_EMPTY_RESPONSE", "Agent 没有返回有效正文");
+    }
+
+    return {
+      agentId: agent.id,
+      agentName: agent.name,
+      modelId,
+      newContent,
+    };
+  } catch (error) {
+    if (error instanceof Error && "status" in error) {
+      throw error;
+    }
+    throw createHttpError(
+      502,
+      "DIRECTOR_EXECUTE_FAILED",
+      `Agent 执行失败：${error instanceof Error ? error.message : String(error)}`,
     );
   }
 }

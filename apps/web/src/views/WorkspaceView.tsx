@@ -55,6 +55,7 @@ type MobilePanel = "chapters" | "editor" | "inspector" | "chat";
 type ChatMessage =
   | { id: number; kind: "text"; role: "ai" | "user"; text: string }
   | { id: number; kind: "confirm"; task: DirectorTaskSuggestion; status: "pending" | "confirmed" | "cancelled" }
+  | { id: number; kind: "ai-result"; agentName: string; text: string; undone?: boolean }
   | { id: number; kind: "run" };
 type TreeContextMenu =
   | { kind: "chapter"; x: number; y: number; chapter: ChapterNode; novelId: string }
@@ -237,6 +238,7 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
   const [runsLoading, setRunsLoading] = useState(false);
   const [running, setRunning] = useState(false);
   const [chatSending, setChatSending] = useState(false);
+  const [executingTaskId, setExecutingTaskId] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [inspectorTab, setInspectorTab] = useState<InspectorTab>(preferences.defaultInspectorTab);
   const [showInspector] = useState(false);
@@ -1062,20 +1064,77 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
   const pushText = (role: "ai" | "user", text: string) =>
     setMessages((items) => [...items, { id: nextId(), kind: "text", role, text }]);
 
-  const confirmDirectorTask = (messageId: number, task: DirectorTaskSuggestion) => {
+  const confirmDirectorTask = async (messageId: number, task: DirectorTaskSuggestion) => {
+    if (executingTaskId !== null) {
+      return;
+    }
+    if (!locator.projectId || !locator.novelId || !locator.chapterId || !chapter) {
+      pushText("ai", "请先打开一个章节，再执行 AI 修改。");
+      return;
+    }
+    if (!draft.trim()) {
+      pushText("ai", "当前章节没有可改写的正文，请先写入内容。");
+      return;
+    }
+
+    const loadingMessageId = nextId();
+    setExecutingTaskId(messageId);
     setMessages((items) => [
-      ...items.map((message) =>
-        message.id === messageId && message.kind === "confirm"
-          ? { ...message, status: "confirmed" as const }
-          : message,
-      ),
-      {
-        id: nextId(),
-        kind: "text",
-        role: "ai",
-        text: `已确认。（调度【${task.agentName}】执行「${task.taskDescription}」的功能正在开发中，本阶段尚不会真正修改正文。）`,
-      },
+      ...items,
+      { id: loadingMessageId, kind: "text", role: "ai", text: `【${task.agentName}】正在处理…` },
     ]);
+
+    try {
+      const result = await api.executeDirectorTask({
+        agentId: task.agentId,
+        taskDescription: task.taskDescription,
+        projectId: locator.projectId,
+        novelId: locator.novelId,
+        chapterId: locator.chapterId,
+        currentContent: draft,
+      });
+      const newContent = result.newContent.trim();
+      if (!newContent) {
+        throw new Error("Agent 没有返回有效正文");
+      }
+
+      pushHistory(draft);
+      setDraft(newContent);
+      setChapter((current) => current ? { ...current, content: newContent } : current);
+      if (vaultSelected) {
+        scheduleSave(newContent);
+      }
+
+      setMessages((items) =>
+        items.map((message) => {
+          if (message.id === messageId && message.kind === "confirm") {
+            return { ...message, status: "confirmed" as const };
+          }
+          if (message.id === loadingMessageId && message.kind === "text") {
+            return {
+              id: loadingMessageId,
+              kind: "ai-result" as const,
+              agentName: result.agentName,
+              text: `✓【${result.agentName}】已完成修改，正文已更新。不满意可点下方「撤销本次 AI 修改」或用编辑器撤销。`,
+            };
+          }
+          return message;
+        }),
+      );
+    } catch (err) {
+      setMessages((items) =>
+        items.map((message) =>
+          message.id === loadingMessageId && message.kind === "text"
+            ? {
+                ...message,
+                text: err instanceof ApiError ? err.message : err instanceof Error ? err.message : "Agent 执行失败，请稍后再试",
+              }
+            : message,
+        ),
+      );
+    } finally {
+      setExecutingTaskId(null);
+    }
   };
 
   const cancelDirectorTask = (messageId: number) => {
@@ -1086,6 +1145,18 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
           : message,
       ),
       { id: nextId(), kind: "text", role: "ai", text: "已取消。" },
+    ]);
+  };
+
+  const undoAiResult = (messageId: number) => {
+    undo();
+    setMessages((items) => [
+      ...items.map((message) =>
+        message.id === messageId && message.kind === "ai-result"
+          ? { ...message, undone: true }
+          : message,
+      ),
+      { id: nextId(), kind: "text", role: "ai", text: "已撤销本次修改。" },
     ]);
   };
 
@@ -2060,6 +2131,27 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
           {messages.map((message) =>
             message.kind === "run" ? (
               <RunInline key={message.id} agents={agents} run={run} stepStatus={stepStatus} watchedAgentIds={watchedAgentIds} />
+            ) : message.kind === "ai-result" ? (
+              <div className="msg ai msg-task" key={message.id}>
+                <span className="msg-av ai">
+                  <Bot size={15} strokeWidth={1.75} />
+                </span>
+                <div className="msg-bubble task-confirm-card">
+                  <div className="task-confirm-text">{message.text}</div>
+                  <div className="task-confirm-meta">
+                    <span>{message.agentName}</span>
+                    <span>{message.undone ? "已撤销" : "已完成"}</span>
+                  </div>
+                  {!message.undone ? (
+                    <div className="task-confirm-actions">
+                      <button className="btn btn-ghost" type="button" onClick={() => undoAiResult(message.id)}>
+                        <Undo2 size={14} strokeWidth={1.8} />
+                        撤销本次 AI 修改
+                      </button>
+                    </div>
+                  ) : null}
+                </div>
+              </div>
             ) : message.kind === "confirm" ? (
               <div className="msg ai msg-task" key={message.id}>
                 <span className="msg-av ai">
@@ -2083,11 +2175,17 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
                         className="btn btn-primary"
                         type="button"
                         onClick={() => confirmDirectorTask(message.id, message.task)}
+                        disabled={executingTaskId !== null}
                       >
                         <Check size={14} strokeWidth={1.8} />
-                        确认执行
+                        {executingTaskId === message.id ? "执行中…" : "确认执行"}
                       </button>
-                      <button className="btn btn-ghost" type="button" onClick={() => cancelDirectorTask(message.id)}>
+                      <button
+                        className="btn btn-ghost"
+                        type="button"
+                        onClick={() => cancelDirectorTask(message.id)}
+                        disabled={executingTaskId !== null}
+                      >
                         <X size={14} strokeWidth={1.8} />
                         取消
                       </button>
