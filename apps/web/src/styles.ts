@@ -266,6 +266,12 @@ input, textarea { font-family: inherit; }
 .msg.user { flex-direction: row-reverse; }
 .msg.user .msg-bubble { background: var(--primary); color: var(--text-on-primary); border-top-right-radius: 4px; }
 .msg.user .msg-av { background: var(--bg-hover); color: var(--text-secondary); }
+.msg-task .msg-bubble { max-width: 300px; }
+.task-confirm-card { border-color: color-mix(in srgb, var(--primary) 34%, var(--border)); background: color-mix(in srgb, var(--primary-light) 46%, var(--bg-card)); box-shadow: var(--shadow-card); }
+.task-confirm-text { color: var(--text-primary); font-weight: 600; }
+.task-confirm-meta { display: flex; justify-content: space-between; gap: 10px; margin-top: 8px; color: var(--text-muted); font-size: 12px; }
+.task-confirm-actions { display: flex; gap: 8px; margin-top: 12px; }
+.task-confirm-actions .btn { height: 30px; padding: 0 10px; font-size: 12px; }
 
 /* 对话内的 Agent 执行卡片 */
 .run-inline { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 14px; margin-left: 38px; box-shadow: var(--shadow-card); }

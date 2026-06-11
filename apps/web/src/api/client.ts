@@ -214,9 +214,17 @@ export interface DirectorChatPayload {
   chapterId?: string;
   messages: DirectorChatMessage[];
 }
+export interface DirectorTaskSuggestion {
+  agentId: string;
+  agentName: string;
+  taskDescription: string;
+  confirmText: string;
+}
 export interface DirectorChatResponse {
   modelId: string;
-  reply: string;
+  mode?: "chat" | "task";
+  reply?: string;
+  task?: DirectorTaskSuggestion;
 }
 export interface TextRange {
   start: number;

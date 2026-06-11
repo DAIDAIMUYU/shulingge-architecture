@@ -32,6 +32,7 @@ import {
   type AgentInfo,
   type AnnotationRecord,
   type DirectorChatMessage,
+  type DirectorTaskSuggestion,
   type EditorChapter,
   type LockRecord,
   type RunRecord,
@@ -53,6 +54,7 @@ type InspectorTab = "outline" | "annotations" | "locks" | "run";
 type MobilePanel = "chapters" | "editor" | "inspector" | "chat";
 type ChatMessage =
   | { id: number; kind: "text"; role: "ai" | "user"; text: string }
+  | { id: number; kind: "confirm"; task: DirectorTaskSuggestion; status: "pending" | "confirmed" | "cancelled" }
   | { id: number; kind: "run" };
 type TreeContextMenu =
   | { kind: "chapter"; x: number; y: number; chapter: ChapterNode; novelId: string }
@@ -1060,6 +1062,33 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
   const pushText = (role: "ai" | "user", text: string) =>
     setMessages((items) => [...items, { id: nextId(), kind: "text", role, text }]);
 
+  const confirmDirectorTask = (messageId: number, task: DirectorTaskSuggestion) => {
+    setMessages((items) => [
+      ...items.map((message) =>
+        message.id === messageId && message.kind === "confirm"
+          ? { ...message, status: "confirmed" as const }
+          : message,
+      ),
+      {
+        id: nextId(),
+        kind: "text",
+        role: "ai",
+        text: `已确认。（调度【${task.agentName}】执行「${task.taskDescription}」的功能正在开发中，本阶段尚不会真正修改正文。）`,
+      },
+    ]);
+  };
+
+  const cancelDirectorTask = (messageId: number) => {
+    setMessages((items) => [
+      ...items.map((message) =>
+        message.id === messageId && message.kind === "confirm"
+          ? { ...message, status: "cancelled" as const }
+          : message,
+      ),
+      { id: nextId(), kind: "text", role: "ai", text: "已取消。" },
+    ]);
+  };
+
   const onSend = async () => {
     const text = chatInput.trim();
     if (!text || chatSending) {
@@ -1092,7 +1121,9 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
       setMessages((items) =>
         items.map((message) =>
           message.id === thinkingMessageId && message.kind === "text"
-            ? { ...message, text: reply.reply }
+            ? reply.mode === "task" && reply.task
+              ? { id: thinkingMessageId, kind: "confirm", task: reply.task, status: "pending" }
+              : { ...message, text: reply.reply ?? "我暂时没有生成有效回复，请换一种问法再试。" }
             : message,
         ),
       );
@@ -2029,6 +2060,41 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
           {messages.map((message) =>
             message.kind === "run" ? (
               <RunInline key={message.id} agents={agents} run={run} stepStatus={stepStatus} watchedAgentIds={watchedAgentIds} />
+            ) : message.kind === "confirm" ? (
+              <div className="msg ai msg-task" key={message.id}>
+                <span className="msg-av ai">
+                  <Bot size={15} strokeWidth={1.75} />
+                </span>
+                <div className="msg-bubble task-confirm-card">
+                  <div className="task-confirm-text">{message.task.confirmText}</div>
+                  <div className="task-confirm-meta">
+                    <span>{message.task.agentName}</span>
+                    <span>
+                      {message.status === "pending"
+                        ? "待确认"
+                        : message.status === "confirmed"
+                          ? "已确认"
+                          : "已取消"}
+                    </span>
+                  </div>
+                  {message.status === "pending" ? (
+                    <div className="task-confirm-actions">
+                      <button
+                        className="btn btn-primary"
+                        type="button"
+                        onClick={() => confirmDirectorTask(message.id, message.task)}
+                      >
+                        <Check size={14} strokeWidth={1.8} />
+                        确认执行
+                      </button>
+                      <button className="btn btn-ghost" type="button" onClick={() => cancelDirectorTask(message.id)}>
+                        <X size={14} strokeWidth={1.8} />
+                        取消
+                      </button>
+                    </div>
+                  ) : null}
+                </div>
+              </div>
             ) : (
               <div className={`msg ${message.role}`} key={message.id}>
                 <span className={`msg-av ${message.role === "ai" ? "ai" : ""}`}>
