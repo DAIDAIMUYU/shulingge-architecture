@@ -1661,7 +1661,11 @@ test("workflow routes expose agents, persist runs, summaries, and final manuscri
 
     const agentsPayload = (await agentsResponse.json()) as {
       ok: true;
-      data: { active: Array<{ id: string }>; reserved: Array<{ id: string }> };
+      data: {
+        agents: Array<{ id: string }>;
+        active: Array<{ id: string }>;
+        reserved: Array<{ id: string }>;
+      };
     };
     const runPayload = (await runResponse.json()) as {
       ok: true;
@@ -1697,8 +1701,9 @@ test("workflow routes expose agents, persist runs, summaries, and final manuscri
     );
 
     assert.equal(agentsResponse.status, 200);
+    assert.equal(agentsPayload.data.agents.length, 9);
     assert.equal(agentsPayload.data.active.length, 9);
-    assert.equal(agentsPayload.data.reserved.length, 4);
+    assert.equal(agentsPayload.data.reserved.length, 0);
     assert.equal(runResponse.status, 200);
     assert.equal(runPayload.data.run.status, "ok");
     assert.equal(runPayload.data.run.nodes.length, 9);
@@ -1710,6 +1715,145 @@ test("workflow routes expose agents, persist runs, summaries, and final manuscri
     assert.equal(summary.oneLine, "本章摘要：AI 完成了润色与审查。");
     assert.equal(metadata.source?.lastRunId, runPayload.data.runId);
     assert.equal(metadata.source?.lastWrittenBy, "controller-agent");
+  } finally {
+    await server.close();
+    await rm(vaultRoot, { recursive: true, force: true });
+  }
+});
+
+test("agent routes initialize default agents and persist them", async () => {
+  const vaultRoot = await createFixtureVault();
+  const server = await startServer({ vaultRoot });
+
+  try {
+    const agentsResponse = await fetch(`${server.baseUrl}/api/v1/agents`);
+    const agentsPayload = (await agentsResponse.json()) as {
+      ok: true;
+      data: {
+        agents: Array<{ id: string; order: number }>;
+        active: Array<{ id: string }>;
+        reserved: Array<{ id: string }>;
+      };
+    };
+    const agentFiles = await readdir(path.join(vaultRoot, "settings", "agents"));
+    const writerAgent = await readJsonFile<{ id: string; name: string }>(
+      vaultRoot,
+      "settings/agents/writer-agent.json",
+    );
+
+    assert.equal(agentsResponse.status, 200);
+    assert.equal(agentsPayload.ok, true);
+    assert.equal(agentsPayload.data.agents.length, 9);
+    assert.equal(agentsPayload.data.active.length, 9);
+    assert.equal(agentsPayload.data.reserved.length, 0);
+    assert.equal(agentFiles.filter((entry) => entry.endsWith(".json")).length, 9);
+    assert.equal(writerAgent.id, "writer-agent");
+    assert.deepEqual(
+      agentsPayload.data.agents.map((agent) => agent.id),
+      [...agentsPayload.data.agents].sort((left, right) => left.order - right.order).map((agent) => agent.id),
+    );
+  } finally {
+    await server.close();
+    await rm(vaultRoot, { recursive: true, force: true });
+  }
+});
+
+test("agent CRUD routes create, update, fetch, and delete agents", async () => {
+  const vaultRoot = await createFixtureVault();
+  const server = await startServer({ vaultRoot });
+
+  try {
+    await fetch(`${server.baseUrl}/api/v1/agents`);
+
+    const createResponse = await fetch(`${server.baseUrl}/api/v1/agents`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        id: "draft-advisor",
+        name: "草稿顾问",
+        description: "提供草稿阶段建议",
+        enabled: true,
+        type: "advisor",
+        order: 95,
+        modelConfigId: "model-draft-advisor",
+        readScope: ["manuscript"],
+        builtInRules: [],
+        skills: [],
+        outputFormat: "text",
+        permissions: {
+          canWriteDraft: false,
+          canRewriteDraft: false,
+          canPatchParagraph: false,
+          canBlockWorkflow: false,
+          canRequestRewrite: true,
+          canWriteState: false,
+          canUpdateRules: false,
+        },
+        speak: {
+          speak: true,
+          showReasoning: false,
+          showStructured: false,
+          onlyOnFailure: false,
+        },
+      }),
+    });
+    const createPayload = (await createResponse.json()) as {
+      ok: true;
+      data: { agent: { id: string; name: string; modelConfigId: string } };
+    };
+
+    const updateResponse = await fetch(`${server.baseUrl}/api/v1/agents/draft-advisor`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        name: "草稿评审顾问",
+        enabled: false,
+        speak: {
+          speak: false,
+          showReasoning: false,
+          showStructured: true,
+          onlyOnFailure: true,
+        },
+      }),
+    });
+    const updatePayload = (await updateResponse.json()) as {
+      ok: true;
+      data: { agent: { id: string; name: string; enabled: boolean; speak: { onlyOnFailure: boolean } } };
+    };
+
+    const getResponse = await fetch(`${server.baseUrl}/api/v1/agents/draft-advisor`);
+    const getPayload = (await getResponse.json()) as {
+      ok: true;
+      data: { agent: { id: string; name: string; enabled: boolean } };
+    };
+    const storedAgent = await readJsonFile<{ id: string; name: string; enabled: boolean }>(
+      vaultRoot,
+      "settings/agents/draft-advisor.json",
+    );
+
+    const deleteResponse = await fetch(`${server.baseUrl}/api/v1/agents/draft-advisor`, {
+      method: "DELETE",
+    });
+    const deletePayload = (await deleteResponse.json()) as {
+      ok: true;
+      data: { deleted: true; agentId: string };
+    };
+    const getAfterDeleteResponse = await fetch(`${server.baseUrl}/api/v1/agents/draft-advisor`);
+
+    assert.equal(createResponse.status, 200);
+    assert.equal(createPayload.data.agent.id, "draft-advisor");
+    assert.equal(createPayload.data.agent.modelConfigId, "model-draft-advisor");
+    assert.equal(updateResponse.status, 200);
+    assert.equal(updatePayload.data.agent.name, "草稿评审顾问");
+    assert.equal(updatePayload.data.agent.enabled, false);
+    assert.equal(updatePayload.data.agent.speak.onlyOnFailure, true);
+    assert.equal(getResponse.status, 200);
+    assert.equal(getPayload.data.agent.enabled, false);
+    assert.equal(storedAgent.name, "草稿评审顾问");
+    assert.equal(deleteResponse.status, 200);
+    assert.equal(deletePayload.data.deleted, true);
+    assert.equal(deletePayload.data.agentId, "draft-advisor");
+    assert.equal(getAfterDeleteResponse.status, 404);
   } finally {
     await server.close();
     await rm(vaultRoot, { recursive: true, force: true });

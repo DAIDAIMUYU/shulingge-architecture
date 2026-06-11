@@ -42,6 +42,13 @@ import { exportDiagnosticsBundle } from "./diagnostics.js";
 import { chatWithDirector } from "./director-chat.js";
 import { buildHealthReport } from "./doctor.js";
 import {
+  createAgent,
+  deleteAgent,
+  getAgent,
+  listAgents,
+  updateAgent,
+} from "./agents.js";
+import {
   buildKnowledgeGraph,
   createCharacter,
   createKnowledgeItem,
@@ -69,7 +76,6 @@ import {
   updateTimelineEvent,
   updateWorldbookEntry,
 } from "./knowledge.js";
-import { createDefaultAgentCatalog } from "@shulingge/agent-core";
 import {
   buildContextPresetDiff,
   deleteContextPreset,
@@ -383,12 +389,56 @@ export const routeDefinitions: RouteDefinition[] = [
   {
     method: "GET",
     path: "/api/v1/agents",
-    async handler() {
-      const catalog = createDefaultAgentCatalog();
+    async handler(_request, context) {
+      const vaultRoot = requireVaultRoot(context);
+      const agents = await listAgents(vaultRoot);
       return {
-        active: catalog.active,
-        reserved: catalog.reserved,
+        agents,
+        active: agents.filter((agent) => agent.enabled),
+        reserved: agents.filter((agent) => !agent.enabled),
       };
+    },
+  },
+  {
+    method: "GET",
+    path: "/api/v1/agents/:agentId",
+    async handler(request, context) {
+      const vaultRoot = requireVaultRoot(context);
+      return {
+        agent: await getAgent(vaultRoot, request.params.agentId),
+      };
+    },
+  },
+  {
+    method: "POST",
+    path: "/api/v1/agents",
+    async handler(request, context) {
+      const vaultRoot = requireVaultRoot(context);
+      return {
+        agent: await createAgent(vaultRoot, (request.body as Record<string, unknown> | undefined) ?? {}),
+      };
+    },
+  },
+  {
+    method: "PATCH",
+    path: "/api/v1/agents/:agentId",
+    async handler(request, context) {
+      const vaultRoot = requireVaultRoot(context);
+      return {
+        agent: await updateAgent(
+          vaultRoot,
+          request.params.agentId,
+          (request.body as Record<string, unknown> | undefined) ?? {},
+        ),
+      };
+    },
+  },
+  {
+    method: "DELETE",
+    path: "/api/v1/agents/:agentId",
+    async handler(request, context) {
+      const vaultRoot = requireVaultRoot(context);
+      return await deleteAgent(vaultRoot, request.params.agentId);
     },
   },
   {
