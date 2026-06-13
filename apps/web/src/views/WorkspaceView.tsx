@@ -59,6 +59,7 @@ type SaveState = "idle" | "dirty" | "saving" | "saved" | "error";
 type InspectorTab = "outline" | "annotations" | "locks" | "run";
 type MobilePanel = "chapters" | "editor" | "inspector" | "chat";
 type QuickLookupTab = "characters" | "worldbook";
+type EditorMode = "rich" | "source";
 type ChatMessage =
   | { id: number; kind: "text"; role: "ai" | "user"; text: string }
   | { id: number; kind: "confirm"; task: DirectorTaskSuggestion; status: "pending" | "confirmed" | "cancelled" }
@@ -392,6 +393,7 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
   const [showInspector] = useState(false);
   const [focusMode, setFocusMode] = useState(preferences.startInFocusMode);
   const [mobilePanel, setMobilePanel] = useState<MobilePanel>("editor");
+  const [editorMode, setEditorMode] = useState<EditorMode>("rich");
   const [messages, setMessages] = useState<ChatMessage[]>(() => hydrateChatMessages([], () => 0));
   const [conversationLoadedKey, setConversationLoadedKey] = useState("");
   const [conversationSaveError, setConversationSaveError] = useState<string | null>(null);
@@ -416,6 +418,7 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const idRef = useRef(1);
   const chatEndRef = useRef<HTMLDivElement | null>(null);
+  const sourceTextareaRef = useRef<HTMLTextAreaElement | null>(null);
   const createMenuRef = useRef<HTMLDivElement | null>(null);
   const treeContextMenuRef = useRef<HTMLDivElement | null>(null);
   const outlinePopoverRef = useRef<HTMLDivElement | null>(null);
@@ -902,11 +905,32 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
   }, [polishing, polishStartedAt]);
 
   const jumpToOutlineItem = (line: number) => {
-    if (!editor || !hasValidActiveChapter) {
+    if (!hasValidActiveChapter) {
       return;
     }
 
     const targetLine = Math.max(1, line);
+    if (editorMode === "source") {
+      const node = sourceTextareaRef.current;
+      if (!node) {
+        return;
+      }
+      const lines = draft.split("\n");
+      const offset = lines.slice(0, targetLine - 1).reduce((sum, item) => sum + item.length + 1, 0);
+      const safeOffset = Math.min(offset, draft.length);
+      node.focus();
+      node.setSelectionRange(safeOffset, safeOffset);
+      setSelectionRange({ start: safeOffset, end: safeOffset });
+      const lineHeight = Number.parseFloat(window.getComputedStyle(node).lineHeight) || 24;
+      node.scrollTop = Math.max(0, (targetLine - 1) * lineHeight - node.clientHeight * 0.25);
+      setOutlinePopoverOpen(false);
+      return;
+    }
+
+    if (!editor) {
+      return;
+    }
+
     const markdownLine = draft.split("\n")[targetLine - 1]?.replace(/^#+\s*/, "").trim() ?? "";
     const docText = editor.state.doc.textBetween(0, editor.state.doc.content.size, "\n", "\n");
     const textOffset = markdownLine ? docText.indexOf(markdownLine) : -1;
@@ -940,6 +964,17 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
     if (vaultSelected) {
       scheduleSave(text);
     }
+  };
+
+  const syncSourceSelection = () => {
+    const node = sourceTextareaRef.current;
+    if (!node) {
+      return;
+    }
+    setSelectionRange({
+      start: node.selectionStart ?? 0,
+      end: node.selectionEnd ?? 0,
+    });
   };
 
   const editor = useEditor({
@@ -995,13 +1030,35 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
     editor?.setEditable(hasValidActiveChapter);
   }, [editor, hasValidActiveChapter]);
 
+  const switchEditorMode = (mode: EditorMode) => {
+    if (mode === editorMode) {
+      return;
+    }
+
+    if (mode === "source" && editor) {
+      const markdown = getEditorMarkdown(editor);
+      if (markdown !== draft) {
+        onEdit(markdown);
+      }
+    }
+
+    setEditorMode(mode);
+    requestAnimationFrame(() => {
+      if (mode === "source") {
+        sourceTextareaRef.current?.focus();
+      } else {
+        editor?.commands.focus();
+      }
+    });
+  };
+
   const pushHistory = (current: string) => {
     setHistory((items) => [...items.slice(-39), current]);
     setFuture([]);
   };
 
   const runEditorCommand = (command: (activeEditor: Editor) => boolean) => {
-    if (!editor || !hasValidActiveChapter) {
+    if (!editor || !hasValidActiveChapter || editorMode !== "rich") {
       return;
     }
     const before = getEditorMarkdown(editor);
@@ -2093,18 +2150,21 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
                         (tool.kind === "outline" && outlinePopoverOpen) ||
                         (tool.kind === "annotations" && inspectorTab === "annotations") ||
                         (tool.kind === "locks" && inspectorTab === "locks") ||
-                        (tool.kind === "bold" && editor?.isActive("bold")) ||
-                        (tool.kind === "italic" && editor?.isActive("italic")) ||
-                        (tool.kind === "heading" && editor?.isActive("heading", { level: 2 })) ||
-                        (tool.kind === "quote" && editor?.isActive("blockquote")) ||
-                        (tool.kind === "list" && editor?.isActive("bulletList"))
+                        (editorMode === "rich" && tool.kind === "bold" && editor?.isActive("bold")) ||
+                        (editorMode === "rich" && tool.kind === "italic" && editor?.isActive("italic")) ||
+                        (editorMode === "rich" && tool.kind === "heading" && editor?.isActive("heading", { level: 2 })) ||
+                        (editorMode === "rich" && tool.kind === "quote" && editor?.isActive("blockquote")) ||
+                        (editorMode === "rich" && tool.kind === "list" && editor?.isActive("bulletList"))
                           ? "toolbar-active"
                           : ""
                       }`}
                       ref={tool.kind === "outline" ? outlineButtonRef : undefined}
                       key={tool.kind}
                       title={tool.label}
-                      disabled={!hasValidActiveChapter && tool.kind !== "undo" && tool.kind !== "redo"}
+                      disabled={
+                        (!hasValidActiveChapter && tool.kind !== "undo" && tool.kind !== "redo") ||
+                        (editorMode === "source" && ["bold", "italic", "heading", "quote", "list"].includes(tool.kind))
+                      }
                       onClick={() => {
                         if (tool.kind === "undo") {
                           undo();
@@ -2152,6 +2212,22 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
                     </button>
                   ),
                 )}
+                <div className="editor-mode-switch segmented" role="tablist" aria-label="编辑模式">
+                  <button
+                    type="button"
+                    className={editorMode === "rich" ? "on" : ""}
+                    onClick={() => switchEditorMode("rich")}
+                  >
+                    普通模式
+                  </button>
+                  <button
+                    type="button"
+                    className={editorMode === "source" ? "on" : ""}
+                    onClick={() => switchEditorMode("source")}
+                  >
+                    代码模式
+                  </button>
+                </div>
                 <span className="grow" />
                 <button
                   type="button"
@@ -2231,14 +2307,28 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
                       }}
                     />
                     <div className="title-rule" />
-                    <div className="rich-editor-shell">
-                      {editor && !draft.trim() ? (
-                        <div className="rich-editor-placeholder">
-                          {vaultSelected ? "在此续写正文……" : "选择资料库后即可读写正文。"}
-                        </div>
-                      ) : null}
-                      <EditorContent editor={editor} />
-                    </div>
+                    {editorMode === "rich" ? (
+                      <div className="rich-editor-shell">
+                        {editor && !draft.trim() ? (
+                          <div className="rich-editor-placeholder">
+                            {vaultSelected ? "在此续写正文……" : "选择资料库后即可读写正文。"}
+                          </div>
+                        ) : null}
+                        <EditorContent editor={editor} />
+                      </div>
+                    ) : (
+                      <textarea
+                        ref={sourceTextareaRef}
+                        className="manuscript source-manuscript"
+                        value={draft}
+                        spellCheck={false}
+                        placeholder={vaultSelected ? "在此编辑 Markdown 源码……" : "选择资料库后即可读写正文。"}
+                        onChange={(event) => onEdit(event.target.value)}
+                        onSelect={syncSourceSelection}
+                        onKeyUp={syncSourceSelection}
+                        onMouseUp={syncSourceSelection}
+                      />
+                    )}
                   </>
                 ) : (
                   <div className="editor-empty">

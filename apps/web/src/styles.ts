@@ -206,6 +206,8 @@ input, textarea { font-family: inherit; }
 .paper-toolbar { display: flex; align-items: center; gap: 2px; height: 52px; padding: 0 16px; border-bottom: 1px solid var(--border); }
 .paper-toolbar .sep { width: 1px; height: 20px; background: var(--border); margin: 0 8px; }
 .paper-toolbar .grow { flex: 1; }
+.editor-mode-switch { margin-left: 8px; flex: none; }
+.editor-mode-switch button { padding: 0 10px; white-space: nowrap; }
 .toolbar-active { background: var(--primary-light); color: var(--primary); }
 .outline-popover { position: absolute; top: 58px; right: 14px; z-index: 30; width: min(320px, calc(100% - 28px)); max-height: min(420px, calc(100% - 84px)); overflow: hidden; display: flex; flex-direction: column; background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-md); box-shadow: var(--shadow-popover); }
 .outline-popover-head { height: 42px; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 0 10px 0 14px; border-bottom: 1px solid var(--border); font-weight: 600; font-size: 13px; }
@@ -264,6 +266,7 @@ input, textarea { font-family: inherit; }
 .rich-manuscript ul,
 .rich-manuscript ol { margin: 0.7em 0 0.9em; padding-left: 1.35em; }
 .rich-manuscript li { margin: 0.25em 0; }
+.source-manuscript { font-family: var(--font-mono); line-height: 1.75; letter-spacing: 0; padding: 0; tab-size: 2; white-space: pre; overflow: auto; }
 .editor-empty { flex: 1; min-height: 420px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; color: var(--text-muted); text-align: center; }
 .editor-statusbar { display: flex; align-items: center; gap: 20px; padding: 11px 28px; border-top: 1px solid var(--border); background: var(--bg-panel); font-size: 12px; color: var(--text-secondary); }
 .editor-statusbar .grow { flex: 1; }
