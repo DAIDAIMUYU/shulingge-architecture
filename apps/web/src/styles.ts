@@ -45,8 +45,8 @@ export const globalCss = `
   --radius-sm: 6px;
   --radius-md: 10px;
   --radius-lg: 14px;
-  --paper-noise: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180' viewBox='0 0 180 180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.72' numOctaves='4' seed='11' stitchTiles='stitch'/%3E%3CfeColorMatrix type='matrix' values='.55 0 0 0 .33 0 .46 0 0 .27 0 0 .34 0 .16 0 0 0 .28 0'/%3E%3C/filter%3E%3Crect width='180' height='180' filter='url(%23n)'/%3E%3C/svg%3E");
-  --paper-fibers: repeating-linear-gradient(96deg, rgba(96,78,45,0.040) 0 1px, transparent 1px 12px), repeating-linear-gradient(7deg, rgba(255,255,255,0.28) 0 1px, transparent 1px 18px);
+  --paper-noise: radial-gradient(circle at 12% 18%, rgba(112,84,43,0.030) 0 0.7px, transparent 1px), radial-gradient(circle at 74% 33%, rgba(112,84,43,0.024) 0 0.8px, transparent 1.1px), radial-gradient(circle at 46% 82%, rgba(112,84,43,0.020) 0 0.7px, transparent 1px);
+  --paper-fibers: repeating-linear-gradient(102deg, rgba(106,82,46,0.018) 0 0.8px, transparent 0.8px 28px), repeating-linear-gradient(14deg, rgba(255,255,255,0.22) 0 0.8px, transparent 0.8px 42px);
   --paper-texture: none;
   --paper-texture-strong: none;
   --paper-edge-wash: none;
@@ -85,8 +85,8 @@ export const globalCss = `
   --agent-running: #5BA37E;
   --agent-done: #6DB590;
   --agent-error: #CC7766;
-  --paper-noise: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180' viewBox='0 0 180 180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.72' numOctaves='4' seed='11' stitchTiles='stitch'/%3E%3CfeColorMatrix type='matrix' values='.58 0 0 0 .80 0 .58 0 0 .72 0 0 .54 0 .52 0 0 0 .18 0'/%3E%3C/filter%3E%3Crect width='180' height='180' filter='url(%23n)'/%3E%3C/svg%3E");
-  --paper-fibers: repeating-linear-gradient(96deg, rgba(255,246,220,0.030) 0 1px, transparent 1px 12px), repeating-linear-gradient(7deg, rgba(255,255,255,0.025) 0 1px, transparent 1px 18px);
+  --paper-noise: radial-gradient(circle at 12% 18%, rgba(255,235,196,0.018) 0 0.7px, transparent 1px), radial-gradient(circle at 74% 33%, rgba(255,235,196,0.014) 0 0.8px, transparent 1.1px), radial-gradient(circle at 46% 82%, rgba(255,235,196,0.012) 0 0.7px, transparent 1px);
+  --paper-fibers: repeating-linear-gradient(102deg, rgba(255,238,205,0.016) 0 0.8px, transparent 0.8px 28px), repeating-linear-gradient(14deg, rgba(255,255,255,0.018) 0 0.8px, transparent 0.8px 42px);
   --paper-texture: none;
   --paper-texture-strong: none;
   --paper-edge-wash: none;
@@ -110,18 +110,18 @@ body {
   text-rendering: optimizeLegibility;
 }
 body.paper-texture {
-  --paper-texture: var(--paper-noise), var(--paper-fibers), radial-gradient(circle at 18% 12%, rgba(120,91,48,0.085) 0 1px, transparent 1.8px), radial-gradient(circle at 82% 34%, rgba(117,86,40,0.060) 0 1.2px, transparent 2px), linear-gradient(115deg, rgba(255,255,255,0.52), rgba(255,255,255,0) 38%);
-  --paper-texture-strong: var(--paper-noise), var(--paper-fibers), radial-gradient(circle at 22% 18%, rgba(122,90,42,0.115) 0 1.2px, transparent 2px), radial-gradient(circle at 72% 46%, rgba(123,94,50,0.095) 0 1.4px, transparent 2.4px), linear-gradient(100deg, rgba(255,255,255,0.42), transparent 42%);
-  --paper-edge-wash: radial-gradient(circle at 0% 0%, rgba(149,111,55,0.135), transparent 30%), radial-gradient(circle at 100% 18%, rgba(178,58,48,0.060), transparent 26%), radial-gradient(circle at 50% 100%, rgba(113,83,39,0.095), transparent 32%);
-  background-image: var(--paper-noise), var(--paper-fibers), radial-gradient(circle at 8% 0%, color-mix(in srgb, var(--primary-light) 58%, transparent), transparent 34%), radial-gradient(circle at 98% 12%, color-mix(in srgb, var(--accent-cinnabar-light) 54%, transparent), transparent 28%), linear-gradient(180deg, rgba(255,250,239,0.72), rgba(244,239,230,0.2));
-  background-blend-mode: multiply, normal, normal, normal, normal;
+  --paper-texture: var(--paper-fibers), var(--paper-noise), radial-gradient(circle at 18% 12%, rgba(126,94,45,0.040), transparent 24%), radial-gradient(circle at 82% 34%, rgba(126,94,45,0.030), transparent 28%), linear-gradient(115deg, rgba(255,255,255,0.38), rgba(255,255,255,0) 42%);
+  --paper-texture-strong: var(--paper-fibers), var(--paper-noise), radial-gradient(circle at 22% 18%, rgba(132,96,42,0.060), transparent 26%), radial-gradient(circle at 76% 58%, rgba(132,96,42,0.046), transparent 30%), linear-gradient(100deg, rgba(255,255,255,0.32), transparent 46%);
+  --paper-edge-wash: radial-gradient(circle at 0% 0%, rgba(145,105,50,0.070), transparent 34%), radial-gradient(circle at 100% 18%, rgba(178,58,48,0.030), transparent 30%), radial-gradient(circle at 50% 100%, rgba(113,83,39,0.052), transparent 34%);
+  background-image: var(--paper-fibers), var(--paper-noise), radial-gradient(circle at 8% 0%, color-mix(in srgb, var(--primary-light) 34%, transparent), transparent 34%), radial-gradient(circle at 98% 12%, color-mix(in srgb, var(--accent-cinnabar-light) 30%, transparent), transparent 28%), linear-gradient(180deg, rgba(255,250,239,0.54), rgba(244,239,230,0.12));
+  background-blend-mode: normal, multiply, normal, normal, normal;
 }
 :root[data-theme="dark"] body.paper-texture {
-  --paper-texture: var(--paper-noise), var(--paper-fibers), radial-gradient(circle at 18% 12%, rgba(255,239,206,0.030) 0 1px, transparent 1.8px), radial-gradient(circle at 82% 34%, rgba(255,230,190,0.022) 0 1.2px, transparent 2px), linear-gradient(115deg, rgba(255,255,255,0.040), rgba(255,255,255,0) 38%);
-  --paper-texture-strong: var(--paper-noise), var(--paper-fibers), radial-gradient(circle at 22% 18%, rgba(255,238,210,0.045) 0 1.2px, transparent 2px), radial-gradient(circle at 72% 46%, rgba(255,227,190,0.038) 0 1.4px, transparent 2.4px), linear-gradient(100deg, rgba(255,255,255,0.045), transparent 42%);
-  --paper-edge-wash: radial-gradient(circle at 0% 0%, rgba(180,128,64,0.080), transparent 30%), radial-gradient(circle at 100% 18%, rgba(208,106,93,0.050), transparent 26%), radial-gradient(circle at 50% 100%, rgba(116,84,45,0.070), transparent 32%);
-  background-image: var(--paper-noise), var(--paper-fibers), radial-gradient(circle at 8% 0%, color-mix(in srgb, var(--primary-light) 42%, transparent), transparent 34%), radial-gradient(circle at 98% 12%, color-mix(in srgb, var(--accent-cinnabar-light) 42%, transparent), transparent 28%);
-  background-blend-mode: screen, normal, normal, normal;
+  --paper-texture: var(--paper-fibers), var(--paper-noise), radial-gradient(circle at 18% 12%, rgba(255,239,206,0.018), transparent 24%), radial-gradient(circle at 82% 34%, rgba(255,230,190,0.014), transparent 28%), linear-gradient(115deg, rgba(255,255,255,0.026), rgba(255,255,255,0) 42%);
+  --paper-texture-strong: var(--paper-fibers), var(--paper-noise), radial-gradient(circle at 22% 18%, rgba(255,238,210,0.026), transparent 26%), radial-gradient(circle at 76% 58%, rgba(255,227,190,0.020), transparent 30%), linear-gradient(100deg, rgba(255,255,255,0.030), transparent 46%);
+  --paper-edge-wash: radial-gradient(circle at 0% 0%, rgba(180,128,64,0.046), transparent 34%), radial-gradient(circle at 100% 18%, rgba(208,106,93,0.028), transparent 30%), radial-gradient(circle at 50% 100%, rgba(116,84,45,0.040), transparent 34%);
+  background-image: var(--paper-fibers), var(--paper-noise), radial-gradient(circle at 8% 0%, color-mix(in srgb, var(--primary-light) 28%, transparent), transparent 34%), radial-gradient(circle at 98% 12%, color-mix(in srgb, var(--accent-cinnabar-light) 28%, transparent), transparent 28%);
+  background-blend-mode: normal, screen, normal, normal;
 }
 h1,h2,h3,h4 { margin: 0; font-weight: 600; text-wrap: balance; }
 ul { margin: 0; padding: 0; list-style: none; }
@@ -247,8 +247,8 @@ input, textarea { font-family: inherit; }
 .editor-scroll { flex: 1; overflow: auto; display: flex; justify-content: center; padding: 32px 36px 48px; }
 .paper { width: 100%; max-width: 820px; background-color: var(--bg-card); background-image: var(--paper-texture-strong), var(--paper-edge-wash); background-blend-mode: multiply, normal; border: 1px solid var(--border); border-radius: var(--radius-lg); box-shadow: var(--shadow-paper); display: flex; flex-direction: column; align-self: flex-start; min-height: calc(100% - 0px); position: relative; }
 .paper::before { content: ""; position: absolute; inset: 10px; border: 1px solid color-mix(in srgb, var(--border) 58%, transparent); border-radius: calc(var(--radius-lg) - 5px); pointer-events: none; }
-body.paper-texture .paper { background-color: #FFF8E9; box-shadow: var(--shadow-paper), 0 18px 64px rgba(112,83,42,0.13); }
-:root[data-theme="dark"] body.paper-texture .paper { background-color: #2B2D24; }
+body.paper-texture .paper { background-color: #FFFBF1; box-shadow: var(--shadow-paper), 0 18px 58px rgba(112,83,42,0.10); }
+:root[data-theme="dark"] body.paper-texture .paper { background-color: #292C24; }
 .editor-workbench { width: 100%; max-width: 860px; display: grid; grid-template-columns: minmax(0,1fr); gap: 20px; justify-content: center; align-items: start; }
 .editor-workbench.focus-mode { grid-template-columns: minmax(0, 860px); max-width: 860px; }
 .paper-toolbar { display: flex; align-items: center; gap: 2px; height: 52px; padding: 0 16px; border-bottom: 1px solid var(--border); background: color-mix(in srgb, var(--bg-panel) 62%, transparent); position: relative; z-index: 1; }
@@ -292,7 +292,7 @@ body.paper-texture .paper { background-color: #FFF8E9; box-shadow: var(--shadow-
 .quick-lookup-field p { margin: 0; color: var(--text-secondary); font-size: 12px; line-height: 1.7; overflow-wrap: anywhere; }
 .quick-lookup-field.multiline { grid-template-columns: 1fr; gap: 3px; }
 .paper-body { padding: 48px 56px 64px; flex: 1; display: flex; flex-direction: column; position: relative; z-index: 1; }
-body.paper-texture .paper-body { background-image: radial-gradient(circle at 16% 8%, rgba(146,105,46,0.075), transparent 22%), radial-gradient(circle at 88% 72%, rgba(91,62,27,0.050), transparent 26%), repeating-linear-gradient(0deg, transparent 0 13px, rgba(128,100,58,0.026) 13px 14px); background-blend-mode: multiply; }
+body.paper-texture .paper-body { background-image: radial-gradient(circle at 16% 8%, rgba(146,105,46,0.040), transparent 24%), radial-gradient(circle at 88% 72%, rgba(91,62,27,0.030), transparent 28%); background-blend-mode: multiply; }
 .chapter-title { font-family: var(--font-serif); font-size: 31px; font-weight: 600; letter-spacing: .035em; line-height: 1.32; color: var(--primary-ink); }
 .chapter-title-input { width: 100%; padding: 0 0 4px; border: 0; border-bottom: 1px solid transparent; outline: none; background: transparent; color: var(--text-primary); }
 .chapter-title-input:focus { border-bottom-color: var(--border-strong); }
@@ -300,7 +300,7 @@ body.paper-texture .paper-body { background-image: radial-gradient(circle at 16%
 .manuscript { font-family: var(--font-serif); font-size: 16px; line-height: 1.95; letter-spacing: .02em; color: var(--text-primary); border: 0; outline: none; resize: none; background: transparent; width: 100%; flex: 1; min-height: 320px; }
 .manuscript::placeholder { color: var(--text-muted); }
 .rich-editor-shell { position: relative; flex: 1; min-height: 320px; display: flex; }
-body.paper-texture .rich-editor-shell { background-image: linear-gradient(90deg, rgba(178,58,48,0.028), transparent 18%, transparent 82%, rgba(40,92,69,0.030)); }
+body.paper-texture .rich-editor-shell { background-image: linear-gradient(90deg, rgba(178,58,48,0.014), transparent 22%, transparent 82%, rgba(40,92,69,0.016)); }
 .rich-editor-shell > div:not(.rich-editor-placeholder) { flex: 1; display: flex; min-width: 0; position: relative; z-index: 1; }
 .rich-editor-placeholder { position: absolute; top: 0; left: 0; right: 0; z-index: 1; pointer-events: none; color: var(--text-muted); font-family: var(--font-serif); font-size: 16px; line-height: 1.95; letter-spacing: .02em; }
 .rich-manuscript { min-height: 320px; white-space: pre-wrap; word-break: break-word; caret-color: var(--accent-cinnabar); }
@@ -317,7 +317,7 @@ body.paper-texture .rich-editor-shell { background-image: linear-gradient(90deg,
 .rich-manuscript ol { margin: 0.7em 0 0.9em; padding-left: 1.35em; }
 .rich-manuscript li { margin: 0.25em 0; }
 .source-manuscript { font-family: var(--font-mono); line-height: 1.75; letter-spacing: 0; padding: 0; tab-size: 2; white-space: pre; overflow: auto; }
-body.paper-texture .source-manuscript { background-image: linear-gradient(90deg, rgba(178,58,48,0.028), transparent 18%, transparent 82%, rgba(40,92,69,0.030)); }
+body.paper-texture .source-manuscript { background-image: linear-gradient(90deg, rgba(178,58,48,0.014), transparent 22%, transparent 82%, rgba(40,92,69,0.016)); }
 .editor-empty { flex: 1; min-height: 420px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; color: var(--text-muted); text-align: center; }
 .editor-statusbar { display: flex; align-items: center; gap: 20px; padding: 11px 28px; border-top: 1px solid var(--border); background: color-mix(in srgb, var(--bg-panel) 82%, transparent); font-size: 12px; color: var(--text-secondary); }
 .editor-statusbar .grow { flex: 1; }
