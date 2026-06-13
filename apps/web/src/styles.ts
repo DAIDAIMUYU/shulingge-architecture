@@ -58,6 +58,7 @@ export const globalCss = `
   --surface-control-blur: blur(10px) saturate(1.04);
   --surface-inset-highlight: rgba(255,255,255,0.65);
   --theme-transition-duration: .34s;
+  --workspace-safe-top: clamp(14px, 1.3vh, 22px);
   --motion-fast: .18s;
   --motion-normal: .26s;
   --motion-slow: .34s;
@@ -112,6 +113,7 @@ export const globalCss = `
   --surface-control-blur: blur(10px) saturate(1.02);
   --surface-inset-highlight: rgba(255,255,255,0.055);
   --theme-transition-duration: .34s;
+  --workspace-safe-top: clamp(14px, 1.3vh, 22px);
   --motion-fast: .18s;
   --motion-normal: .26s;
   --motion-slow: .34s;
@@ -167,6 +169,7 @@ export const globalCss = `
   --surface-control-blur: blur(10px) saturate(1.02);
   --surface-inset-highlight: rgba(255,255,255,0.48);
   --theme-transition-duration: .34s;
+  --workspace-safe-top: clamp(14px, 1.3vh, 22px);
   --motion-fast: .18s;
   --motion-normal: .26s;
   --motion-slow: .34s;
@@ -359,7 +362,7 @@ input[type="radio"] { width: 15px; height: 15px; margin: 0; accent-color: var(--
 .app-shell.app-focus-mode .mobile-shell-header,
 .app-shell.app-focus-mode .mobile-nav { display: none; }
 .app-shell.app-focus-mode .main { padding-bottom: 0; }
-.workspace { display: grid; grid-template-columns: 264px minmax(0,1fr) clamp(320px, 26vw, 380px); height: 100%; min-height: 0; }
+.workspace { display: grid; grid-template-columns: 264px minmax(0,1fr) clamp(320px, 26vw, 380px); height: 100%; min-height: 0; padding-top: var(--workspace-safe-top); }
 .workspace.focus-mode { grid-template-columns: minmax(0,1fr); }
 .workspace.focus-mode .tree-panel,
 .workspace.focus-mode .chat-pane { display: none; }
@@ -1061,7 +1064,7 @@ input[type="radio"] { width: 15px; height: 15px; margin: 0; accent-color: var(--
   .main { padding-bottom: 88px; }
   .app-shell.app-focus-mode .main { padding-bottom: 0; }
   .app-shell.app-focus-mode .mobile-nav { display: none; }
-  .workspace { grid-template-columns: 1fr; height: 100%; }
+  .workspace { grid-template-columns: 1fr; height: 100%; padding-top: 0; }
   .workspace {
     display: flex;
     flex-direction: column;
