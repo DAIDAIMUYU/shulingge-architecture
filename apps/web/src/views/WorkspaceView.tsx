@@ -363,9 +363,10 @@ interface WorkspaceViewProps {
   currentProjectId?: string | null;
   vaultPath?: string | null;
   onNavigate?: (viewId: string) => void;
+  onFocusModeChange?: (active: boolean) => void;
 }
 
-export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: WorkspaceViewProps = {}) {
+export function WorkspaceView({ currentProjectId, vaultPath, onNavigate, onFocusModeChange }: WorkspaceViewProps = {}) {
   const preferences = useMemo(() => readWebPreferences(), []);
   const watchedAgentIds = useMemo(() => new Set(preferences.watchedAgentIds), [preferences]);
   const [agents, setAgents] = useState<AgentInfo[]>(AGENT_FALLBACK);
@@ -1847,6 +1848,12 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
       return next;
     });
   };
+
+  useEffect(() => {
+    onFocusModeChange?.(focusMode);
+  }, [focusMode, onFocusModeChange]);
+
+  useEffect(() => () => onFocusModeChange?.(false), [onFocusModeChange]);
 
   useEffect(() => {
     if (!focusMode) {

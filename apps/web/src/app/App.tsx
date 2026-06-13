@@ -53,13 +53,14 @@ interface AppViewProps {
   vaultPath: string | null;
   onSelectProject: (projectId: string) => void;
   onNavigate: (viewId: string) => void;
+  onWorkspaceFocusModeChange: (active: boolean) => void;
   onSetVault: (path: string) => Promise<void>;
   onClearVault: () => void;
 }
 
 const VIEWS: Record<string, (props: AppViewProps) => ReactNode> = {
-  workspace: ({ currentProjectId, vaultPath, onNavigate }) => (
-    <WorkspaceView currentProjectId={currentProjectId} vaultPath={vaultPath} onNavigate={onNavigate} />
+  workspace: ({ currentProjectId, vaultPath, onNavigate, onWorkspaceFocusModeChange }) => (
+    <WorkspaceView currentProjectId={currentProjectId} vaultPath={vaultPath} onNavigate={onNavigate} onFocusModeChange={onWorkspaceFocusModeChange} />
   ),
   projects: ({ onSelectProject }) => <ProjectsView onOpenProject={onSelectProject} />,
   characters: () => <CharactersView />,
@@ -76,6 +77,7 @@ const VIEWS: Record<string, (props: AppViewProps) => ReactNode> = {
 
 export function App() {
   const [view, setView] = useState("workspace");
+  const [workspaceFocusMode, setWorkspaceFocusMode] = useState(false);
   const [currentProjectId, setCurrentProjectId] = useState<string | null>(() => {
     if (typeof window === "undefined") {
       return null;
@@ -108,9 +110,10 @@ export function App() {
     setVaultPath(null);
   };
   const currentLabel = NAV.find((item) => item.id === view)?.label ?? "写作";
+  const shellClassName = `app-shell${view === "workspace" && workspaceFocusMode ? " app-focus-mode" : ""}`;
 
   return (
-    <div className="app-shell">
+    <div className={shellClassName}>
       <nav className="rail">
         <div className="rail-logo">
           <img src="/app-icon.png" alt="书灵阁" />
@@ -152,7 +155,15 @@ export function App() {
             </div>
           </div>
         </header>
-        {Current({ currentProjectId, vaultPath, onSelectProject, onNavigate: setView, onSetVault, onClearVault })}
+        {Current({
+          currentProjectId,
+          vaultPath,
+          onSelectProject,
+          onNavigate: setView,
+          onWorkspaceFocusModeChange: setWorkspaceFocusMode,
+          onSetVault,
+          onClearVault,
+        })}
       </div>
 
       <nav className="mobile-nav" aria-label="移动导航">
