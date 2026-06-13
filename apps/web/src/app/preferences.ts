@@ -6,6 +6,7 @@ export interface WebPreferences {
   preferredLanguage: PreferredLanguage;
   autosaveDelayMs: 800 | 1200 | 2000;
   startInFocusMode: boolean;
+  paperTextureEnabled: boolean;
   defaultInspectorTab: InspectorTabPreference;
   sendShortcut: SendShortcut;
   watchedAgentIds: string[];
@@ -17,10 +18,18 @@ export const DEFAULT_WEB_PREFERENCES: WebPreferences = {
   preferredLanguage: "zh-CN",
   autosaveDelayMs: 1200,
   startInFocusMode: false,
+  paperTextureEnabled: true,
   defaultInspectorTab: "outline",
   sendShortcut: "enter",
   watchedAgentIds: ["writer", "rule-guard", "director"],
 };
+
+export function applyPaperTexturePreference(enabled: boolean): void {
+  if (typeof document === "undefined") {
+    return;
+  }
+  document.body.classList.toggle("paper-texture", enabled);
+}
 
 function isPreferredLanguage(value: unknown): value is PreferredLanguage {
   return value === "zh-CN" || value === "en-US";
@@ -51,6 +60,9 @@ export function normalizeWebPreferences(input: unknown): WebPreferences {
     startInFocusMode: typeof record.startInFocusMode === "boolean"
       ? record.startInFocusMode
       : DEFAULT_WEB_PREFERENCES.startInFocusMode,
+    paperTextureEnabled: typeof record.paperTextureEnabled === "boolean"
+      ? record.paperTextureEnabled
+      : DEFAULT_WEB_PREFERENCES.paperTextureEnabled,
     defaultInspectorTab: isInspectorTab(record.defaultInspectorTab)
       ? record.defaultInspectorTab
       : DEFAULT_WEB_PREFERENCES.defaultInspectorTab,
@@ -87,6 +99,7 @@ export function writeWebPreferences(next: WebPreferences): WebPreferences {
   if (typeof document !== "undefined") {
     document.documentElement.lang = normalized.preferredLanguage;
   }
+  applyPaperTexturePreference(normalized.paperTextureEnabled);
   return normalized;
 }
 

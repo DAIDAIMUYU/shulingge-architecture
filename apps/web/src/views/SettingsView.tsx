@@ -968,6 +968,20 @@ export function SettingsView({ vaultPath, onSetVault, onClearVault }: SettingsVi
                 </div>
                 <span className="tag">思源宋体</span>
               </div>
+              <div className="form-row">
+                <div>
+                  <div className="fr-label">纸质纹理</div>
+                  <div className="fr-desc">开启后显示宣纸纤维、米黄纸色和轻微做旧晕染；不喜欢纹理时可关闭。</div>
+                </div>
+                <label className="switch-row">
+                  <input
+                    type="checkbox"
+                    checked={preferences.paperTextureEnabled}
+                    onChange={(event) => savePreferencePatch({ paperTextureEnabled: event.target.checked }, setPreferences, setPreferencesFeedback)}
+                  />
+                  <span>{preferences.paperTextureEnabled ? "已开启" : "关闭"}</span>
+                </label>
+              </div>
             </div>
           ) : null}
 
