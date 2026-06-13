@@ -99,15 +99,15 @@ interface ProjectTree {
 }
 
 const AGENT_FALLBACK: AgentInfo[] = [
-  { id: "writer", name: "正文写作 Agent", order: 1 },
-  { id: "rule-guard", name: "规则守卫 Agent", order: 2 },
-  { id: "voice", name: "角色声音 Agent", order: 3 },
-  { id: "relation", name: "关系情感 Agent", order: 4 },
-  { id: "timeline", name: "时间线 Agent", order: 5 },
-  { id: "worldbook", name: "世界大纲校对 Agent", order: 6 },
-  { id: "polish", name: "润色去 AI 味 Agent", order: 7 },
-  { id: "summary", name: "摘要状态 Agent", order: 8 },
-  { id: "director", name: "总控 Agent", order: 9 },
+  { id: "writer", name: "正文写作智能体", order: 1 },
+  { id: "rule-guard", name: "规则守卫智能体", order: 2 },
+  { id: "voice", name: "角色声音智能体", order: 3 },
+  { id: "relation", name: "关系情感智能体", order: 4 },
+  { id: "timeline", name: "时间线智能体", order: 5 },
+  { id: "worldbook", name: "世界大纲校对智能体", order: 6 },
+  { id: "polish", name: "润色去 AI 味智能体", order: 7 },
+  { id: "summary", name: "摘要状态智能体", order: 8 },
+  { id: "director", name: "总控智能体", order: 9 },
 ];
 
 const TOOLS = [
@@ -169,7 +169,7 @@ const SEARCH_TYPE_VIEW: Record<string, string> = {
 const DIRECTOR_WELCOME_MESSAGE: StoredChatMessage = {
   kind: "text",
   role: "ai",
-  text: "你好，我是总控·书灵。你可以和我聊这一章的思路、节奏、人物动机或具体写法。我会结合当前章节内容给建议，但本阶段不会修改正文或调度 Agent。",
+  text: "你好，我是总控·书灵。你可以和我聊这一章的思路、节奏、人物动机或具体写法。我会结合当前章节内容给建议，但本阶段不会修改正文或调度智能体。",
 };
 
 function formatWordCount(value: number): string {
@@ -521,7 +521,7 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
 
     if (!vaultSelected) {
       setSearchResults([]);
-      setSearchError("请先选择资料库 Vault");
+      setSearchError("请先选择资料库");
       setSearchLoading(false);
       return;
     }
@@ -1245,7 +1245,7 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
       });
       const newContent = result.newContent.trim();
       if (!newContent) {
-        throw new Error("Agent 没有返回有效正文");
+        throw new Error("智能体没有返回有效正文");
       }
 
       pushHistory(draft);
@@ -1270,7 +1270,7 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
       );
       input.onSuccess?.();
     } catch (err) {
-      const messageText = err instanceof ApiError ? err.message : err instanceof Error ? err.message : "Agent 执行失败，请稍后再试";
+      const messageText = err instanceof ApiError ? err.message : err instanceof Error ? err.message : "智能体执行失败，请稍后再试";
       setMessages((items) =>
         items.map((message) =>
           message.id === loadingMessageId && message.kind === "text"
@@ -1378,7 +1378,7 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
       return;
     }
     if (reviewAgents.length === 0) {
-      setReviewError("当前没有启用的检查类 Agent，请先在 Agent 管理页启用 checker 或 blocker 类型 Agent。");
+      setReviewError("当前没有启用的检查类智能体，请先在智能体管理页启用 checker 或 blocker 类型智能体。");
       setReviewReports(null);
       return;
     }
@@ -1399,7 +1399,7 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
       return;
     }
     if (!polishAgent) {
-      pushText("ai", "未找到润色 Agent，请在 Agent 管理页确认。");
+      pushText("ai", "未找到润色智能体，请在智能体管理页确认。");
       return;
     }
 
@@ -1430,7 +1430,7 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
       return;
     }
     if (!polishAgent) {
-      pushText("ai", "未找到润色 Agent，请在 Agent 管理页确认。");
+      pushText("ai", "未找到润色智能体，请在智能体管理页确认。");
       return;
     }
 
@@ -1685,7 +1685,7 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
         <div className="tree-scroll" onClick={() => setSelectedNovelId(null)}>
           {searchText.trim() ? (
             <div className="search-results">
-              {searchLoading ? <div className="faint">搜索中...</div> : null}
+              {searchLoading ? <div className="faint">搜索中…</div> : null}
               {searchError ? <div className="err-card">{searchError}</div> : null}
               {!searchLoading && !searchError && searchResults.length === 0 ? (
                 <div className="faint">没有找到匹配的内容</div>
@@ -1710,7 +1710,7 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
             </div>
           ) : (
             <>
-              {treeLoading ? <div className="faint">章节加载中...</div> : null}
+              {treeLoading ? <div className="faint">章节加载中…</div> : null}
               {treeError ? <div className="err-card">{treeError}</div> : null}
               {!treeLoading && !treeError && !projectTree ? <div className="faint">还没有项目，去「项目」页新建一本书</div> : null}
               {!treeLoading && !treeError && projectTree && projectTree.novels.length === 0 ? (
@@ -2042,7 +2042,7 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
                       ref={textareaRef}
                       className="manuscript"
                       value={draft}
-                      placeholder={vaultSelected ? "在此续写正文……" : "选择 Vault 后即可读写正文。"}
+                      placeholder={vaultSelected ? "在此续写正文……" : "选择资料库后即可读写正文。"}
                       onChange={(event) => onEdit(event.target.value)}
                       onSelect={syncSelection}
                       onKeyUp={syncSelection}
@@ -2373,7 +2373,7 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
                           </section>
 
                           <section className="mini-card">
-                            <div className="mini-card-title">Agent 节点</div>
+                            <div className="mini-card-title">智能体节点</div>
                             <div className="stack-list" style={{ marginTop: 10 }}>
                               {(selectedRun.nodes ?? selectedRun.steps ?? []).map((node) => (
                                 <div key={`${selectedRun.id}-${node.agentId}`} className="quote-line">
@@ -2598,7 +2598,7 @@ function ReviewReportModal({
         {reviewing ? (
           <div className="review-running-card">
             <RefreshCw size={17} strokeWidth={2} className="spin-icon" />
-            <span>检查类 Agent 正在串行质检…（已用 {elapsedSeconds} 秒）</span>
+            <span>检查类智能体正在串行质检…（已用 {elapsedSeconds} 秒）</span>
           </div>
         ) : null}
 
@@ -2659,7 +2659,7 @@ function RunInline({
   return (
     <div className="run-inline">
       <div className="run-inline-head">
-        <span className="ri-title">9-Agent 协作</span>
+        <span className="ri-title">9 位智能体协作</span>
         <span className="badge">{done}/{agents.length}</span>
       </div>
       <div className="run-progress">

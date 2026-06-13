@@ -13,6 +13,17 @@ import { buildPermissionBadges, executionModeLabel, formatExecutionOperations, p
 
 const MARKET_STATUS_OPTIONS = ["listed", "hidden", "removed"] as const;
 
+const SKILL_KIND_LABELS: Record<string, string> = {
+  normal: "普通",
+  tool: "工具",
+};
+
+const MARKET_STATUS_LABELS: Record<string, string> = {
+  listed: "已上架",
+  hidden: "已隐藏",
+  removed: "已移除",
+};
+
 function formatDate(value?: string): string {
   if (!value) {
     return "未记录";
@@ -118,7 +129,7 @@ export function SkillsView() {
       setSkills(list);
       setSelectedSkillId((current) => (current && list.some((item) => item.id === current) ? current : list[0]?.id ?? null));
     } catch (error) {
-      setPageError(error instanceof ApiError ? error.message : "Skill 列表加载失败");
+      setPageError(error instanceof ApiError ? error.message : "技能列表加载失败");
     } finally {
       setSkillsLoading(false);
     }
@@ -136,7 +147,7 @@ export function SkillsView() {
       setMarket(list);
       setSelectedMarketId((current) => (current && list.some((item) => item.id === current) ? current : list[0]?.id ?? null));
     } catch (error) {
-      setPageError(error instanceof ApiError ? error.message : "Skill 市场加载失败");
+      setPageError(error instanceof ApiError ? error.message : "技能市场加载失败");
     } finally {
       setMarketLoading(false);
     }
@@ -171,7 +182,7 @@ export function SkillsView() {
         if (!alive) {
           return;
         }
-        setPageError(error instanceof ApiError ? error.message : "Skill 页面初始化失败");
+        setPageError(error instanceof ApiError ? error.message : "技能页面初始化失败");
         setBootLoading(false);
       }
     })();
@@ -218,7 +229,7 @@ export function SkillsView() {
 
   return (
     <ViewShell
-      title="Skill"
+      title="技能"
       subtitle="导入、执行、本地市场与风险权限审阅"
       actions={(
         <button type="button" className="btn" onClick={() => void refreshAll()} disabled={skillsLoading || marketLoading}>
@@ -235,7 +246,7 @@ export function SkillsView() {
               <input
                 value={installedSearch}
                 onChange={(event) => setInstalledSearch(event.target.value)}
-                placeholder="搜索已安装 Skill、来源或类型"
+                placeholder="搜索已安装技能、来源或类型"
               />
             </div>
             <span className="grow" />
@@ -245,19 +256,19 @@ export function SkillsView() {
           <div className="split-layout">
             <section className="list-card">
               <div className="list-row head">
-                <span className="col col-grow">Skill</span>
+                <span className="col col-grow">技能</span>
                 <span className="col" style={{ width: 110 }}>类型</span>
                 <span className="col" style={{ width: 100 }}>模式</span>
               </div>
               {skillsLoading ? (
                 <div className="center-state" style={{ minHeight: 240 }}>
                   <div className="spinner" />
-                  <span>加载 Skill 中</span>
+                  <span>正在加载技能</span>
                 </div>
               ) : filteredSkills.length === 0 ? (
                 <div className="center-state" style={{ minHeight: 240 }}>
                   <Store size={32} className="empty-icon" />
-                  <div>还没有已安装 Skill</div>
+                  <div>还没有已安装技能</div>
                 </div>
               ) : (
                 filteredSkills.map((skill) => (
@@ -272,7 +283,7 @@ export function SkillsView() {
                       <div className="col-sub">{skill.id} · {skill.source}</div>
                     </span>
                     <span className="col" style={{ width: 110 }}>
-                      <span className={`tag ${skill.kind === "tool" ? "" : "primary"}`}>{skill.kind}</span>
+                      <span className={`tag ${skill.kind === "tool" ? "" : "primary"}`}>{SKILL_KIND_LABELS[skill.kind] ?? skill.kind}</span>
                     </span>
                     <span className="col" style={{ width: 100 }}>
                       <span className="tag">{executionModeLabel(skill)}</span>
@@ -292,7 +303,7 @@ export function SkillsView() {
                         <h2>{selectedSkill.name}</h2>
                         <div className="view-sub">{selectedSkill.id}</div>
                         <div className="tag-row">
-                          <span className={`tag ${selectedSkill.kind === "normal" ? "primary" : ""}`}>{selectedSkill.kind}</span>
+                          <span className={`tag ${selectedSkill.kind === "normal" ? "primary" : ""}`}>{SKILL_KIND_LABELS[selectedSkill.kind] ?? selectedSkill.kind}</span>
                           <span className="tag">{executionModeLabel(selectedSkill)}</span>
                           <span className="tag">{selectedSkill.license}</span>
                         </div>
@@ -312,7 +323,7 @@ export function SkillsView() {
                 ) : (
                   <div className="center-state" style={{ minHeight: 160 }}>
                     <Sparkles size={32} className="empty-icon" />
-                    <div>选择左侧 Skill 查看权限、执行与发布能力</div>
+                    <div>选择左侧技能查看权限、执行与发布能力</div>
                   </div>
                 )}
               </section>
@@ -323,7 +334,7 @@ export function SkillsView() {
                   <div className="stack-list">
                     <div className="permission-grid">
                       {permissionBadges.length === 0 ? (
-                        <span className="faint">当前 Skill 没有授予额外权限</span>
+                        <span className="faint">当前技能没有授予额外权限</span>
                       ) : (
                         permissionBadges.map((badge) => (
                           <span key={badge.key} className={`permission-chip ${badge.tone}`}>
@@ -338,12 +349,12 @@ export function SkillsView() {
                       <span className="v">{selectedSkill.permissionSummary.requiresHighRiskConfirm ? "需要" : "不需要"}</span>
                     </div>
                     <div className="field">
-                      <span className="k">API Key 读取</span>
+                      <span className="k">API 密钥读取</span>
                       <span className="v">已强制禁止</span>
                     </div>
                   </div>
                 ) : (
-                  <div className="faint">尚未选择 Skill</div>
+                  <div className="faint">尚未选择技能</div>
                 )}
               </section>
 
@@ -351,10 +362,10 @@ export function SkillsView() {
                 <div className="editor-card-head">
                   <div>
                     <h2>执行与验沙箱</h2>
-                    <p className="view-sub">普通 Skill 直接走执行路由；工具 Skill 通过 V2 限制沙箱子进程执行。</p>
+                    <p className="view-sub">普通技能直接走执行路由；工具技能通过 V2 限制沙箱子进程执行。</p>
                   </div>
                   <div className="segmented">
-                    <button type="button" className={dryRun ? "on" : ""} onClick={() => setDryRun(true)}>Dry Run</button>
+                    <button type="button" className={dryRun ? "on" : ""} onClick={() => setDryRun(true)}>试运行</button>
                     <button type="button" className={!dryRun ? "on" : ""} onClick={() => setDryRun(false)}>真实执行</button>
                   </div>
                 </div>
@@ -396,7 +407,7 @@ export function SkillsView() {
                           setExecutionResult(result);
                           setExecutionFeedback(`执行完成：${result.summary}`);
                         } catch (error) {
-                          setExecutionFeedback(error instanceof ApiError ? error.message : "Skill 执行失败");
+                          setExecutionFeedback(error instanceof ApiError ? error.message : "技能执行失败");
                         } finally {
                           setExecuting(false);
                         }
@@ -404,7 +415,7 @@ export function SkillsView() {
                     }}
                   >
                     <Play size={15} strokeWidth={2} />
-                    {executing ? "执行中" : dryRun ? "执行 Dry Run" : "执行 Skill"}
+                    {executing ? "执行中" : dryRun ? "执行试运行" : "执行技能"}
                   </button>
                 </div>
 
@@ -436,7 +447,7 @@ export function SkillsView() {
                 <div className="editor-card-head">
                   <div>
                     <h2>发布到本地市场</h2>
-                    <p className="view-sub">从当前已安装 Skill 生成市场条目，供评分、举报和本地审核流转使用。</p>
+                    <p className="view-sub">从当前已安装技能生成市场条目，供评分、举报和本地审核流转使用。</p>
                   </div>
                 </div>
 
@@ -444,7 +455,7 @@ export function SkillsView() {
 
                 <div className="form-grid form-grid-2">
                   <label className="form-block">
-                    <span>Skill 名称</span>
+                    <span>技能名称</span>
                     <input className="input" value={publishName} onChange={(event) => setPublishName(event.target.value)} />
                   </label>
                   <label className="form-block">
@@ -520,7 +531,7 @@ export function SkillsView() {
                 <div className="editor-card-head">
                   <div>
                     <h2>GitHub 导入</h2>
-                    <p className="view-sub">支持 GitHub `blob/raw` Skill manifest URL，服务端会自动转为 raw 地址并校验安全约束。</p>
+                    <p className="view-sub">支持 GitHub 的 `blob/raw` 技能清单 URL，服务端会自动转为 raw 地址并校验安全约束。</p>
                   </div>
                 </div>
 
@@ -568,8 +579,8 @@ export function SkillsView() {
               <section className="editor-card">
                 <div className="editor-card-head">
                   <div>
-                    <h2>Manifest 导入</h2>
-                    <p className="view-sub">本地粘贴 JSON manifest。服务端会再次做 SEC-27 和权限决策校验。</p>
+                    <h2>清单导入</h2>
+                    <p className="view-sub">本地粘贴 JSON 清单。服务端会再次做 SEC-27 和权限决策校验。</p>
                   </div>
                 </div>
 
@@ -581,7 +592,7 @@ export function SkillsView() {
                 </div>
                 <div className="form-grid">
                   <label className="form-block">
-                    <span>Manifest JSON</span>
+                    <span>清单 JSON</span>
                     <textarea className="textarea code-surface" value={manifestInput} onChange={(event) => setManifestInput(event.target.value)} />
                   </label>
                 </div>
@@ -606,7 +617,7 @@ export function SkillsView() {
                           setSelectedSkillId(skill.id);
                           setImportFeedback(`已导入 manifest：${skill.id}`);
                         } catch (error) {
-                          setImportFeedback(error instanceof ApiError ? error.message : "Manifest 导入失败");
+                          setImportFeedback(error instanceof ApiError ? error.message : "清单导入失败");
                         } finally {
                           setImportLoading(false);
                         }
@@ -614,7 +625,7 @@ export function SkillsView() {
                     }}
                   >
                     <Download size={15} strokeWidth={2} />
-                    {importLoading ? "导入中" : "导入 Manifest"}
+                    {importLoading ? "导入中" : "导入清单"}
                   </button>
                 </div>
               </section>
@@ -626,14 +637,14 @@ export function SkillsView() {
                 <div className="signal-item">
                   <ShieldAlert size={16} />
                   <div>
-                    <div className="mini-card-title">永不读取 API Key</div>
+                    <div className="mini-card-title">永不读取 API 密钥</div>
                     <div className="mini-card-sub">`readApiKey=true` 的 manifest 会被服务端直接拒绝。</div>
                   </div>
                 </div>
                 <div className="signal-item">
                   <CheckCircle2 size={16} />
                   <div>
-                    <div className="mini-card-title">工具 Skill 走隔离子进程</div>
+                    <div className="mini-card-title">工具技能走隔离子进程</div>
                     <div className="mini-card-sub">真实执行时会落到受限 V2 沙箱，而不是直接进前端或主进程。</div>
                   </div>
                 </div>
@@ -651,7 +662,7 @@ export function SkillsView() {
           <section className="editor-card">
             <div className="editor-card-head">
               <div>
-                <h2>Skill 市场</h2>
+                <h2>技能市场</h2>
                 <p className="view-sub">浏览本地市场条目，执行评分、举报和审核动作。</p>
               </div>
             </div>
@@ -712,7 +723,7 @@ export function SkillsView() {
                       </span>
                       <span className="col" style={{ width: 90 }}>{entry.ratingCount ? entry.averageRating.toFixed(1) : "—"}</span>
                       <span className="col" style={{ width: 90 }}>
-                        <span className={`tag ${entry.status === "listed" ? "primary" : ""}`}>{entry.status}</span>
+                        <span className={`tag ${entry.status === "listed" ? "primary" : ""}`}>{MARKET_STATUS_LABELS[entry.status] ?? entry.status}</span>
                       </span>
                     </button>
                   ))
@@ -725,7 +736,7 @@ export function SkillsView() {
                   {selectedMarket ? (
                     <div className="stack-list">
                       <div className="field">
-                        <span className="k">Skill</span>
+                        <span className="k">技能</span>
                         <span className="v stack-align-start">{selectedMarket.skillId}</span>
                       </div>
                       <div className="field">
@@ -734,7 +745,7 @@ export function SkillsView() {
                       </div>
                       <div className="field">
                         <span className="k">状态</span>
-                        <span className="v">{selectedMarket.status}</span>
+                        <span className="v">{MARKET_STATUS_LABELS[selectedMarket.status] ?? selectedMarket.status}</span>
                       </div>
                       <div className="field">
                         <span className="k">举报数</span>
@@ -883,7 +894,7 @@ export function SkillsView() {
                         className={moderationStatus === option ? "on" : ""}
                         onClick={() => setModerationStatus(option)}
                       >
-                        {option}
+                            {MARKET_STATUS_LABELS[option] ?? option}
                       </button>
                     ))}
                   </div>

@@ -73,7 +73,7 @@ export function createAutosaveController(options: AutosaveControllerOptions): Au
         status = "saved";
       } catch {
         status = "error";
-        throw new Error("Autosave failed");
+        throw new Error("自动保存失败");
       }
     },
     getStatus() {

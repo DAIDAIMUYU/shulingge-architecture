@@ -37,13 +37,13 @@ const READ_SCOPE_OPTIONS = [
   { value: "summaries", label: "摘要", hint: "章节摘要和历史上下文" },
   { value: "states", label: "状态", hint: "角色或世界状态" },
   { value: "chapter-metadata", label: "章节元数据", hint: "标题、状态、字数等" },
-  { value: "runs", label: "运行记录", hint: "Agent 历史执行结果" },
+  { value: "runs", label: "运行记录", hint: "智能体历史执行结果" },
   { value: "workflow-results", label: "流程结果", hint: "工作流汇总信息" },
 ] as const;
 
 const OUTPUT_FORMAT_OPTIONS: Array<{ value: AgentOutputFormat; label: string; hint: string }> = [
-  { value: "text", label: "普通文本", hint: "适合只给建议或说明的 Agent" },
-  { value: "json+text", label: "结构化 + 文本", hint: "适合需要被流程读取结果的 Agent" },
+  { value: "text", label: "普通文本", hint: "适合只给建议或说明的智能体" },
+  { value: "json+text", label: "结构化 + 文本", hint: "适合需要被流程读取结果的智能体" },
 ];
 
 const PERMISSION_OPTIONS: Array<{ key: keyof AgentPermissions; label: string; hint: string }> = [
@@ -51,7 +51,7 @@ const PERMISSION_OPTIONS: Array<{ key: keyof AgentPermissions; label: string; hi
   { key: "canRewriteDraft", label: "可重写正文", hint: "允许重写整段或整章" },
   { key: "canPatchParagraph", label: "可改段落", hint: "允许局部修改段落" },
   { key: "canBlockWorkflow", label: "可阻断流程", hint: "发现问题时可让流程停下" },
-  { key: "canRequestRewrite", label: "可请求重写", hint: "可要求写作 Agent 返工" },
+  { key: "canRequestRewrite", label: "可请求重写", hint: "可要求写作智能体返工" },
   { key: "canWriteState", label: "可写状态", hint: "允许更新摘要、状态库等资料" },
   { key: "canUpdateRules", label: "可更新规则", hint: "允许写入规则变更" },
 ];
@@ -386,7 +386,7 @@ function AgentEditorModal({
       >
         <div className="agent-modal-head">
           <div>
-            <h2 id="agent-editor-title">{mode === "create" ? "新建 Agent" : "编辑 Agent"}</h2>
+            <h2 id="agent-editor-title">{mode === "create" ? "新建智能体" : "编辑智能体"}</h2>
             <p>只需要填写常用区即可，高级设置可按需展开。</p>
           </div>
           <button type="button" className="btn-icon" aria-label="关闭" onClick={onCancel}>
@@ -407,7 +407,7 @@ function AgentEditorModal({
             <div className="form-grid form-grid-2">
               <label className="form-block">
                 <span>名字</span>
-                <span className="agent-field-hint">给这个 Agent 起一个你能看懂的名字。</span>
+                <span className="agent-field-hint">给这个智能体起一个你能看懂的名字。</span>
                 <input
                   className="input"
                   value={draft.name}
@@ -464,7 +464,7 @@ function AgentEditorModal({
               </label>
               <ToggleRow
                 checked={draft.enabled}
-                label="启用这个 Agent"
+                label="启用这个智能体"
                 hint="停用后它不会参与后续流程。"
                 onChange={(enabled) => onChange({ enabled })}
               />
@@ -473,13 +473,13 @@ function AgentEditorModal({
             <ToggleRow
               checked={draft.speak.speak}
               label="允许在对话区发言"
-              hint="开启后，流程运行时这个 Agent 的关键结论可以显示给用户。"
+              hint="开启后，流程运行时这个智能体的关键结论可以显示给用户。"
               onChange={(speak) => onSpeakChange({ speak })}
             />
 
             <div className="form-grid form-grid-2">
               <TagInput
-                label="技能(Skill)"
+                label="技能"
                 hint="可从已有技能中选择，也可以手动输入技能 ID 后回车添加。"
                 values={draft.skills}
                 placeholder={skillOptions.length ? "输入或选择技能 ID" : "暂无技能列表，可手动输入"}
@@ -510,13 +510,13 @@ function AgentEditorModal({
               <div className="model-advanced-panel agent-advanced-panel">
                 <div className="model-editor-section">
                   <div className="model-editor-section-title">读取范围</div>
-                  <p className="agent-section-note">决定这个 Agent 能读取哪些上下文。默认值来自预置 Agent，普通用户通常不用修改。</p>
+                  <p className="agent-section-note">决定这个智能体能读取哪些上下文。默认值来自预置智能体，普通用户通常不用修改。</p>
                   <ScopePicker values={draft.readScope} onChange={(readScope) => onChange({ readScope })} />
                 </div>
 
                 <div className="model-editor-section agent-editor-section">
                   <div className="model-editor-section-title">权限</div>
-                  <p className="agent-section-note">权限越高，后续编排时它能做的事越多。只聊天或提建议的 Agent 建议保持关闭。</p>
+                  <p className="agent-section-note">权限越高，后续编排时它能做的事越多。只聊天或提建议的智能体建议保持关闭。</p>
                   <div className="agent-switch-grid">
                     {PERMISSION_OPTIONS.map((option) => (
                       <ToggleRow
@@ -559,7 +559,7 @@ function AgentEditorModal({
                     </label>
                     <label className="form-block">
                       <span>发言显示名</span>
-                      <span className="agent-field-hint">留空时使用 Agent 名字。</span>
+                      <span className="agent-field-hint">留空时使用智能体名字。</span>
                       <input
                         className="input"
                         value={draft.speak.displayName ?? ""}
@@ -643,7 +643,7 @@ export function AgentsView() {
       const list = await api.listAgents();
       setAgents(list.map(normalizeAgent));
     } catch (error) {
-      setFeedback({ kind: "error", message: error instanceof ApiError ? error.message : "Agent 列表加载失败" });
+      setFeedback({ kind: "error", message: error instanceof ApiError ? error.message : "智能体列表加载失败" });
     } finally {
       setLoading(false);
     }
@@ -697,7 +697,7 @@ export function AgentsView() {
   async function saveAgent(): Promise<void> {
     const payload = toAgentPayload(draft, mode === "edit" ? "edit" : "create");
     if (!payload.name) {
-      setModalFeedback({ kind: "error", message: "请填写 Agent 名字" });
+      setModalFeedback({ kind: "error", message: "请填写智能体名字" });
       return;
     }
 
@@ -712,10 +712,10 @@ export function AgentsView() {
       closeEditor();
       setFeedback({
         kind: "success",
-        message: mode === "create" ? `Agent「${saved.name}」已创建` : `Agent「${saved.name}」已保存`,
+        message: mode === "create" ? `智能体「${saved.name}」已创建` : `智能体「${saved.name}」已保存`,
       });
     } catch (error) {
-      setModalFeedback({ kind: "error", message: error instanceof Error ? error.message : "Agent 保存失败" });
+      setModalFeedback({ kind: "error", message: error instanceof Error ? error.message : "智能体保存失败" });
     } finally {
       setSaving(false);
     }
@@ -730,9 +730,9 @@ export function AgentsView() {
       if (selectedAgentId === agent.id) {
         closeEditor();
       }
-      setFeedback({ kind: "success", message: `Agent「${agent.name}」已删除` });
+      setFeedback({ kind: "success", message: `智能体「${agent.name}」已删除` });
     } catch (error) {
-      setFeedback({ kind: "error", message: error instanceof Error ? error.message : "Agent 删除失败" });
+      setFeedback({ kind: "error", message: error instanceof Error ? error.message : "智能体删除失败" });
     }
   }
 
@@ -749,18 +749,18 @@ export function AgentsView() {
     }));
 
   return (
-    <ViewShell title="Agent 管理" subtitle="管理写作流程中的 Agent、模型绑定、技能、权限与发言配置">
+    <ViewShell title="智能体管理" subtitle="管理写作流程中的智能体、模型绑定、技能、权限与发言配置">
       <div className="stack-list">
         <section className="editor-card">
           <div className="editor-card-head">
             <div>
-              <h2>Agent 列表</h2>
-              <p className="view-sub">共 {sortedAgents.length} 个 Agent，按执行顺序排列。点击某一行即可编辑。</p>
+              <h2>智能体列表</h2>
+              <p className="view-sub">共 {sortedAgents.length} 个智能体，按执行顺序排列。点击某一行即可编辑。</p>
             </div>
             <div className="view-actions">
               <button type="button" className="btn btn-primary" onClick={startCreate}>
                 <Plus size={15} />
-                新建 Agent
+                新建智能体
               </button>
             </div>
           </div>
@@ -775,7 +775,7 @@ export function AgentsView() {
           <div className="list-card agent-list-card">
             <div className="list-row head">
               <span className="col" style={{ width: 54 }}>顺序</span>
-              <span className="col col-grow">Agent</span>
+              <span className="col col-grow">智能体</span>
               <span className="col" style={{ width: 112 }}>类型</span>
               <span className="col" style={{ width: 86 }}>状态</span>
               <span className="col" style={{ width: 150 }}>模型</span>
@@ -784,11 +784,11 @@ export function AgentsView() {
             {loading ? (
               <div className="center-state" style={{ minHeight: 220 }}>
                 <div className="spinner" />
-                <span>正在加载 Agent...</span>
+                <span>正在加载智能体...</span>
               </div>
             ) : sortedAgents.length === 0 ? (
               <div className="center-state" style={{ minHeight: 220 }}>
-                <span>还没有 Agent，点击「新建 Agent」创建一个。</span>
+                <span>还没有智能体，点击「新建智能体」创建一个。</span>
               </div>
             ) : (
               sortedAgents.map((agent, index) => {
@@ -827,8 +827,8 @@ export function AgentsView() {
                       <button
                         type="button"
                         className="btn-icon"
-                        title="编辑 Agent"
-                        aria-label={`编辑 Agent ${agent.name}`}
+                        title="编辑智能体"
+                        aria-label={`编辑智能体 ${agent.name}`}
                         onClick={(event) => {
                           event.stopPropagation();
                           startEdit(agent);
@@ -839,8 +839,8 @@ export function AgentsView() {
                       <button
                         type="button"
                         className="btn-icon danger"
-                        title="删除 Agent"
-                        aria-label={`删除 Agent ${agent.name}`}
+                        title="删除智能体"
+                        aria-label={`删除智能体 ${agent.name}`}
                         onClick={(event) => {
                           event.stopPropagation();
                           setAgentToDelete(agent);
@@ -875,8 +875,8 @@ export function AgentsView() {
 
       {agentToDelete ? (
         <ConfirmModal
-          title="删除 Agent"
-          message={`确定删除 Agent「${agentToDelete.name}」吗？`}
+          title="删除智能体"
+          message={`确定删除智能体「${agentToDelete.name}」吗？`}
           confirmText="删除"
           danger
           onConfirm={() => void deleteAgent(agentToDelete)}

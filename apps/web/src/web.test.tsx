@@ -22,7 +22,7 @@ test("App shell renders navigation rail and workspace skeleton", () => {
   assert.match(html, /workspace-mobile-tabs/);
   // 右侧总控 AI 对话窗
   assert.match(html, /总控/);
-  assert.match(html, /调度 9 位 Agent/);
+  assert.match(html, /智能体/);
   assert.match(html, /chat-input/);
 });
 

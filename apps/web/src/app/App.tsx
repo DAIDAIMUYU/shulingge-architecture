@@ -39,8 +39,8 @@ const PRIMARY_NAV: NavItem[] = [
   { id: "relations", icon: Network, label: "关系" },
   { id: "timeline", icon: Clock, label: "时间线" },
   { id: "worldbook", icon: Globe, label: "世界大纲" },
-  { id: "agents", icon: Bot, label: "Agent" },
-  { id: "skills", icon: Sparkles, label: "Skill" },
+  { id: "agents", icon: Bot, label: "智能体" },
+  { id: "skills", icon: Sparkles, label: "技能" },
   { id: "rules", icon: Scale, label: "规则" },
 ];
 
@@ -96,7 +96,7 @@ export function App() {
   const onSetVault = async (path: string) => {
     const nextPath = path.trim();
     if (!nextPath) {
-      throw new Error("请输入 Vault 目录绝对路径");
+      throw new Error("请输入资料库目录绝对路径");
     }
     await api.selectVault(nextPath);
     window.localStorage.setItem("shulingge.web.vaultPath", nextPath);

@@ -99,8 +99,8 @@ export function CenterState({
     return (
       <div className="center-state">
         <Inbox size={32} className="empty-icon" />
-        <div>尚未选择 Vault</div>
-        <div className="faint">在「写作」页顶部选择本地 Vault 后即可查看数据</div>
+        <div>尚未选择资料库</div>
+        <div className="faint">在「写作」页顶部选择本地资料库后即可查看数据</div>
       </div>
     );
   }

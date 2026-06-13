@@ -14,9 +14,9 @@ const PERMISSION_LABELS: Record<string, string> = {
   network: "访问网络",
   runScript: "运行脚本",
   runShell: "运行命令",
-  accessOutsideFiles: "访问 Vault 外文件",
-  readApiKey: "读取 API Key",
-  modifyGlobalRulesOrSkills: "修改全局规则 / Skill",
+  accessOutsideFiles: "访问资料库外文件",
+  readApiKey: "读取 API 密钥",
+  modifyGlobalRulesOrSkills: "修改全局规则 / 技能",
 };
 
 function permissionLabel(key: string): string {

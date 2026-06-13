@@ -35,7 +35,7 @@ import {
 import { ConfirmModal } from "../app/Modals.js";
 import { ViewShell } from "./common.js";
 
-const SECTIONS = ["外观", "模型与 API", "远程访问", "通用", "Agent", "快捷键", "关于"] as const;
+const SECTIONS = ["外观", "模型与 API", "远程访问", "通用", "智能体", "快捷键", "关于"] as const;
 type Section = (typeof SECTIONS)[number];
 
 const PROVIDER_OPTIONS = [
@@ -212,7 +212,7 @@ function ModelEditor({
       <div className="editor-card-head">
         <div>
           <h2>{mode === "create" ? "新建模型配置" : `编辑模型 · ${draft.id || draft.model || "未命名"}`}</h2>
-          <p className="view-sub">模型配置保存在 Vault，API Key 仍只进系统凭据管理器。</p>
+          <p className="view-sub">模型配置保存在资料库，API 密钥仍只进系统凭据管理器。</p>
         </div>
         <div className="view-actions">
           <button
@@ -290,7 +290,7 @@ function ModelEditor({
 
         <div className="model-key-row">
           <label className="form-block model-key-input">
-            <span>API Key</span>
+            <span>API 密钥</span>
             <input
               className="input"
               type="password"
@@ -299,7 +299,7 @@ function ModelEditor({
               placeholder="仅写入系统凭据管理器"
             />
           </label>
-          <span className={`tag ${hasKey ? "primary" : ""}`}>{hasKey ? "已存 Key" : "缺失 Key"}</span>
+          <span className={`tag ${hasKey ? "primary" : ""}`}>{hasKey ? "已存密钥" : "缺失密钥"}</span>
           <button
             type="button"
             className="btn btn-primary"
@@ -475,7 +475,7 @@ function GeneralPanel({
               中文
             </button>
             <button type="button" className={preferences.preferredLanguage === "en-US" ? "on" : ""} onClick={() => savePreferencePatch({ preferredLanguage: "en-US" }, setPreferences, setFeedback)}>
-              English
+              英文
             </button>
           </div>
         </div>
@@ -539,7 +539,7 @@ function GeneralPanel({
             <Languages size={16} />
             <div>
               <div className="mini-card-title">仅写浏览器本地</div>
-              <div className="mini-card-sub">这组偏好不写入 Vault，不进入导出包，也不改变后端业务数据。</div>
+              <div className="mini-card-sub">这组偏好不写入资料库，不进入导出包，也不改变后端业务数据。</div>
             </div>
           </div>
           <div className="signal-item">
@@ -590,19 +590,19 @@ function AgentPanel({
   return (
     <div className="stack-list">
       <section className="info-card">
-        <h3>Agent 工作流观察</h3>
+        <h3>智能体工作流观察</h3>
         <div className="signal-list">
           <div className="signal-item">
             <Bot size={16} />
             <div>
-              <div className="mini-card-title">当前可见 Agent</div>
+              <div className="mini-card-title">当前可见智能体</div>
               <div className="mini-card-sub">{enabledCount} / {sortedAgents.length} 处于启用状态</div>
             </div>
           </div>
           <div className="signal-item">
             <CheckCircle2 size={16} />
             <div>
-              <div className="mini-card-title">关注 Agent</div>
+              <div className="mini-card-title">关注智能体</div>
               <div className="mini-card-sub">{preferences.watchedAgentIds.length} 个会在工作台运行卡里重点高亮</div>
             </div>
           </div>
@@ -614,14 +614,14 @@ function AgentPanel({
       <section className="list-card">
         <div className="list-row head">
           <span className="col" style={{ width: 36 }}>#</span>
-          <span className="col col-grow">Agent</span>
+          <span className="col col-grow">智能体</span>
           <span className="col" style={{ width: 90 }}>状态</span>
           <span className="col" style={{ width: 96 }}>关注</span>
         </div>
         {loading ? (
           <div className="center-state" style={{ minHeight: 220 }}>
             <div className="spinner" />
-            <span>加载 Agent 中</span>
+            <span>正在加载智能体</span>
           </div>
         ) : (
           sortedAgents.map((agent, index) => {
@@ -798,7 +798,7 @@ export function SettingsView({ vaultPath, onSetVault, onClearVault }: SettingsVi
       const list = await api.listAgents();
       setAgents(list);
     } catch (error) {
-      setPreferencesFeedback(error instanceof ApiError ? error.message : "Agent 列表加载失败");
+      setPreferencesFeedback(error instanceof ApiError ? error.message : "智能体列表加载失败");
     } finally {
       setAgentsLoading(false);
     }
@@ -837,7 +837,7 @@ export function SettingsView({ vaultPath, onSetVault, onClearVault }: SettingsVi
     }
     const nextPath = vaultDraft.trim();
     if (!nextPath) {
-      setVaultFeedback("请输入 Vault 目录绝对路径");
+      setVaultFeedback("请输入资料库目录绝对路径");
       return;
     }
 
@@ -904,7 +904,7 @@ export function SettingsView({ vaultPath, onSetVault, onClearVault }: SettingsVi
   }
 
   return (
-    <ViewShell title="设置" subtitle="外观、模型、远程访问、通用偏好、Agent 与快捷键">
+    <ViewShell title="设置" subtitle="外观、模型、远程访问、通用偏好、智能体与快捷键">
       <div className="settings-layout">
         <div className="settings-menu">
           {SECTIONS.map((section) => (
@@ -919,17 +919,17 @@ export function SettingsView({ vaultPath, onSetVault, onClearVault }: SettingsVi
             <div className="editor-card-head">
               <div>
                 <h2>资料库位置</h2>
-                <p className="view-sub">当前 Vault：{vaultPath || "尚未选择"}</p>
+                <p className="view-sub">当前资料库：{vaultPath || "尚未选择"}</p>
               </div>
             </div>
             <div className="form-grid form-grid-2">
               <label className="form-block">
-                <span>Vault 目录</span>
+                <span>资料库目录</span>
                 <input
                   className="input"
                   value={vaultDraft}
                   onChange={(event) => setVaultDraft(event.target.value)}
-                  placeholder={"输入 Vault 目录绝对路径，例如 C:\\书灵阁Vault"}
+                  placeholder={"输入资料库目录绝对路径，例如 C:\\书灵阁资料库"}
                 />
               </label>
               <div className="model-actions-row">
@@ -994,8 +994,8 @@ export function SettingsView({ vaultPath, onSetVault, onClearVault }: SettingsVi
                     <div className="list-card">
                       <div className="list-row head">
                         <span className="col col-grow">模型</span>
-                        <span className="col" style={{ width: 120 }}>Provider</span>
-                        <span className="col" style={{ width: 90 }}>Key</span>
+                        <span className="col" style={{ width: 120 }}>服务商</span>
+                        <span className="col" style={{ width: 90 }}>密钥</span>
                       </div>
                       {models.map((model) => (
                         <div
@@ -1078,7 +1078,7 @@ export function SettingsView({ vaultPath, onSetVault, onClearVault }: SettingsVi
                         message: wasCreate
                           ? "模型配置已保存，可以继续新建下一个"
                           : apiKey.trim()
-                            ? "模型配置和 API Key 已保存"
+                            ? "模型配置和 API 密钥已保存"
                             : "模型配置已保存",
                       });
                     } catch (error) {
@@ -1190,7 +1190,7 @@ export function SettingsView({ vaultPath, onSetVault, onClearVault }: SettingsVi
             />
           ) : null}
 
-          {sec === "Agent" ? (
+          {sec === "智能体" ? (
             <AgentPanel
               agents={agents}
               loading={agentsLoading}
@@ -1219,14 +1219,14 @@ export function SettingsView({ vaultPath, onSetVault, onClearVault }: SettingsVi
                     <CheckCircle2 size={16} />
                     <div>
                       <div className="mini-card-title">本地优先</div>
-                      <div className="mini-card-sub">正文与元数据仍以 Vault 的 Markdown/JSON 为真相源。</div>
+                      <div className="mini-card-sub">正文与元数据仍以资料库里的 Markdown/JSON 为真相源。</div>
                     </div>
                   </div>
                   <div className="signal-item">
                     <KeyRound size={16} />
                     <div>
-                      <div className="mini-card-title">Key 安全</div>
-                      <div className="mini-card-sub">API Key 仅写入系统凭据管理器，不进前端状态与导出。</div>
+                      <div className="mini-card-title">密钥安全</div>
+                      <div className="mini-card-sub">API 密钥仅写入系统凭据管理器，不进前端状态与导出。</div>
                     </div>
                   </div>
                   <div className="signal-item">

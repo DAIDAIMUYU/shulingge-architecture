@@ -13,7 +13,7 @@ export function VaultPickerModal({ onSelectVault }: VaultPickerModalProps) {
   const submit = async () => {
     const nextPath = path.trim();
     if (!nextPath) {
-      setError("请输入 Vault 目录绝对路径");
+      setError("请输入资料库目录绝对路径");
       return;
     }
 
@@ -34,15 +34,15 @@ export function VaultPickerModal({ onSelectVault }: VaultPickerModalProps) {
         <div className="vault-modal-mark">
           <FolderOpen size={22} strokeWidth={1.75} />
         </div>
-        <h2 id="vault-picker-title">选择资料库(Vault)</h2>
+        <h2 id="vault-picker-title">选择资料库</h2>
         <p>请选择书灵阁用于保存项目、正文、批注与规则的本地资料库目录。选择后可在设置页更换。</p>
         <label className="form-block">
-          <span>Vault 目录</span>
+          <span>资料库目录</span>
           <input
             className="input"
             value={path}
             onChange={(event) => setPath(event.target.value)}
-            placeholder={"输入 Vault 目录绝对路径，例如 C:\\书灵阁Vault"}
+            placeholder={"输入资料库目录绝对路径，例如 C:\\书灵阁资料库"}
             onKeyDown={(event) => {
               if (event.key === "Enter") {
                 void submit();
