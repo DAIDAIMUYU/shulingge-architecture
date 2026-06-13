@@ -1962,78 +1962,6 @@ body::after,
   }
 }
 
-@media (max-width: 1366px) {
-  .app-shell.app-desktop-layout:not(.app-focus-mode) {
-    grid-template-columns: 1fr !important;
-    grid-template-rows: minmax(0, 1fr) !important;
-  }
-
-  .app-shell.app-desktop-layout:not(.app-focus-mode) .rail {
-    display: none !important;
-  }
-
-  .app-shell.app-desktop-layout:not(.app-focus-mode) .main {
-    padding-bottom: 74px !important;
-  }
-
-  .app-shell.app-desktop-layout:not(.app-focus-mode) .workspace {
-    display: flex !important;
-    flex-direction: column !important;
-    height: 100% !important;
-  }
-
-  .app-shell.app-desktop-layout:not(.app-focus-mode) .workspace-mobile-header {
-    display: block !important;
-    flex: none !important;
-  }
-
-  .app-shell.app-desktop-layout:not(.app-focus-mode) .workspace > .tree-panel,
-  .app-shell.app-desktop-layout:not(.app-focus-mode) .workspace > .editor-pane,
-  .app-shell.app-desktop-layout:not(.app-focus-mode) .workspace > .chat-pane {
-    display: none !important;
-    flex: 1 1 0 !important;
-    height: auto !important;
-    margin-top: 0 !important;
-  }
-
-  .app-shell.app-desktop-layout:not(.app-focus-mode) .workspace.mobile-panel-chapters > .tree-panel,
-  .app-shell.app-desktop-layout:not(.app-focus-mode) .workspace.mobile-panel-editor > .editor-pane,
-  .app-shell.app-desktop-layout:not(.app-focus-mode) .workspace.mobile-panel-inspector > .editor-pane,
-  .app-shell.app-desktop-layout:not(.app-focus-mode) .workspace.mobile-panel-chat > .chat-pane {
-    display: flex !important;
-  }
-
-  .app-shell.app-desktop-layout:not(.app-focus-mode) .mobile-nav {
-    display: flex !important;
-    top: auto !important;
-    bottom: 0 !important;
-    min-height: 74px !important;
-    padding: 8px 10px calc(8px + env(safe-area-inset-bottom)) !important;
-  }
-
-  .app-shell.app-desktop-layout:not(.app-focus-mode) .editor-scroll {
-    justify-items: stretch !important;
-    padding: 12px clamp(10px, 2.4vw, 18px) 86px !important;
-  }
-
-  .app-shell.app-desktop-layout:not(.app-focus-mode) .editor-workbench,
-  .app-shell.app-desktop-layout:not(.app-focus-mode) .paper {
-    width: 100% !important;
-    max-width: 100% !important;
-  }
-
-  .app-shell.app-desktop-layout:not(.app-focus-mode) .paper-toolbar {
-    flex-wrap: nowrap !important;
-    overflow-x: auto !important;
-    overflow-y: hidden !important;
-    scrollbar-width: thin;
-  }
-
-  .app-shell.app-desktop-layout:not(.app-focus-mode) .paper-toolbar > * {
-    flex: 0 0 auto !important;
-  }
-}
-
 .app-shell.app-mobile-layout {
   grid-template-columns: 1fr !important;
   grid-template-rows: minmax(0, 1fr) !important;
@@ -2284,6 +2212,78 @@ body::after,
 
   .app-shell.app-desktop-layout:not(.app-focus-mode) .editor-workbench {
     max-width: min(720px, 100%) !important;
+  }
+}
+
+@media (max-width: 1366px) {
+  .app-shell.app-desktop-layout:not(.app-focus-mode) {
+    grid-template-columns: 1fr !important;
+    grid-template-rows: minmax(0, 1fr) !important;
+  }
+
+  .app-shell.app-desktop-layout:not(.app-focus-mode) .rail {
+    display: none !important;
+  }
+
+  .app-shell.app-desktop-layout:not(.app-focus-mode) .main {
+    padding-bottom: 74px !important;
+  }
+
+  .app-shell.app-desktop-layout:not(.app-focus-mode) .workspace {
+    display: flex !important;
+    flex-direction: column !important;
+    height: 100% !important;
+  }
+
+  .app-shell.app-desktop-layout:not(.app-focus-mode) .workspace-mobile-header {
+    display: block !important;
+    flex: none !important;
+  }
+
+  .app-shell.app-desktop-layout:not(.app-focus-mode) .workspace > .tree-panel,
+  .app-shell.app-desktop-layout:not(.app-focus-mode) .workspace > .editor-pane,
+  .app-shell.app-desktop-layout:not(.app-focus-mode) .workspace > .chat-pane {
+    display: none !important;
+    flex: 1 1 0 !important;
+    height: auto !important;
+    margin-top: 0 !important;
+  }
+
+  .app-shell.app-desktop-layout:not(.app-focus-mode) .workspace.mobile-panel-chapters > .tree-panel,
+  .app-shell.app-desktop-layout:not(.app-focus-mode) .workspace.mobile-panel-editor > .editor-pane,
+  .app-shell.app-desktop-layout:not(.app-focus-mode) .workspace.mobile-panel-inspector > .editor-pane,
+  .app-shell.app-desktop-layout:not(.app-focus-mode) .workspace.mobile-panel-chat > .chat-pane {
+    display: flex !important;
+  }
+
+  .app-shell.app-desktop-layout:not(.app-focus-mode) .mobile-nav {
+    display: flex !important;
+    top: auto !important;
+    bottom: 0 !important;
+    min-height: 74px !important;
+    padding: 8px 10px calc(8px + env(safe-area-inset-bottom)) !important;
+  }
+
+  .app-shell.app-desktop-layout:not(.app-focus-mode) .editor-scroll {
+    justify-items: stretch !important;
+    padding: 12px clamp(10px, 2.4vw, 18px) 86px !important;
+  }
+
+  .app-shell.app-desktop-layout:not(.app-focus-mode) .editor-workbench,
+  .app-shell.app-desktop-layout:not(.app-focus-mode) .paper {
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  .app-shell.app-desktop-layout:not(.app-focus-mode) .paper-toolbar {
+    flex-wrap: nowrap !important;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    scrollbar-width: thin;
+  }
+
+  .app-shell.app-desktop-layout:not(.app-focus-mode) .paper-toolbar > * {
+    flex: 0 0 auto !important;
   }
 }
 
