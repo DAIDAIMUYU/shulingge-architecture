@@ -362,10 +362,10 @@ input[type="radio"] { width: 15px; height: 15px; margin: 0; accent-color: var(--
 .app-shell.app-focus-mode .mobile-shell-header,
 .app-shell.app-focus-mode .mobile-nav { display: none; }
 .app-shell.app-focus-mode .main { padding-bottom: 0; }
-.workspace { display: grid; grid-template-columns: 264px minmax(0,1fr) clamp(320px, 26vw, 380px); width: 100%; height: 100%; min-height: 0; overflow: hidden; }
+.workspace { display: grid; grid-template-columns: clamp(240px, 15vw, 264px) minmax(0,1fr) clamp(340px, 22vw, 384px); width: 100%; height: 100%; min-height: 0; overflow: hidden; isolation: isolate; }
 .workspace > .tree-panel,
 .workspace > .editor-pane,
-.workspace > .chat-pane { align-self: start; height: calc(100% - var(--workspace-safe-top)); min-height: 0; margin-top: var(--workspace-safe-top); }
+.workspace > .chat-pane { align-self: start; width: 100%; min-width: 0; max-width: 100%; height: calc(100% - var(--workspace-safe-top)); min-height: 0; margin-top: var(--workspace-safe-top); position: relative; }
 .workspace.focus-mode { grid-template-columns: minmax(0,1fr); }
 .workspace.focus-mode .tree-panel,
 .workspace.focus-mode .chat-pane { display: none; }
@@ -397,7 +397,7 @@ input[type="radio"] { width: 15px; height: 15px; margin: 0; accent-color: var(--
 .rail-spacer { flex: 1; }
 
 /* 第二列：章节树 */
-.tree-panel { background: var(--bg-panel); background-image: none; border-right: 1px solid var(--border); display: flex; flex-direction: column; min-height: 0; }
+.tree-panel { z-index: 3; background: var(--bg-panel); background-image: none; border-right: 1px solid var(--border); display: flex; flex-direction: column; min-height: 0; box-shadow: 8px 0 28px color-mix(in srgb, var(--primary-ink) 5%, transparent); }
 .tree-head { flex: none; min-height: 104px; display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 38px 20px 14px; background-color: color-mix(in srgb, var(--surface-panel-glass) 86%, var(--bg-panel)); border-bottom: 1px solid color-mix(in srgb, var(--border) 72%, transparent); }
 .tree-head h2 { font-family: var(--font-serif); font-size: 17px; font-weight: 600; letter-spacing: .03em; line-height: 1.35; }
 .tree-total-words { margin-top: 4px; font-size: 12px; line-height: 1.45; color: var(--text-muted); }
@@ -455,15 +455,15 @@ input[type="radio"] { width: 15px; height: 15px; margin: 0; accent-color: var(--
 .search-result-snippet { display: block; margin-top: 6px; color: var(--text-muted); font-size: 12px; line-height: 1.6; }
 
 /* 第三列：编辑器（纸张，周围留呼吸） */
-.editor-pane { background: transparent; display: flex; flex-direction: column; min-width: 0; }
-.editor-scroll { flex: 1; min-width: 0; overflow: auto; display: flex; justify-content: center; padding: 44px 48px 64px; }
-.paper { width: 100%; min-width: 0; max-width: 900px; overflow: hidden; background-color: var(--bg-card); background-image: none; background-blend-mode: multiply, normal; border: 1px solid var(--border); border-radius: var(--radius-lg); box-shadow: var(--shadow-paper); display: flex; flex-direction: column; align-self: flex-start; min-height: calc(100% - 0px); position: relative; }
+.editor-pane { z-index: 1; background: transparent; display: flex; flex-direction: column; min-width: 0; overflow: hidden; }
+.editor-scroll { flex: 1; min-width: 0; overflow: auto; display: grid; grid-template-columns: minmax(0,1fr); justify-items: center; align-items: start; padding: 44px clamp(28px, 3vw, 52px) 64px; }
+.paper { width: 100%; min-width: 0; max-width: 860px; overflow: hidden; background-color: var(--bg-card); background-image: none; background-blend-mode: multiply, normal; border: 1px solid var(--border); border-radius: var(--radius-lg); box-shadow: var(--shadow-paper); display: flex; flex-direction: column; align-self: flex-start; min-height: calc(100% - 0px); position: relative; }
 .paper::before { content: ""; position: absolute; inset: 10px; border: 1px solid color-mix(in srgb, var(--border) 58%, transparent); border-radius: calc(var(--radius-lg) - 5px); pointer-events: none; }
-.editor-workbench { width: 100%; min-width: 0; max-width: 940px; display: grid; grid-template-columns: minmax(0,1fr); gap: 28px; justify-content: center; align-items: start; }
+.editor-workbench { width: 100%; min-width: 0; max-width: 860px; display: grid; grid-template-columns: minmax(0,1fr); gap: 28px; justify-content: center; align-items: start; }
 .editor-workbench.focus-mode { grid-template-columns: minmax(0, 900px); max-width: 900px; }
-.paper-toolbar { display: flex; align-items: center; gap: 2px; min-width: 0; min-height: 64px; padding: 12px 16px 0; border-bottom: 1px solid var(--border); background: color-mix(in srgb, var(--surface-toolbar-glass) 90%, var(--bg-panel)); position: relative; z-index: 1; }
+.paper-toolbar { display: flex; align-items: center; gap: 2px; min-width: 0; max-width: 100%; min-height: 64px; padding: 12px 16px 10px; border-bottom: 1px solid var(--border); background: color-mix(in srgb, var(--surface-toolbar-glass) 90%, var(--bg-panel)); position: relative; z-index: 1; flex-wrap: wrap; row-gap: 8px; overflow: hidden; }
 .paper-toolbar .sep { width: 1px; height: 20px; background: var(--border); margin: 0 8px; }
-.paper-toolbar .grow { flex: 1; }
+.paper-toolbar .grow { flex: 1 1 24px; min-width: 16px; }
 .editor-mode-switch { margin-left: 8px; flex: none; }
 .editor-mode-switch button { padding: 0 10px; white-space: nowrap; }
 .toolbar-active { background: linear-gradient(180deg, var(--primary-soft), var(--primary-light)); color: var(--primary); box-shadow: inset 0 -1px 0 var(--accent-cinnabar); }
@@ -564,8 +564,8 @@ input[type="radio"] { width: 15px; height: 15px; margin: 0; accent-color: var(--
 
 
 /* ===== 第四列：总控 AI 对话窗 ===== */
-.chat-pane { background: var(--bg-panel); background-image: none; border-left: 1px solid var(--border); display: flex; flex-direction: column; min-height: 0; }
-.chat-head { display: flex; align-items: center; gap: 12px; min-height: 86px; padding: 30px 20px 18px; border-bottom: 1px solid color-mix(in srgb, var(--border) 72%, transparent); background-color: color-mix(in srgb, var(--surface-panel-glass) 86%, var(--bg-panel)); }
+.chat-pane { z-index: 4; background: var(--bg-panel); background-image: none; border-left: 1px solid var(--border-strong); display: flex; flex-direction: column; min-height: 0; overflow: hidden; box-shadow: -14px 0 34px color-mix(in srgb, var(--primary-ink) 9%, transparent); }
+.chat-head { display: flex; align-items: center; gap: 12px; min-height: 86px; padding: 30px 20px 18px; border-bottom: 1px solid color-mix(in srgb, var(--border-strong) 72%, transparent); background-color: color-mix(in srgb, var(--bg-panel) 94%, transparent); }
 .chat-avatar { width: 38px; height: 38px; border-radius: 11px; background: linear-gradient(135deg, var(--primary), var(--primary-hover)); color: var(--text-on-primary); display: grid; place-items: center; flex: none; box-shadow: inset 0 -2px 0 color-mix(in srgb, var(--accent-cinnabar) 36%, transparent), 0 8px 18px color-mix(in srgb, var(--primary) 18%, transparent); }
 .chat-head .ch-name { font-size: 14px; font-weight: 600; }
 .chat-head .ch-sub { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
@@ -574,7 +574,7 @@ input[type="radio"] { width: 15px; height: 15px; margin: 0; accent-color: var(--
 .msg { display: flex; gap: 10px; max-width: 100%; }
 .msg-av { width: 28px; height: 28px; border-radius: 9px; flex: none; display: grid; place-items: center; font-size: 13px; }
 .msg-av.ai { background: var(--primary-light); color: var(--primary); }
-.msg-bubble { padding: 11px 14px; border-radius: var(--radius-md); font-size: 13.5px; line-height: 1.7; max-width: 280px; word-break: break-word; }
+.msg-bubble { padding: 11px 14px; border-radius: var(--radius-md); font-size: 13.5px; line-height: 1.7; max-width: min(280px, 100%); word-break: break-word; }
 .msg.ai .msg-bubble { background: var(--bg-card); background-image: none; border: 1px solid var(--border); color: var(--text-primary); border-top-left-radius: 4px; box-shadow: var(--shadow-card); }
 .msg.user { flex-direction: row-reverse; }
 .msg.user .msg-bubble { background: linear-gradient(180deg, var(--primary), var(--primary-hover)); color: var(--text-on-primary); border-top-right-radius: 4px; box-shadow: 0 8px 18px color-mix(in srgb, var(--primary) 16%, transparent); }
@@ -1000,20 +1000,20 @@ input[type="radio"] { width: 15px; height: 15px; margin: 0; accent-color: var(--
 @keyframes breathe { 0%,100% { opacity: 1; } 50% { opacity: .4; } }
 
 @media (max-width: 1600px) {
-  .workspace { grid-template-columns: 264px minmax(0,1fr) clamp(320px, 26vw, 380px); }
-  .editor-workbench { grid-template-columns: minmax(0,1fr); max-width: 860px; }
+  .workspace { grid-template-columns: clamp(224px, 15vw, 248px) minmax(0,1fr) clamp(300px, 21vw, 340px); }
+  .editor-scroll { padding-left: clamp(22px, 2.4vw, 38px); padding-right: clamp(22px, 2.4vw, 38px); }
+  .editor-workbench { grid-template-columns: minmax(0,1fr); max-width: 820px; }
+  .paper { max-width: 820px; }
 }
 
-@media (max-width: 1800px) {
-  .workspace { grid-template-columns: clamp(220px, 16vw, 264px) minmax(0,1fr); }
+@media (max-width: 1440px) {
+  .workspace { grid-template-columns: clamp(208px, 17vw, 232px) minmax(0,1fr) clamp(280px, 22vw, 320px); }
   .tree-head { padding-left: clamp(16px, 1.6vw, 20px); padding-right: clamp(16px, 1.6vw, 20px); }
   .tree-scroll { padding-left: clamp(10px, 1.1vw, 12px); padding-right: clamp(10px, 1.1vw, 12px); }
-  .editor-scroll { justify-content: flex-start; padding-left: clamp(16px, 2vw, 32px); padding-right: clamp(16px, 2vw, 32px); }
-  .editor-workbench { grid-template-columns: minmax(0,1fr); width: min(100%, clamp(600px, 58vw, 760px)); max-width: 100%; justify-items: stretch; }
+  .editor-scroll { padding-left: clamp(18px, 1.8vw, 26px); padding-right: clamp(18px, 1.8vw, 26px); }
+  .editor-workbench { grid-template-columns: minmax(0,1fr); max-width: 760px; justify-items: stretch; }
   .paper { max-width: 100%; }
-  .paper-toolbar { height: auto; min-height: 64px; flex-wrap: wrap; row-gap: 8px; padding-bottom: 10px; }
-  .paper-toolbar .grow { flex: 1 1 auto; }
-  .chat-pane { display: none; }
+  .chat-pane { display: flex; }
 }
 @media (max-width: 768px) {
   .app-shell { grid-template-columns: 1fr; }
@@ -1229,6 +1229,11 @@ input[type="radio"] { width: 15px; height: 15px; margin: 0; accent-color: var(--
   background-color: var(--surface-panel-glass);
   background-image: none;
   backdrop-filter: var(--surface-blur);
+}
+
+.workspace > .tree-panel,
+.workspace > .chat-pane {
+  background-color: color-mix(in srgb, var(--surface-panel-glass) 70%, var(--bg-panel));
 }
 
 .paper {
