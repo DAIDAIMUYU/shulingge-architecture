@@ -22,6 +22,7 @@ import {
   mergeWebPreferences,
   readWebPreferences,
   writeWebPreferences,
+  type WebThemeMode,
   type WebPreferences,
 } from "../app/preferences.js";
 import {
@@ -37,6 +38,12 @@ import { ViewShell } from "./common.js";
 
 const SECTIONS = ["外观", "模型与 API", "远程访问", "通用", "智能体", "快捷键", "关于"] as const;
 type Section = (typeof SECTIONS)[number];
+
+const THEME_OPTIONS: Array<{ value: WebThemeMode; label: string; description: string }> = [
+  { value: "light", label: "浅色", description: "晨雾红日水墨，宣纸暖白，适合日间写作。" },
+  { value: "eye", label: "护眼", description: "青绿山水背景，暖灰米黄，长时间阅读更柔和。" },
+  { value: "dark", label: "深色", description: "夜雨孤灯暗调，低亮度沉浸写作。" },
+];
 
 const PROVIDER_OPTIONS = [
   { value: "openai", label: "OpenAI" },
@@ -111,13 +118,6 @@ type FeedbackKind = "info" | "success" | "error";
 interface FeedbackState {
   kind: FeedbackKind;
   message: string;
-}
-
-function currentTheme(): "light" | "dark" {
-  if (typeof document === "undefined") {
-    return "light";
-  }
-  return document.documentElement.getAttribute("data-theme") === "dark" ? "dark" : "light";
 }
 
 function createModelDraft(model?: ModelConfig): ModelDraft {
@@ -740,7 +740,6 @@ interface SettingsViewProps {
 
 export function SettingsView({ vaultPath, onSetVault, onClearVault }: SettingsViewProps = {}) {
   const [sec, setSec] = useState<Section>("外观");
-  const [theme, setTheme] = useState<"light" | "dark">(currentTheme);
   const [preferences, setPreferences] = useState<WebPreferences>(() => readWebPreferences());
   const [preferencesFeedback, setPreferencesFeedback] = useState<string | null>(null);
   const [vaultDraft, setVaultDraft] = useState(vaultPath ?? "");
@@ -773,11 +772,6 @@ export function SettingsView({ vaultPath, onSetVault, onClearVault }: SettingsVi
     () => models.find((model) => model.id === selectedModelId) ?? null,
     [models, selectedModelId],
   );
-
-  const applyTheme = (nextTheme: "light" | "dark") => {
-    document.documentElement.setAttribute("data-theme", nextTheme);
-    setTheme(nextTheme);
-  };
 
   async function loadModels() {
     setModelsLoading(true);
@@ -950,15 +944,20 @@ export function SettingsView({ vaultPath, onSetVault, onClearVault }: SettingsVi
               <div className="form-row">
                 <div>
                   <div className="fr-label">配色模式</div>
-                  <div className="fr-desc">浅色 / 深色文房主题，长时间写作建议深色护眼。</div>
+                  <div className="fr-desc">浅色 / 护眼 / 深色三套文房主题，背景、面板和文字会整体切换。</div>
                 </div>
                 <div className="segmented">
-                  <button type="button" className={theme === "light" ? "on" : ""} onClick={() => applyTheme("light")}>
-                    浅色
-                  </button>
-                  <button type="button" className={theme === "dark" ? "on" : ""} onClick={() => applyTheme("dark")}>
-                    深色
-                  </button>
+                  {THEME_OPTIONS.map((option) => (
+                    <button
+                      key={option.value}
+                      type="button"
+                      className={preferences.themeMode === option.value ? "on" : ""}
+                      title={option.description}
+                      onClick={() => savePreferencePatch({ themeMode: option.value }, setPreferences, setPreferencesFeedback)}
+                    >
+                      {option.label}
+                    </button>
+                  ))}
                 </div>
               </div>
               <div className="form-row">
@@ -967,48 +966,6 @@ export function SettingsView({ vaultPath, onSetVault, onClearVault }: SettingsVi
                   <div className="fr-desc">编辑器正文使用的字体。</div>
                 </div>
                 <span className="tag">思源宋体</span>
-              </div>
-              <div className="form-row">
-                <div>
-                  <div className="fr-label">纸质纹理</div>
-                  <div className="fr-desc">开启后显示宣纸纤维、米黄纸色和轻微做旧晕染；不喜欢纹理时可关闭。</div>
-                </div>
-                <label className="switch-row">
-                  <input
-                    type="checkbox"
-                    checked={preferences.paperTextureEnabled}
-                    onChange={(event) => savePreferencePatch({ paperTextureEnabled: event.target.checked }, setPreferences, setPreferencesFeedback)}
-                  />
-                  <span>{preferences.paperTextureEnabled ? "已开启" : "关闭"}</span>
-                </label>
-              </div>
-              <div className="form-row">
-                <div>
-                  <div className="fr-label">背景装饰</div>
-                  <div className="fr-desc">显示极淡的水墨远山氛围层；偏好纯净界面时可关闭。</div>
-                </div>
-                <label className="switch-row">
-                  <input
-                    type="checkbox"
-                    checked={preferences.backgroundDecorationEnabled}
-                    onChange={(event) => savePreferencePatch({ backgroundDecorationEnabled: event.target.checked }, setPreferences, setPreferencesFeedback)}
-                  />
-                  <span>{preferences.backgroundDecorationEnabled ? "已开启" : "关闭"}</span>
-                </label>
-              </div>
-              <div className="form-row">
-                <div>
-                  <div className="fr-label">水墨背景</div>
-                  <div className="fr-desc">浅色主题下显示水墨山水背景图，并用宣纸蒙版淡化；深色主题暂不启用。</div>
-                </div>
-                <label className="switch-row">
-                  <input
-                    type="checkbox"
-                    checked={preferences.inkBackgroundEnabled}
-                    onChange={(event) => savePreferencePatch({ inkBackgroundEnabled: event.target.checked }, setPreferences, setPreferencesFeedback)}
-                  />
-                  <span>{preferences.inkBackgroundEnabled ? "已开启" : "关闭"}</span>
-                </label>
               </div>
             </div>
           ) : null}

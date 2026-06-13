@@ -1,52 +1,56 @@
 export type PreferredLanguage = "zh-CN" | "en-US";
 export type SendShortcut = "enter" | "mod-enter";
 export type InspectorTabPreference = "outline" | "annotations" | "locks";
+export type WebThemeMode = "light" | "eye" | "dark";
 
 export interface WebPreferences {
   preferredLanguage: PreferredLanguage;
   autosaveDelayMs: 800 | 1200 | 2000;
   startInFocusMode: boolean;
-  paperTextureEnabled: boolean;
-  backgroundDecorationEnabled: boolean;
-  inkBackgroundEnabled: boolean;
+  themeMode: WebThemeMode;
   defaultInspectorTab: InspectorTabPreference;
   sendShortcut: SendShortcut;
   watchedAgentIds: string[];
 }
 
 const STORAGE_KEY = "shulingge.web.preferences";
+let themeTransitionTimer: ReturnType<typeof setTimeout> | undefined;
 
 export const DEFAULT_WEB_PREFERENCES: WebPreferences = {
   preferredLanguage: "zh-CN",
   autosaveDelayMs: 1200,
   startInFocusMode: false,
-  paperTextureEnabled: true,
-  backgroundDecorationEnabled: true,
-  inkBackgroundEnabled: true,
+  themeMode: "light",
   defaultInspectorTab: "outline",
   sendShortcut: "enter",
   watchedAgentIds: ["writer", "rule-guard", "director"],
 };
 
-export function applyPaperTexturePreference(enabled: boolean): void {
+export function applyThemePreference(themeMode: WebThemeMode): void {
   if (typeof document === "undefined") {
     return;
   }
-  document.body.classList.toggle("paper-texture", enabled);
-}
+  const root = document.documentElement;
+  const previousTheme = root.getAttribute("data-theme");
 
-export function applyBackgroundDecorationPreference(enabled: boolean): void {
-  if (typeof document === "undefined") {
-    return;
-  }
-  document.body.classList.toggle("background-decoration", enabled);
-}
+  if (previousTheme && previousTheme !== themeMode) {
+    root.setAttribute("data-theme-prev", previousTheme);
+    root.setAttribute("data-theme", themeMode);
+    root.classList.remove("theme-switching");
+    void root.offsetWidth;
+    root.classList.add("theme-switching");
 
-export function applyInkBackgroundPreference(enabled: boolean): void {
-  if (typeof document === "undefined") {
+    if (themeTransitionTimer) {
+      clearTimeout(themeTransitionTimer);
+    }
+    themeTransitionTimer = setTimeout(() => {
+      root.classList.remove("theme-switching");
+      root.removeAttribute("data-theme-prev");
+    }, 380);
     return;
   }
-  document.body.classList.toggle("bg-ink", enabled);
+
+  root.setAttribute("data-theme", themeMode);
 }
 
 function isPreferredLanguage(value: unknown): value is PreferredLanguage {
@@ -65,6 +69,10 @@ function isSendShortcut(value: unknown): value is SendShortcut {
   return value === "enter" || value === "mod-enter";
 }
 
+function isThemeMode(value: unknown): value is WebThemeMode {
+  return value === "light" || value === "eye" || value === "dark";
+}
+
 export function normalizeWebPreferences(input: unknown): WebPreferences {
   const record = input && typeof input === "object" ? input as Record<string, unknown> : {};
 
@@ -78,15 +86,7 @@ export function normalizeWebPreferences(input: unknown): WebPreferences {
     startInFocusMode: typeof record.startInFocusMode === "boolean"
       ? record.startInFocusMode
       : DEFAULT_WEB_PREFERENCES.startInFocusMode,
-    paperTextureEnabled: typeof record.paperTextureEnabled === "boolean"
-      ? record.paperTextureEnabled
-      : DEFAULT_WEB_PREFERENCES.paperTextureEnabled,
-    backgroundDecorationEnabled: typeof record.backgroundDecorationEnabled === "boolean"
-      ? record.backgroundDecorationEnabled
-      : DEFAULT_WEB_PREFERENCES.backgroundDecorationEnabled,
-    inkBackgroundEnabled: typeof record.inkBackgroundEnabled === "boolean"
-      ? record.inkBackgroundEnabled
-      : DEFAULT_WEB_PREFERENCES.inkBackgroundEnabled,
+    themeMode: isThemeMode(record.themeMode) ? record.themeMode : DEFAULT_WEB_PREFERENCES.themeMode,
     defaultInspectorTab: isInspectorTab(record.defaultInspectorTab)
       ? record.defaultInspectorTab
       : DEFAULT_WEB_PREFERENCES.defaultInspectorTab,
@@ -123,9 +123,7 @@ export function writeWebPreferences(next: WebPreferences): WebPreferences {
   if (typeof document !== "undefined") {
     document.documentElement.lang = normalized.preferredLanguage;
   }
-  applyPaperTexturePreference(normalized.paperTextureEnabled);
-  applyBackgroundDecorationPreference(normalized.backgroundDecorationEnabled);
-  applyInkBackgroundPreference(normalized.inkBackgroundEnabled);
+  applyThemePreference(normalized.themeMode);
   return normalized;
 }
 
