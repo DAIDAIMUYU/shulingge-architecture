@@ -184,7 +184,7 @@ export const globalCss = `
 }
 
 * { box-sizing: border-box; }
-html, body, #root { height: 100%; margin: 0; }
+html, body, #root { width: 100%; height: 100%; margin: 0; overflow: hidden; }
 #root { position: relative; z-index: 1; }
 body {
   position: relative;
@@ -374,9 +374,11 @@ input[type="radio"] { width: 15px; height: 15px; margin: 0; accent-color: var(--
 .workspace.focus-mode .paper-body { padding-top: clamp(58px, 7vw, 92px); padding-bottom: clamp(76px, 9vw, 112px); }
 .focus-exit-button { position: fixed; top: clamp(16px, 2vw, 28px); right: clamp(16px, 2vw, 28px); z-index: 45; height: 34px; display: inline-flex; align-items: center; gap: 6px; padding: 0 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); background-color: var(--surface-card-glass); backdrop-filter: var(--surface-control-blur); color: var(--text-secondary); box-shadow: var(--shadow-card); transition: background-color var(--motion-fast) ease, color var(--motion-fast) ease, border-color var(--motion-fast) ease, transform var(--motion-fast) ease; animation: popoverIn var(--motion-normal) var(--motion-pop) both; }
 .focus-exit-button:hover { background-color: var(--bg-hover); color: var(--text-primary); border-color: var(--border-strong); transform: translateY(-1px); }
-.main { min-width: 0; height: 100%; overflow: hidden; display: flex; flex-direction: column; }
+.main { min-width: 0; height: 100%; overflow: hidden; display: flex; flex-direction: column; position: relative; }
 .main > .view,
 .main > .workspace { flex: 1; min-height: 0; }
+.main > .workspace { position: fixed; top: 0; right: 0; bottom: 0; left: 64px; width: auto; height: auto; animation: none; transform: none; }
+.app-shell.app-focus-mode .main > .workspace { left: 0; }
 .mobile-shell-header,
 .mobile-nav,
 .workspace-mobile-header { display: none; }
@@ -1064,6 +1066,7 @@ input[type="radio"] { width: 15px; height: 15px; margin: 0; accent-color: var(--
   .main { padding-bottom: 88px; }
   .app-shell.app-focus-mode .main { padding-bottom: 0; }
   .app-shell.app-focus-mode .mobile-nav { display: none; }
+  .main > .workspace { position: static; inset: auto; width: auto; height: 100%; transform: none; }
   .workspace { grid-template-columns: 1fr; height: 100%; padding-top: 0; }
   .workspace {
     display: flex;
