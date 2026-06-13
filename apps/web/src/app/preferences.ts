@@ -7,6 +7,7 @@ export interface WebPreferences {
   autosaveDelayMs: 800 | 1200 | 2000;
   startInFocusMode: boolean;
   paperTextureEnabled: boolean;
+  backgroundDecorationEnabled: boolean;
   defaultInspectorTab: InspectorTabPreference;
   sendShortcut: SendShortcut;
   watchedAgentIds: string[];
@@ -19,6 +20,7 @@ export const DEFAULT_WEB_PREFERENCES: WebPreferences = {
   autosaveDelayMs: 1200,
   startInFocusMode: false,
   paperTextureEnabled: true,
+  backgroundDecorationEnabled: true,
   defaultInspectorTab: "outline",
   sendShortcut: "enter",
   watchedAgentIds: ["writer", "rule-guard", "director"],
@@ -29,6 +31,13 @@ export function applyPaperTexturePreference(enabled: boolean): void {
     return;
   }
   document.body.classList.toggle("paper-texture", enabled);
+}
+
+export function applyBackgroundDecorationPreference(enabled: boolean): void {
+  if (typeof document === "undefined") {
+    return;
+  }
+  document.body.classList.toggle("background-decoration", enabled);
 }
 
 function isPreferredLanguage(value: unknown): value is PreferredLanguage {
@@ -63,6 +72,9 @@ export function normalizeWebPreferences(input: unknown): WebPreferences {
     paperTextureEnabled: typeof record.paperTextureEnabled === "boolean"
       ? record.paperTextureEnabled
       : DEFAULT_WEB_PREFERENCES.paperTextureEnabled,
+    backgroundDecorationEnabled: typeof record.backgroundDecorationEnabled === "boolean"
+      ? record.backgroundDecorationEnabled
+      : DEFAULT_WEB_PREFERENCES.backgroundDecorationEnabled,
     defaultInspectorTab: isInspectorTab(record.defaultInspectorTab)
       ? record.defaultInspectorTab
       : DEFAULT_WEB_PREFERENCES.defaultInspectorTab,
@@ -100,6 +112,7 @@ export function writeWebPreferences(next: WebPreferences): WebPreferences {
     document.documentElement.lang = normalized.preferredLanguage;
   }
   applyPaperTexturePreference(normalized.paperTextureEnabled);
+  applyBackgroundDecorationPreference(normalized.backgroundDecorationEnabled);
   return normalized;
 }
 

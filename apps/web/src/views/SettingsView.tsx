@@ -982,6 +982,20 @@ export function SettingsView({ vaultPath, onSetVault, onClearVault }: SettingsVi
                   <span>{preferences.paperTextureEnabled ? "已开启" : "关闭"}</span>
                 </label>
               </div>
+              <div className="form-row">
+                <div>
+                  <div className="fr-label">背景装饰</div>
+                  <div className="fr-desc">显示极淡的水墨远山氛围层；偏好纯净界面时可关闭。</div>
+                </div>
+                <label className="switch-row">
+                  <input
+                    type="checkbox"
+                    checked={preferences.backgroundDecorationEnabled}
+                    onChange={(event) => savePreferencePatch({ backgroundDecorationEnabled: event.target.checked }, setPreferences, setPreferencesFeedback)}
+                  />
+                  <span>{preferences.backgroundDecorationEnabled ? "已开启" : "关闭"}</span>
+                </label>
+              </div>
             </div>
           ) : null}
 
