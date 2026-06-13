@@ -108,6 +108,7 @@ import { buildRelationReplay } from "./graph-replay.js";
 import { assistCharacter } from "./assist-character.js";
 import { assistWorldbook } from "./assist-worldbook.js";
 import { assistTimeline } from "./assist-timeline.js";
+import { loadDirectorConversation, saveDirectorConversation } from "./director-conversations.js";
 import { listThemeCommunity, publishThemeCommunityEntry } from "./theme-market.js";
 import {
   applyDownloadedUpdate,
@@ -398,6 +399,35 @@ export const routeDefinitions: RouteDefinition[] = [
         vaultRoot,
         (request.body as Record<string, unknown> | undefined) ?? {},
         getModelOptions(context),
+      );
+    },
+  },
+  {
+    method: "GET",
+    path: "/api/v1/director/conversations/:chapterId",
+    async handler(request, context) {
+      const vaultRoot = requireVaultRoot(context);
+      return await loadDirectorConversation(vaultRoot, {
+        projectId: request.query.get("projectId") ?? undefined,
+        novelId: request.query.get("novelId") ?? undefined,
+        chapterId: request.params.chapterId,
+      });
+    },
+  },
+  {
+    method: "PUT",
+    path: "/api/v1/director/conversations/:chapterId",
+    async handler(request, context) {
+      const vaultRoot = requireVaultRoot(context);
+      const body = request.body as { projectId?: string; novelId?: string; messages?: unknown[] } | undefined;
+      return await saveDirectorConversation(
+        vaultRoot,
+        {
+          projectId: body?.projectId,
+          novelId: body?.novelId,
+          chapterId: request.params.chapterId,
+        },
+        body?.messages ?? [],
       );
     },
   },

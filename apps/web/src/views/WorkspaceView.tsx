@@ -76,6 +76,7 @@ type ConfirmRequest = {
   danger?: boolean;
   onConfirm(): void | Promise<void>;
 };
+type StoredChatMessage = ChatMessage extends infer Message ? Message extends { id: number } ? Omit<Message, "id"> : never : never;
 
 interface ChapterNode {
   id: string;
@@ -165,6 +166,12 @@ const SEARCH_TYPE_VIEW: Record<string, string> = {
   timeline: "timeline",
 };
 
+const DIRECTOR_WELCOME_MESSAGE: StoredChatMessage = {
+  kind: "text",
+  role: "ai",
+  text: "你好，我是总控·书灵。你可以和我聊这一章的思路、节奏、人物动机或具体写法。我会结合当前章节内容给建议，但本阶段不会修改正文或调度 Agent。",
+};
+
 function formatWordCount(value: number): string {
   return `${Math.max(0, value).toLocaleString("zh-CN")} 字`;
 }
@@ -198,6 +205,33 @@ function createAnnotationFromSelection(start: number, end: number): AnnotationRe
     text: "",
     convertibleTo: [],
   };
+}
+
+function isStoredChatMessage(value: unknown): value is StoredChatMessage {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+  const item = value as Partial<StoredChatMessage>;
+  if (item.kind === "text") {
+    return (item.role === "ai" || item.role === "user") && typeof item.text === "string";
+  }
+  if (item.kind === "confirm") {
+    return Boolean(item.task) && (item.status === "pending" || item.status === "confirmed" || item.status === "cancelled");
+  }
+  if (item.kind === "ai-result") {
+    return typeof item.agentName === "string" && typeof item.text === "string";
+  }
+  return item.kind === "run";
+}
+
+function hydrateChatMessages(messages: unknown[], nextId: () => number): ChatMessage[] {
+  const valid = messages.filter(isStoredChatMessage);
+  const source = valid.length ? valid : [DIRECTOR_WELCOME_MESSAGE];
+  return source.map((message) => ({ ...message, id: nextId() } as ChatMessage));
+}
+
+function serializeChatMessages(messages: ChatMessage[]): StoredChatMessage[] {
+  return messages.map(({ id: _id, ...message }) => message);
 }
 
 interface WorkspaceViewProps {
@@ -254,14 +288,9 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
   const [showInspector] = useState(false);
   const [focusMode, setFocusMode] = useState(preferences.startInFocusMode);
   const [mobilePanel, setMobilePanel] = useState<MobilePanel>("editor");
-  const [messages, setMessages] = useState<ChatMessage[]>([
-    {
-      id: 0,
-      kind: "text",
-      role: "ai",
-      text: "你好，我是总控·书灵。你可以和我聊这一章的思路、节奏、人物动机或具体写法。我会结合当前章节内容给建议，但本阶段不会修改正文或调度 Agent。",
-    },
-  ]);
+  const [messages, setMessages] = useState<ChatMessage[]>(() => hydrateChatMessages([], () => 0));
+  const [conversationLoadedKey, setConversationLoadedKey] = useState("");
+  const [conversationSaveError, setConversationSaveError] = useState<string | null>(null);
   const [chatInput, setChatInput] = useState("");
   const [selectionRange, setSelectionRange] = useState({ start: 0, end: 0 });
   const [history, setHistory] = useState<string[]>([]);
@@ -280,6 +309,7 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
   const treeContextMenuRef = useRef<HTMLDivElement | null>(null);
   const outlinePopoverRef = useRef<HTMLDivElement | null>(null);
   const outlineButtonRef = useRef<HTMLButtonElement | null>(null);
+  const conversationSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const nextId = () => idRef.current++;
 
   const locator = useMemo(() => parseChapterRef(activeId), [activeId]);
@@ -574,6 +604,71 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
   useEffect(() => {
     setChapterTitleDraft(activeTitle);
   }, [activeTitle]);
+
+  useEffect(() => {
+    if (!vaultSelected || !activeId || !locator.projectId || !locator.novelId || !locator.chapterId) {
+      setConversationLoadedKey("");
+      setMessages(hydrateChatMessages([], nextId));
+      return;
+    }
+
+    let alive = true;
+    const conversationKey = `${locator.projectId}/${locator.novelId}/${locator.chapterId}`;
+    setConversationLoadedKey("");
+    setConversationSaveError(null);
+
+    void (async () => {
+      try {
+        const record = await api.loadDirectorConversation(locator.projectId, locator.novelId, locator.chapterId);
+        if (!alive) {
+          return;
+        }
+        setMessages(hydrateChatMessages(record.messages, nextId));
+      } catch {
+        if (!alive) {
+          return;
+        }
+        setMessages(hydrateChatMessages([], nextId));
+      } finally {
+        if (alive) {
+          setConversationLoadedKey(conversationKey);
+        }
+      }
+    })();
+
+    return () => {
+      alive = false;
+    };
+  }, [activeId, locator, vaultSelected]);
+
+  useEffect(() => {
+    if (!conversationLoadedKey || !vaultSelected || !locator.projectId || !locator.novelId || !locator.chapterId) {
+      return;
+    }
+    const currentKey = `${locator.projectId}/${locator.novelId}/${locator.chapterId}`;
+    if (conversationLoadedKey !== currentKey) {
+      return;
+    }
+    if (conversationSaveTimer.current) {
+      clearTimeout(conversationSaveTimer.current);
+    }
+
+    const snapshot = serializeChatMessages(messages);
+    conversationSaveTimer.current = setTimeout(async () => {
+      try {
+        await api.saveDirectorConversation(locator.projectId, locator.novelId, locator.chapterId, snapshot);
+        setConversationSaveError(null);
+      } catch (err) {
+        setConversationSaveError(err instanceof ApiError ? err.message : "对话历史保存失败");
+      }
+    }, 500);
+
+    return () => {
+      if (conversationSaveTimer.current) {
+        clearTimeout(conversationSaveTimer.current);
+      }
+    };
+  }, [conversationLoadedKey, locator, messages, vaultSelected]);
 
   useEffect(() => {
     if (!vaultSelected || !activeId) {
@@ -2412,6 +2507,7 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
         </div>
 
         <div className="chat-input">
+          {conversationSaveError ? <div className="chat-hint error">对话历史保存失败：{conversationSaveError}</div> : null}
           <div className="chat-input-box">
             <textarea
               rows={1}

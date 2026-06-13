@@ -256,6 +256,13 @@ export interface DirectorReviewReport {
 export interface DirectorReviewResponse {
   reports: DirectorReviewReport[];
 }
+export interface DirectorConversationRecord {
+  projectId: string;
+  novelId: string;
+  chapterId: string;
+  messages: unknown[];
+  updatedAt?: string;
+}
 export interface AssistCharacterField {
   group: string;
   key: string;
@@ -778,6 +785,13 @@ export const api = {
     post<DirectorExecuteResponse>("/director/execute", payload),
   reviewChapter: async (payload: DirectorReviewPayload): Promise<DirectorReviewResponse> =>
     post<DirectorReviewResponse>("/director/review", payload),
+  loadDirectorConversation: async (projectId: string, novelId: string, chapterId: string): Promise<DirectorConversationRecord> =>
+    get<DirectorConversationRecord>(withQuery(`/director/conversations/${encodeURIComponent(chapterId)}`, { projectId, novelId })),
+  saveDirectorConversation: async (projectId: string, novelId: string, chapterId: string, messages: unknown[]): Promise<DirectorConversationRecord> =>
+    request<DirectorConversationRecord>(`/director/conversations/${encodeURIComponent(chapterId)}`, {
+      method: "PUT",
+      body: JSON.stringify({ projectId, novelId, messages }),
+    }),
   assistCharacter: async (payload: AssistCharacterPayload): Promise<AssistCharacterResponse> =>
     post<AssistCharacterResponse>("/assist/character", payload),
   assistWorldbook: async (payload: AssistWorldbookPayload): Promise<AssistWorldbookResponse> =>
