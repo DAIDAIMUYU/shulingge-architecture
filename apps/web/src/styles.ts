@@ -2021,6 +2021,17 @@ body::after,
     width: 100% !important;
     max-width: 100% !important;
   }
+
+  .app-shell.app-desktop-layout:not(.app-focus-mode) .paper-toolbar {
+    flex-wrap: nowrap !important;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    scrollbar-width: thin;
+  }
+
+  .app-shell.app-desktop-layout:not(.app-focus-mode) .paper-toolbar > * {
+    flex: 0 0 auto !important;
+  }
 }
 
 .app-shell.app-mobile-layout {
@@ -2088,8 +2099,15 @@ body::after,
 
 .app-shell.app-mobile-layout .workspace.mobile-panel-editor .paper-toolbar,
 .app-shell.app-mobile-layout .workspace.mobile-panel-inspector .paper-toolbar {
-  flex-wrap: wrap !important;
-  overflow: hidden !important;
+  flex-wrap: nowrap !important;
+  overflow-x: auto !important;
+  overflow-y: hidden !important;
+  scrollbar-width: thin;
+}
+
+.app-shell.app-mobile-layout .workspace.mobile-panel-editor .paper-toolbar > *,
+.app-shell.app-mobile-layout .workspace.mobile-panel-inspector .paper-toolbar > * {
+  flex: 0 0 auto !important;
 }
 
 .app-shell.app-mobile-layout .workspace.mobile-panel-editor .paper-body {
