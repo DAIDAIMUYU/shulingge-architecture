@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type KeyboardEvent } from "react";
-import { AlertCircle, CheckCircle2, ChevronDown, ChevronRight, Download, Pencil, Plus, Trash2, Upload, X } from "lucide-react";
+import { AlertCircle, Bot, CheckCircle2, ChevronDown, ChevronRight, Download, Pencil, Plus, Trash2, Upload, X } from "lucide-react";
 
 import {
   api,
@@ -16,7 +16,7 @@ import {
 } from "../api/client.js";
 import { ConfirmModal } from "../app/Modals.js";
 import { Select } from "./Select.js";
-import { ViewShell } from "./common.js";
+import { EmptyState, LoadingState, showToast, ViewShell } from "./common.js";
 
 const AGENT_TYPE_OPTIONS: Array<{ value: AgentPermissionMode; label: string; hint: string }> = [
   { value: "controller", label: "总控", hint: "汇总结果、做最终判断" },
@@ -714,7 +714,6 @@ export function AgentsView() {
   const [importMode, setImportMode] = useState<"overwrite" | "skip">("overwrite");
   const [importing, setImporting] = useState(false);
   const [importFeedback, setImportFeedback] = useState<FeedbackState | null>(null);
-  const [feedback, setFeedback] = useState<FeedbackState | null>(null);
   const [modalFeedback, setModalFeedback] = useState<FeedbackState | null>(null);
 
   const sortedAgents = useMemo(
@@ -730,7 +729,7 @@ export function AgentsView() {
       const list = await api.listAgents();
       setAgents(list.map(normalizeAgent));
     } catch (error) {
-      setFeedback({ kind: "error", message: error instanceof ApiError ? error.message : "智能体列表加载失败" });
+      showToast(error instanceof ApiError ? error.message : "智能体列表加载失败", "error");
     } finally {
       setLoading(false);
     }
@@ -762,7 +761,6 @@ export function AgentsView() {
     setSelectedAgentId(null);
     setDraft(createAgentDraft(undefined, nextOrder));
     setMode("create");
-    setFeedback(null);
     setModalFeedback(null);
   }
 
@@ -770,7 +768,6 @@ export function AgentsView() {
     setSelectedAgentId(agent.id);
     setDraft(createAgentDraft(agent, nextOrder));
     setMode("edit");
-    setFeedback(null);
     setModalFeedback(null);
   }
 
@@ -789,7 +786,6 @@ export function AgentsView() {
     }
 
     setSaving(true);
-    setFeedback(null);
     setModalFeedback(null);
     try {
       const saved = mode === "edit" && selectedAgent
@@ -797,10 +793,7 @@ export function AgentsView() {
         : await api.createAgent(payload);
       await loadAgents();
       closeEditor();
-      setFeedback({
-        kind: "success",
-        message: mode === "create" ? `智能体「${saved.name}」已创建` : `智能体「${saved.name}」已保存`,
-      });
+      showToast(mode === "create" ? `智能体「${saved.name}」已创建` : `智能体「${saved.name}」已保存`, "success");
     } catch (error) {
       setModalFeedback({ kind: "error", message: error instanceof Error ? error.message : "智能体保存失败" });
     } finally {
@@ -810,21 +803,19 @@ export function AgentsView() {
 
   async function deleteAgent(agent: AgentConfig): Promise<void> {
     setAgentToDelete(null);
-    setFeedback(null);
     try {
       await api.deleteAgent(agent.id);
       await loadAgents();
       if (selectedAgentId === agent.id) {
         closeEditor();
       }
-      setFeedback({ kind: "success", message: `智能体「${agent.name}」已删除` });
+      showToast(`智能体「${agent.name}」已删除`, "success");
     } catch (error) {
-      setFeedback({ kind: "error", message: error instanceof Error ? error.message : "智能体删除失败" });
+      showToast(error instanceof Error ? error.message : "智能体删除失败", "error");
     }
   }
 
   async function exportAgentTemplates(): Promise<void> {
-    setFeedback(null);
     try {
       const bundle = await api.exportAgents();
       const content = JSON.stringify(bundle, null, 2);
@@ -837,9 +828,9 @@ export function AgentsView() {
       anchor.click();
       anchor.remove();
       URL.revokeObjectURL(url);
-      setFeedback({ kind: "success", message: `已导出 ${bundle.agents.length} 个智能体模板` });
+      showToast(`已导出 ${bundle.agents.length} 个智能体模板`, "success");
     } catch (error) {
-      setFeedback({ kind: "error", message: error instanceof Error ? error.message : "智能体模板导出失败" });
+      showToast(error instanceof Error ? error.message : "智能体模板导出失败", "error");
     }
   }
 
@@ -859,10 +850,7 @@ export function AgentsView() {
       await loadAgents();
       setImportOpen(false);
       setImportText("");
-      setFeedback({
-        kind: "success",
-        message: `已导入 ${result.imported.length} 个智能体，覆盖 ${result.overwritten.length} 个，跳过 ${result.skipped.length} 个`,
-      });
+      showToast(`已导入 ${result.imported.length} 个智能体，覆盖 ${result.overwritten.length} 个，跳过 ${result.skipped.length} 个`, "success");
     } catch (error) {
       setImportFeedback({ kind: "error", message: error instanceof Error ? error.message : "智能体模板导入失败" });
     } finally {
@@ -914,13 +902,6 @@ export function AgentsView() {
             </div>
           </div>
 
-          {feedback ? (
-            <div className={`model-feedback model-feedback-${feedback.kind}`}>
-              {feedback.kind === "success" ? <CheckCircle2 size={16} /> : feedback.kind === "error" ? <AlertCircle size={16} /> : null}
-              <span>{feedback.message}</span>
-            </div>
-          ) : null}
-
           <div className="list-card agent-list-card">
             <div className="list-row head">
               <span className="col" style={{ width: 54 }}>顺序</span>
@@ -931,14 +912,9 @@ export function AgentsView() {
               <span className="col" style={{ width: 78 }}>操作</span>
             </div>
             {loading ? (
-              <div className="center-state" style={{ minHeight: 220 }}>
-                <div className="spinner" />
-                <span>正在加载智能体...</span>
-              </div>
+              <LoadingState text="正在加载智能体…" />
             ) : sortedAgents.length === 0 ? (
-              <div className="center-state" style={{ minHeight: 220 }}>
-                <span>还没有智能体，点击「新建智能体」创建一个。</span>
-              </div>
+              <EmptyState icon={Bot} title="还没有智能体" description="先创建一个智能体，后续质检、润色和流程编排都会从这里管理。" actionLabel="新建第一个智能体" onAction={startCreate} />
             ) : (
               sortedAgents.map((agent, index) => {
                 const model = modelDisplay(agent, models);

@@ -54,6 +54,7 @@ import {
   createSelectionLock,
   parseChapterRef,
 } from "./workspace-utils.js";
+import { showToast } from "./common.js";
 
 type SaveState = "idle" | "dirty" | "saving" | "saved" | "error";
 type InspectorTab = "outline" | "annotations" | "locks" | "run";
@@ -363,7 +364,6 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
   const [searchLoading, setSearchLoading] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
   const [indexRefreshing, setIndexRefreshing] = useState(false);
-  const [indexFeedback, setIndexFeedback] = useState<string | null>(null);
   const [outlinePopoverOpen, setOutlinePopoverOpen] = useState(false);
   const [promptRequest, setPromptRequest] = useState<PromptRequest | null>(null);
   const [confirmRequest, setConfirmRequest] = useState<ConfirmRequest | null>(null);
@@ -411,7 +411,6 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
   const [future, setFuture] = useState<string[]>([]);
   const [annotations, setAnnotations] = useState<AnnotationRecord[]>([]);
   const [locks, setLocks] = useState<LockRecord[]>([]);
-  const [inspectorFeedback, setInspectorFeedback] = useState<string | null>(null);
   const [annotationsSaving, setAnnotationsSaving] = useState(false);
   const [locksSaving, setLocksSaving] = useState(false);
 
@@ -744,7 +743,6 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
         setSaveState("idle");
         setHistory([]);
         setFuture([]);
-        setInspectorFeedback(null);
         setError(null);
       } catch (err) {
         if (!alive) {
@@ -1297,9 +1295,8 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
     try {
       setIndexRefreshing(true);
       setSearchError(null);
-      setIndexFeedback(null);
       const result = await api.rebuildIndex();
-      setIndexFeedback(`索引已更新：${result.indexedCount} 条`);
+      showToast(`索引已更新：${result.indexedCount} 条`, "success");
       if (searchText.trim()) {
         const results = await api.search({
           text: searchText.trim(),
@@ -1339,7 +1336,6 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
     setSearchText("");
     setSearchResults([]);
     setSearchError(null);
-    setIndexFeedback(null);
   };
 
   const saveChapterTitle = async () => {
@@ -1773,12 +1769,11 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
   const saveCurrentAnnotations = async () => {
     try {
       setAnnotationsSaving(true);
-      setInspectorFeedback(null);
       const saved = await api.saveChapterAnnotations(locator.chapterId, locator.projectId, locator.novelId, annotations);
       setAnnotations(saved);
-      setInspectorFeedback("批注已保存");
+      showToast("批注已保存", "success");
     } catch (err) {
-      setInspectorFeedback(err instanceof ApiError ? err.message : "批注保存失败");
+      showToast(err instanceof ApiError ? err.message : "批注保存失败", "error");
     } finally {
       setAnnotationsSaving(false);
     }
@@ -1787,12 +1782,11 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
   const saveCurrentLocks = async () => {
     try {
       setLocksSaving(true);
-      setInspectorFeedback(null);
       const saved = await api.saveChapterLocks(locator.chapterId, locator.projectId, locator.novelId, locks);
       setLocks(saved);
-      setInspectorFeedback("锁定已保存");
+      showToast("锁定已保存", "success");
     } catch (err) {
-      setInspectorFeedback(err instanceof ApiError ? err.message : "锁定保存失败");
+      showToast(err instanceof ApiError ? err.message : "锁定保存失败", "error");
     } finally {
       setLocksSaving(false);
     }
@@ -1911,7 +1905,6 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
                 </button>
               ) : null}
             </div>
-            {indexFeedback ? <div className="tree-search-feedback">{indexFeedback}</div> : null}
           </div>
         ) : null}
         <div className="tree-scroll" onClick={() => setSelectedNovelId(null)}>
@@ -2393,8 +2386,6 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
                     </button>
                   </div>
 
-                  {inspectorFeedback ? <div className="inspector-feedback">{inspectorFeedback}</div> : null}
-
                   {inspectorTab === "outline" ? (
                     <div className="stack-list" style={{ marginTop: 16 }}>
                       {outline.length === 0 ? (
@@ -2418,7 +2409,7 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
                           className="btn"
                           onClick={() => {
                             setAnnotations((items) => [...items, createAnnotationFromSelection(selectionRange.start, selectionRange.end)]);
-                            setInspectorFeedback("已从当前选区新建批注草稿");
+                            showToast("已从当前选区新建批注草稿", "info");
                           }}
                         >
                           <FilePenLine size={15} strokeWidth={2} />
@@ -2492,7 +2483,7 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
                           className="btn"
                           onClick={() => {
                             setLocks((items) => [...items, createSelectionLock(selectionRange.start, selectionRange.end)]);
-                            setInspectorFeedback("已从当前选区新建锁定草稿");
+                            showToast("已从当前选区新建锁定草稿", "info");
                           }}
                         >
                           <Lock size={15} strokeWidth={2} />

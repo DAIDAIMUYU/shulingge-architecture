@@ -1,7 +1,67 @@
 import { useEffect, useState, type ReactNode } from "react";
-import { Inbox } from "lucide-react";
+import { AlertCircle, CheckCircle2, Inbox, Info, Loader2, type LucideIcon } from "lucide-react";
 
 import { api, ApiError } from "../api/client.js";
+
+export type ToastKind = "success" | "error" | "info";
+
+interface ToastItem {
+  id: number;
+  kind: ToastKind;
+  message: string;
+}
+
+type ToastListener = (items: ToastItem[]) => void;
+
+let toastId = 0;
+let toastItems: ToastItem[] = [];
+const toastListeners = new Set<ToastListener>();
+
+function emitToasts() {
+  for (const listener of toastListeners) {
+    listener(toastItems);
+  }
+}
+
+export function showToast(message: string, kind: ToastKind = "info") {
+  const next: ToastItem = { id: ++toastId, kind, message };
+  toastItems = [...toastItems, next].slice(-4);
+  emitToasts();
+
+  globalThis.setTimeout(() => {
+    toastItems = toastItems.filter((item) => item.id !== next.id);
+    emitToasts();
+  }, kind === "error" ? 4600 : 3200);
+}
+
+export function ToastViewport() {
+  const [items, setItems] = useState<ToastItem[]>(toastItems);
+
+  useEffect(() => {
+    toastListeners.add(setItems);
+    return () => {
+      toastListeners.delete(setItems);
+    };
+  }, []);
+
+  if (items.length === 0) {
+    return null;
+  }
+
+  return (
+    <div className="toast-viewport" aria-live="polite" aria-atomic="true">
+      {items.map((item) => {
+        const Icon = item.kind === "success" ? CheckCircle2 : item.kind === "error" ? AlertCircle : Info;
+        return (
+          <div className={`toast toast-${item.kind}`} key={item.id}>
+            <Icon size={17} strokeWidth={1.9} />
+            <span>{item.message}</span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
 
 // 通用列表加载：先确认 Vault 已选，再拉数据；返回 loading/error/vaultMissing 三态。
 export function useApiList<T>(loader: () => Promise<T[]>): {
@@ -80,46 +140,103 @@ export function CenterState({
   vaultMissing,
   empty,
   emptyText,
+  emptyTitle,
+  emptyActionLabel,
+  onEmptyAction,
 }: {
   loading: boolean;
   error: string | null;
   vaultMissing: boolean;
   empty?: boolean;
   emptyText?: string;
+  emptyTitle?: string;
+  emptyActionLabel?: string;
+  onEmptyAction?: () => void;
 }) {
   if (loading) {
-    return (
-      <div className="center-state">
-        <div className="spinner" />
-        <span>加载中…</span>
-      </div>
-    );
+    return <LoadingState />;
   }
   if (vaultMissing) {
     return (
-      <div className="center-state">
-        <Inbox size={32} className="empty-icon" />
-        <div>尚未选择资料库</div>
-        <div className="faint">在「写作」页顶部选择本地资料库后即可查看数据</div>
-      </div>
+      <EmptyState
+        icon={Inbox}
+        title="尚未选择资料库"
+        description="先选择本地资料库，书灵阁才能读取项目、角色和写作资料。"
+      />
     );
   }
   if (error) {
     return (
-      <div className="center-state">
-        <span style={{ color: "var(--danger)" }}>加载失败：{error}</span>
-      </div>
+      <EmptyState
+        icon={AlertCircle}
+        tone="error"
+        title="加载失败"
+        description={error}
+      />
     );
   }
   if (empty) {
     return (
-      <div className="center-state">
-        <Inbox size={32} className="empty-icon" />
-        <div>{emptyText ?? "暂无数据"}</div>
-      </div>
+      <EmptyState
+        title={emptyTitle ?? "这里还没有内容"}
+        description={emptyText ?? "先创建第一条内容，后续就会在这里汇总展示。"}
+        actionLabel={emptyActionLabel}
+        onAction={onEmptyAction}
+      />
     );
   }
   return null;
+}
+
+export function LoadingState({ text = "正在整理内容…" }: { text?: string }) {
+  return (
+    <div className="center-state loading-state">
+      <div className="loading-card" aria-label={text}>
+        <div className="loading-head">
+          <Loader2 size={18} className="spin-icon" />
+          <span>{text}</span>
+        </div>
+        <div className="skeleton-stack" aria-hidden>
+          <span />
+          <span />
+          <span />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function EmptyState({
+  icon: Icon = Inbox,
+  title,
+  description,
+  actionLabel,
+  onAction,
+  tone = "default",
+}: {
+  icon?: LucideIcon;
+  title: string;
+  description?: string;
+  actionLabel?: string;
+  onAction?: () => void;
+  tone?: "default" | "error";
+}) {
+  return (
+    <div className={`center-state empty-state ${tone === "error" ? "error" : ""}`}>
+      <div className="empty-state-mark">
+        <Icon size={32} strokeWidth={1.7} className="empty-icon" />
+      </div>
+      <div className="empty-state-copy">
+        <strong>{title}</strong>
+        {description ? <p>{description}</p> : null}
+      </div>
+      {actionLabel && onAction ? (
+        <button type="button" className="btn btn-primary" onClick={onAction}>
+          {actionLabel}
+        </button>
+      ) : null}
+    </div>
+  );
 }
 
 export function useTriState(loading: boolean, error: string | null, vaultMissing: boolean, count: number) {

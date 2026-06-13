@@ -3,7 +3,7 @@ import { FolderPlus, Plus } from "lucide-react";
 
 import { api, ApiError, type ProjectSummary } from "../api/client.js";
 import { InputModal } from "../app/Modals.js";
-import { ViewShell } from "./common.js";
+import { EmptyState, LoadingState, showToast, ViewShell } from "./common.js";
 
 interface ProjectsViewProps {
   onOpenProject?: (projectId: string) => void;
@@ -25,6 +25,7 @@ export function ProjectsView({ onOpenProject }: ProjectsViewProps = {}) {
     } catch (err) {
       setProjects([]);
       setError(err instanceof ApiError ? err.message : "项目加载失败");
+      showToast(err instanceof ApiError ? err.message : "项目加载失败", "error");
     } finally {
       setLoading(false);
     }
@@ -37,9 +38,11 @@ export function ProjectsView({ onOpenProject }: ProjectsViewProps = {}) {
     try {
       const created = await api.createProject(title);
       await loadProjects();
+      showToast(`项目「${created.title}」已创建`, "success");
       onOpenProject?.(created.projectId);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "新建项目失败");
+      showToast(err instanceof ApiError ? err.message : "新建项目失败", "error");
     } finally {
       setCreating(false);
     }
@@ -61,9 +64,11 @@ export function ProjectsView({ onOpenProject }: ProjectsViewProps = {}) {
       }
     >
       <div className="card-grid">
-        {loading ? <div className="empty-card">项目加载中...</div> : null}
-        {error ? <div className="err-card">{error}</div> : null}
-        {!loading && !error && projects.length === 0 ? <div className="empty-card">还没有项目。</div> : null}
+        {loading ? <LoadingState text="正在加载项目…" /> : null}
+        {error ? <EmptyState icon={FolderPlus} tone="error" title="项目加载失败" description={error} actionLabel="重试" onAction={() => void loadProjects()} /> : null}
+        {!loading && !error && projects.length === 0 ? (
+          <EmptyState icon={FolderPlus} title="还没有项目" description="先创建一本书，角色、世界大纲、时间线和规则都会归到项目里。" actionLabel="新建第一个项目" onAction={() => setShowCreateModal(true)} />
+        ) : null}
         {projects.map((project) => (
           <button
             type="button"

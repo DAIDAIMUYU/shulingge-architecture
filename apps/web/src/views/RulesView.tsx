@@ -16,7 +16,7 @@ import {
 import { ConfirmModal } from "../app/Modals.js";
 import { ProjectSelector } from "./ProjectSelector.js";
 import { Select } from "./Select.js";
-import { ViewShell } from "./common.js";
+import { EmptyState, LoadingState, showToast, ViewShell } from "./common.js";
 
 const RULE_LEVEL_OPTIONS: Array<{ value: RuleLevel; label: string; hint: string }> = [
   { value: "locked", label: "锁定", hint: "不可轻易覆盖，适合作品红线" },
@@ -301,7 +301,6 @@ export function RulesView() {
   const [mode, setMode] = useState<"idle" | "create" | "edit">("idle");
   const [selectedRuleId, setSelectedRuleId] = useState<string | null>(null);
   const [draft, setDraft] = useState<RuleDraft>(() => createDraft());
-  const [feedback, setFeedback] = useState<FeedbackState | null>(null);
   const [modalFeedback, setModalFeedback] = useState<FeedbackState | null>(null);
   const [ruleToDelete, setRuleToDelete] = useState<RuleRecord | null>(null);
 
@@ -319,7 +318,7 @@ export function RulesView() {
       setProjects(list);
       setProjectId((current) => current && list.some((project) => project.projectId === current) ? current : list[0]?.projectId ?? "");
     } catch (error) {
-      setFeedback({ kind: "error", message: error instanceof ApiError ? error.message : "项目列表加载失败" });
+      showToast(error instanceof ApiError ? error.message : "项目列表加载失败", "error");
     }
   }
 
@@ -334,7 +333,7 @@ export function RulesView() {
     try {
       setRules(await api.listRulesByProject(nextProjectId));
     } catch (error) {
-      setFeedback({ kind: "error", message: error instanceof ApiError ? error.message : "规则列表加载失败" });
+      showToast(error instanceof ApiError ? error.message : "规则列表加载失败", "error");
     } finally {
       setLoading(false);
     }
@@ -388,7 +387,7 @@ export function RulesView() {
         : await api.createRule(projectId, payload);
       await loadRules(projectId);
       closeEditor();
-      setFeedback({ kind: "success", message: mode === "create" ? `规则「${saved.title}」已创建` : `规则「${saved.title}」已保存` });
+      showToast(mode === "create" ? `规则「${saved.title}」已创建` : `规则「${saved.title}」已保存`, "success");
     } catch (error) {
       setModalFeedback({ kind: "error", message: error instanceof Error ? error.message : "规则保存失败" });
     } finally {
@@ -402,16 +401,15 @@ export function RulesView() {
     }
 
     setRuleToDelete(null);
-    setFeedback(null);
     try {
       await api.deleteRule(projectId, rule.id);
       await loadRules(projectId);
       if (selectedRuleId === rule.id) {
         closeEditor();
       }
-      setFeedback({ kind: "success", message: `规则「${rule.title}」已删除` });
+      showToast(`规则「${rule.title}」已删除`, "success");
     } catch (error) {
-      setFeedback({ kind: "error", message: error instanceof Error ? error.message : "规则删除失败" });
+      showToast(error instanceof Error ? error.message : "规则删除失败", "error");
     }
   }
 
@@ -437,13 +435,6 @@ export function RulesView() {
             </div>
           </div>
 
-          {feedback ? (
-            <div className={`model-feedback model-feedback-${feedback.kind}`}>
-              {feedback.kind === "success" ? <CheckCircle2 size={16} /> : feedback.kind === "error" ? <AlertCircle size={16} /> : null}
-              <span>{feedback.message}</span>
-            </div>
-          ) : null}
-
           <div className="toolbar-row">
             <div className="segmented">
               <button type="button" className={levelFilter === "all" ? "on" : ""} onClick={() => setLevelFilter("all")}>全部</button>
@@ -464,14 +455,11 @@ export function RulesView() {
               <span className="col" style={{ width: 86 }}>操作</span>
             </div>
             {loading ? (
-              <div className="center-state" style={{ minHeight: 220 }}>
-                <div className="spinner" />
-                <span>正在加载规则...</span>
-              </div>
+              <LoadingState text="正在加载规则…" />
             ) : !projectId ? (
-              <div className="center-state" style={{ minHeight: 220 }}>暂无项目，请先去「项目」页新建一本书</div>
+              <EmptyState icon={ShieldAlert} title="还没有项目" description="先去「项目」页新建一本书，再为它配置写作规则。" />
             ) : filteredRules.length === 0 ? (
-              <div className="center-state" style={{ minHeight: 220 }}>暂无规则，点击「新建规则」创建一条。</div>
+              <EmptyState icon={ShieldAlert} title="还没有规则" description="先创建第一条规则，把写作红线和风格偏好固定下来。" actionLabel="新建第一条规则" onAction={startCreate} />
             ) : (
               filteredRules.map((rule) => (
                 <div className="list-row model-list-row" key={rule.id} role="button" tabIndex={0} onClick={() => startEdit(rule)}>

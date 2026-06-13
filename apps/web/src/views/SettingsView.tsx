@@ -35,7 +35,7 @@ import {
 } from "../api/client.js";
 import { ConfirmModal } from "../app/Modals.js";
 import { Select } from "./Select.js";
-import { ViewShell } from "./common.js";
+import { LoadingState, showToast, ViewShell } from "./common.js";
 
 const SECTIONS = ["外观", "模型与 API", "远程访问", "通用", "智能体", "快捷键", "关于"] as const;
 type Section = (typeof SECTIONS)[number];
@@ -170,11 +170,12 @@ function toModelPayload(draft: ModelDraft): ModelConfigInput {
 function savePreferencePatch(
   patch: Partial<WebPreferences>,
   setPreferences: (value: WebPreferences) => void,
-  setFeedback: (value: string | null) => void,
+  setFeedback?: (value: string | null) => void,
 ) {
   const next = mergeWebPreferences(patch);
   setPreferences(next);
-  setFeedback("偏好已保存到当前浏览器");
+  setFeedback?.(null);
+  showToast("偏好已保存到当前浏览器", "success");
 }
 
 function ModelEditor({
@@ -453,12 +454,10 @@ function RemotePanel({
 function GeneralPanel({
   preferences,
   setPreferences,
-  feedback,
   setFeedback,
 }: {
   preferences: WebPreferences;
   setPreferences: (value: WebPreferences) => void;
-  feedback: string | null;
   setFeedback: (value: string | null) => void;
 }) {
   return (
@@ -533,7 +532,6 @@ function GeneralPanel({
 
       <section className="info-card">
         <h3>偏好说明</h3>
-        {feedback ? <div className="inspector-feedback" style={{ marginTop: 0 }}>{feedback}</div> : null}
         <div className="signal-list">
           <div className="signal-item">
             <Languages size={16} />
@@ -557,7 +555,8 @@ function GeneralPanel({
             onClick={() => {
               const next = writeWebPreferences(DEFAULT_WEB_PREFERENCES);
               setPreferences(next);
-              setFeedback("已恢复默认偏好");
+              setFeedback(null);
+              showToast("已恢复默认偏好", "success");
             }}
           >
             恢复默认
@@ -573,14 +572,12 @@ function AgentPanel({
   loading,
   preferences,
   setPreferences,
-  feedback,
   setFeedback,
 }: {
   agents: AgentInfo[];
   loading: boolean;
   preferences: WebPreferences;
   setPreferences: (value: WebPreferences) => void;
-  feedback: string | null;
   setFeedback: (value: string | null) => void;
 }) {
   const watchedIds = new Set(preferences.watchedAgentIds);
@@ -609,8 +606,6 @@ function AgentPanel({
         </div>
       </section>
 
-      {feedback ? <div className="inspector-feedback">{feedback}</div> : null}
-
       <section className="list-card">
         <div className="list-row head">
           <span className="col" style={{ width: 36 }}>#</span>
@@ -619,10 +614,7 @@ function AgentPanel({
           <span className="col" style={{ width: 96 }}>关注</span>
         </div>
         {loading ? (
-          <div className="center-state" style={{ minHeight: 220 }}>
-            <div className="spinner" />
-            <span>正在加载智能体</span>
-          </div>
+          <LoadingState text="正在加载智能体…" />
         ) : (
           sortedAgents.map((agent, index) => {
             const watched = watchedIds.has(agent.id);
@@ -662,12 +654,10 @@ function AgentPanel({
 function ShortcutsPanel({
   preferences,
   setPreferences,
-  feedback,
   setFeedback,
 }: {
   preferences: WebPreferences;
   setPreferences: (value: WebPreferences) => void;
-  feedback: string | null;
   setFeedback: (value: string | null) => void;
 }) {
   const sendLabel = preferences.sendShortcut === "enter" ? "Enter" : "Ctrl / Cmd + Enter";
@@ -699,7 +689,6 @@ function ShortcutsPanel({
             </button>
           </div>
         </div>
-        {feedback ? <div className="inspector-feedback" style={{ marginTop: 0 }}>{feedback}</div> : null}
       </section>
 
       <section className="info-card">
@@ -743,7 +732,6 @@ export function SettingsView({ vaultPath, onSetVault, onClearVault }: SettingsVi
   const [preferences, setPreferences] = useState<WebPreferences>(() => readWebPreferences());
   const [preferencesFeedback, setPreferencesFeedback] = useState<string | null>(null);
   const [vaultDraft, setVaultDraft] = useState(vaultPath ?? "");
-  const [vaultFeedback, setVaultFeedback] = useState<string | null>(null);
   const [vaultSaving, setVaultSaving] = useState(false);
   const [confirmClearVault, setConfirmClearVault] = useState(false);
 
@@ -831,17 +819,16 @@ export function SettingsView({ vaultPath, onSetVault, onClearVault }: SettingsVi
     }
     const nextPath = vaultDraft.trim();
     if (!nextPath) {
-      setVaultFeedback("请输入资料库目录绝对路径");
+      showToast("请输入资料库目录绝对路径", "error");
       return;
     }
 
     setVaultSaving(true);
-    setVaultFeedback(null);
     try {
       await onSetVault(nextPath);
-      setVaultFeedback("资料库位置已更新");
+      showToast("资料库位置已更新", "success");
     } catch (error) {
-      setVaultFeedback(error instanceof Error ? error.message : "资料库位置更新失败");
+      showToast(error instanceof Error ? error.message : "资料库位置更新失败", "error");
     } finally {
       setVaultSaving(false);
     }
@@ -852,7 +839,7 @@ export function SettingsView({ vaultPath, onSetVault, onClearVault }: SettingsVi
       return;
     }
     onClearVault();
-    setVaultFeedback("资料库位置已清除");
+    showToast("资料库位置已清除", "success");
     setConfirmClearVault(false);
   };
 
@@ -935,7 +922,6 @@ export function SettingsView({ vaultPath, onSetVault, onClearVault }: SettingsVi
                 </button>
               </div>
             </div>
-            {vaultFeedback ? <div className="inspector-feedback">{vaultFeedback}</div> : null}
           </section>
 
           {sec === "外观" ? (
@@ -975,7 +961,7 @@ export function SettingsView({ vaultPath, onSetVault, onClearVault }: SettingsVi
               <section className="info-card">
                 <h3>模型配置</h3>
                 {modelsLoading ? (
-                  <div className="faint">加载中…</div>
+                  <LoadingState text="正在加载模型配置…" />
                 ) : (
                   <div className="stack-list">
                     <div className="model-actions-row">
@@ -1139,9 +1125,9 @@ export function SettingsView({ vaultPath, onSetVault, onClearVault }: SettingsVi
                       remoteAutoStart,
                     );
                     setRemoteStatus(status);
-                    setRemoteFeedback("远程访问已启用");
+                    showToast("远程访问已启用", "success");
                   } catch (error) {
-                    setRemoteFeedback(error instanceof ApiError ? error.message : "启用远程访问失败");
+                    showToast(error instanceof ApiError ? error.message : "启用远程访问失败", "error");
                   } finally {
                     setRemoteLoading(false);
                   }
@@ -1154,9 +1140,9 @@ export function SettingsView({ vaultPath, onSetVault, onClearVault }: SettingsVi
                   try {
                     const status = await api.disableRemote();
                     setRemoteStatus(status);
-                    setRemoteFeedback("远程访问已关闭");
+                    showToast("远程访问已关闭", "success");
                   } catch (error) {
-                    setRemoteFeedback(error instanceof ApiError ? error.message : "关闭远程访问失败");
+                    showToast(error instanceof ApiError ? error.message : "关闭远程访问失败", "error");
                   } finally {
                     setRemoteLoading(false);
                   }
@@ -1169,9 +1155,9 @@ export function SettingsView({ vaultPath, onSetVault, onClearVault }: SettingsVi
                   try {
                     const status = await api.updateRemotePassword(remotePassword);
                     setRemoteStatus(status);
-                    setRemoteFeedback("远程口令已重置");
+                    showToast("远程口令已重置", "success");
                   } catch (error) {
-                    setRemoteFeedback(error instanceof ApiError ? error.message : "重置远程口令失败");
+                    showToast(error instanceof ApiError ? error.message : "重置远程口令失败", "error");
                   } finally {
                     setRemoteLoading(false);
                   }
@@ -1184,7 +1170,6 @@ export function SettingsView({ vaultPath, onSetVault, onClearVault }: SettingsVi
             <GeneralPanel
               preferences={preferences}
               setPreferences={setPreferences}
-              feedback={preferencesFeedback}
               setFeedback={setPreferencesFeedback}
             />
           ) : null}
@@ -1195,7 +1180,6 @@ export function SettingsView({ vaultPath, onSetVault, onClearVault }: SettingsVi
               loading={agentsLoading}
               preferences={preferences}
               setPreferences={setPreferences}
-              feedback={preferencesFeedback}
               setFeedback={setPreferencesFeedback}
             />
           ) : null}
@@ -1204,7 +1188,6 @@ export function SettingsView({ vaultPath, onSetVault, onClearVault }: SettingsVi
             <ShortcutsPanel
               preferences={preferences}
               setPreferences={setPreferences}
-              feedback={preferencesFeedback}
               setFeedback={setPreferencesFeedback}
             />
           ) : null}

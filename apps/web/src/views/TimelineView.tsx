@@ -18,7 +18,7 @@ import {
   type WorldbookEntry,
 } from "../api/client.js";
 import { ConfirmModal } from "../app/Modals.js";
-import { CenterState, ViewShell } from "./common.js";
+import { CenterState, showToast, ViewShell } from "./common.js";
 import { ProjectSelector } from "./ProjectSelector.js";
 import { Select } from "./Select.js";
 
@@ -1109,7 +1109,6 @@ export function TimelineView() {
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<TimelineEvent | null>(null);
-  const [feedback, setFeedback] = useState<{ kind: "success" | "error"; text: string } | null>(null);
 
   const loadData = async (targetProjectId = projectId) => {
     setLoading(true);
@@ -1166,7 +1165,6 @@ export function TimelineView() {
 
   const startCreate = (template: TimelineTemplate) => {
     setTemplateChoosing(false);
-    setFeedback(null);
     setDraft(createDraft(createLine, template));
     setEditorMode("create");
     setSaveError(null);
@@ -1189,7 +1187,6 @@ export function TimelineView() {
 
     setAiCreateLoading(true);
     setAiCreateError(null);
-    setFeedback(null);
     try {
       const response = await api.assistTimeline({
         mode: input.mode,
@@ -1213,12 +1210,12 @@ export function TimelineView() {
       setTemplateChoosing(false);
       setEditorMode("create");
       setSaveError(null);
-      setFeedback({
-        kind: "success",
-        text: input.mode === "fanfic"
+      showToast(
+        input.mode === "fanfic"
           ? "AI 已生成时间线事件草稿。同人资料可能不准确，请核对后再保存。"
           : "AI 已生成时间线事件草稿，请检查后再保存。",
-      });
+        "success",
+      );
     } catch (generateError) {
       setAiCreateError(generateError instanceof ApiError ? generateError.message : "AI 生成时间线事件失败");
     } finally {
@@ -1227,7 +1224,6 @@ export function TimelineView() {
   };
 
   const startEdit = (event: TimelineEvent) => {
-    setFeedback(null);
     setDraft(createDraft(event.line ?? "main", event.template ?? event.profile?.template ?? "simple", event));
     setEditorMode("edit");
     setSaveError(null);
@@ -1264,7 +1260,8 @@ export function TimelineView() {
           template: draft.template ?? draft.profile?.template ?? "simple",
         },
       };
-      if (editorMode === "create") {
+      const isCreate = editorMode === "create";
+      if (isCreate) {
         await api.createTimelineEvent(projectId, payload);
       } else {
         await api.updateTimelineEvent(projectId, payload.id, payload);
@@ -1272,7 +1269,7 @@ export function TimelineView() {
       setEditorMode(null);
       setDraft(null);
       setLineFilter(payload.line || lineFilter);
-      setFeedback({ kind: "success", text: "时间线事件已保存" });
+      showToast(isCreate ? "时间线事件已创建" : "时间线事件已保存", "success");
       await loadData(projectId);
     } catch (persistError) {
       setSaveError(persistError instanceof ApiError ? persistError.message : "保存事件失败");
@@ -1285,10 +1282,10 @@ export function TimelineView() {
     try {
       await api.deleteTimelineEvent(projectId, event.id);
       setDeleteTarget(null);
-      setFeedback({ kind: "success", text: "时间线事件已删除" });
+      showToast("时间线事件已删除", "success");
       await loadData(projectId);
     } catch (deleteError) {
-      setFeedback({ kind: "error", text: deleteError instanceof ApiError ? deleteError.message : "删除事件失败" });
+      showToast(deleteError instanceof ApiError ? deleteError.message : "删除事件失败", "error");
     }
   };
 
@@ -1324,7 +1321,6 @@ export function TimelineView() {
         <span className="grow" />
         <span className="faint">共 {filteredEvents.length} / {events.length} 个事件</span>
       </div>
-      {feedback ? <div className={feedback.kind === "success" ? "character-assist-success" : "err-card"}>{feedback.text}</div> : null}
       <div className="worldbook-origin-tabs timeline-line-tabs">
         {LINE_OPTIONS.map((line) => (
           <button type="button" key={line.id} className={lineFilter === line.id ? "active" : ""} onClick={() => setLineFilter(line.id)}>
@@ -1340,7 +1336,10 @@ export function TimelineView() {
           error={error}
           vaultMissing={vaultMissing}
           empty={filteredEvents.length === 0}
-          emptyText={search ? "没有找到匹配的事件" : "还没有时间线事件，点右上角「新建事件」开始整理。"}
+          emptyTitle={search ? "没有匹配的事件" : "还没有时间线事件"}
+          emptyText={search ? "换个关键词试试，或切换线类型查看其它事件。" : "先创建第一个事件，把主线、角色线和章节落点串起来。"}
+          emptyActionLabel={search ? undefined : "新建第一个事件"}
+          onEmptyAction={search ? undefined : () => setTemplateChoosing(true)}
         />
       ) : (
         <div className="timeline-stream">

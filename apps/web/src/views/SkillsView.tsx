@@ -8,7 +8,7 @@ import {
   type SkillMarketEntry,
   type SkillRegistryRecord,
 } from "../api/client.js";
-import { CenterState, ViewShell } from "./common.js";
+import { CenterState, EmptyState, LoadingState, showToast, ViewShell } from "./common.js";
 import { buildPermissionBadges, executionModeLabel, formatExecutionOperations, parseJsonObject, splitCsv } from "./skills-utils.js";
 
 const MARKET_STATUS_OPTIONS = ["listed", "hidden", "removed"] as const;
@@ -261,15 +261,9 @@ export function SkillsView() {
                 <span className="col" style={{ width: 100 }}>模式</span>
               </div>
               {skillsLoading ? (
-                <div className="center-state" style={{ minHeight: 240 }}>
-                  <div className="spinner" />
-                  <span>正在加载技能</span>
-                </div>
+                <LoadingState text="正在加载技能…" />
               ) : filteredSkills.length === 0 ? (
-                <div className="center-state" style={{ minHeight: 240 }}>
-                  <Store size={32} className="empty-icon" />
-                  <div>还没有已安装技能</div>
-                </div>
+                <EmptyState icon={Store} title="还没有已安装技能" description="可以从 GitHub 或本地清单导入技能，再在这里查看权限和执行能力。" />
               ) : (
                 filteredSkills.map((skill) => (
                   <button
@@ -405,9 +399,12 @@ export function SkillsView() {
                         try {
                           const result = await api.executeSkill(selectedSkill.id, parsed.value, dryRun);
                           setExecutionResult(result);
-                          setExecutionFeedback(`执行完成：${result.summary}`);
+                          setExecutionFeedback(null);
+                          showToast(`执行完成：${result.summary}`, "success");
                         } catch (error) {
-                          setExecutionFeedback(error instanceof ApiError ? error.message : "技能执行失败");
+                          const message = error instanceof ApiError ? error.message : "技能执行失败";
+                          setExecutionFeedback(message);
+                          showToast(message, "error");
                         } finally {
                           setExecuting(false);
                         }
@@ -508,9 +505,12 @@ export function SkillsView() {
                           });
                           await loadMarket();
                           setSelectedMarketId(entry.id);
-                          setPublishFeedback(`已发布市场条目：${entry.id}`);
+                          setPublishFeedback(null);
+                          showToast(`已发布市场条目：${entry.id}`, "success");
                         } catch (error) {
-                          setPublishFeedback(error instanceof ApiError ? error.message : "发布市场条目失败");
+                          const message = error instanceof ApiError ? error.message : "发布市场条目失败";
+                          setPublishFeedback(message);
+                          showToast(message, "error");
                         } finally {
                           setPublishLoading(false);
                         }
@@ -561,9 +561,12 @@ export function SkillsView() {
                           const skill = await api.importSkillFromGitHub(githubUrl.trim());
                           await loadSkills();
                           setSelectedSkillId(skill.id);
-                          setImportFeedback(`已从 GitHub 导入：${skill.id}`);
+                          setImportFeedback(null);
+                          showToast(`已从 GitHub 导入：${skill.id}`, "success");
                         } catch (error) {
-                          setImportFeedback(error instanceof ApiError ? error.message : "GitHub 导入失败");
+                          const message = error instanceof ApiError ? error.message : "GitHub 导入失败";
+                          setImportFeedback(message);
+                          showToast(message, "error");
                         } finally {
                           setImportLoading(false);
                         }
@@ -615,9 +618,12 @@ export function SkillsView() {
                           const skill = await api.importSkillManifest(parsed.value, manifestSource.trim() || undefined);
                           await loadSkills();
                           setSelectedSkillId(skill.id);
-                          setImportFeedback(`已导入 manifest：${skill.id}`);
+                          setImportFeedback(null);
+                          showToast(`已导入 manifest：${skill.id}`, "success");
                         } catch (error) {
-                          setImportFeedback(error instanceof ApiError ? error.message : "清单导入失败");
+                          const message = error instanceof ApiError ? error.message : "清单导入失败";
+                          setImportFeedback(message);
+                          showToast(message, "error");
                         } finally {
                           setImportLoading(false);
                         }
@@ -700,15 +706,9 @@ export function SkillsView() {
                   <span className="col" style={{ width: 90 }}>状态</span>
                 </div>
                 {marketLoading ? (
-                  <div className="center-state" style={{ minHeight: 240 }}>
-                    <div className="spinner" />
-                    <span>加载市场中</span>
-                  </div>
+                  <LoadingState text="正在加载技能市场…" />
                 ) : market.length === 0 ? (
-                  <div className="center-state" style={{ minHeight: 240 }}>
-                    <Store size={32} className="empty-icon" />
-                    <div>还没有市场条目</div>
-                  </div>
+                  <EmptyState icon={Store} title="还没有市场条目" description="从已安装技能发布一条市场条目后，这里会显示评分、举报和审核状态。" />
                 ) : (
                   market.map((entry) => (
                     <button
@@ -816,9 +816,12 @@ export function SkillsView() {
                             });
                             await loadMarket();
                             setSelectedMarketId(entry.id);
-                            setMarketFeedback("评分已提交");
+                            setMarketFeedback(null);
+                            showToast("评分已提交", "success");
                           } catch (error) {
-                            setMarketFeedback(error instanceof ApiError ? error.message : "评分失败");
+                            const message = error instanceof ApiError ? error.message : "评分失败";
+                            setMarketFeedback(message);
+                            showToast(message, "error");
                           } finally {
                             setMarketActionLoading(false);
                           }
@@ -866,9 +869,12 @@ export function SkillsView() {
                             });
                             await loadMarket();
                             setSelectedMarketId(entry.id);
-                            setMarketFeedback("举报已记录");
+                            setMarketFeedback(null);
+                            showToast("举报已记录", "success");
                           } catch (error) {
-                            setMarketFeedback(error instanceof ApiError ? error.message : "举报失败");
+                            const message = error instanceof ApiError ? error.message : "举报失败";
+                            setMarketFeedback(message);
+                            showToast(message, "error");
                           } finally {
                             setMarketActionLoading(false);
                           }
@@ -922,9 +928,12 @@ export function SkillsView() {
                             });
                             await loadMarket();
                             setSelectedMarketId(entry.id);
-                            setMarketFeedback("审核状态已更新");
+                            setMarketFeedback(null);
+                            showToast("审核状态已更新", "success");
                           } catch (error) {
-                            setMarketFeedback(error instanceof ApiError ? error.message : "审核失败");
+                            const message = error instanceof ApiError ? error.message : "审核失败";
+                            setMarketFeedback(message);
+                            showToast(message, "error");
                           } finally {
                             setMarketActionLoading(false);
                           }

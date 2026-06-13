@@ -23,6 +23,7 @@ import { SkillsView } from "../views/SkillsView.js";
 import { TimelineView } from "../views/TimelineView.js";
 import { WorkspaceView } from "../views/WorkspaceView.js";
 import { WorldbookView } from "../views/WorldbookView.js";
+import { ToastViewport } from "../views/common.js";
 import { api } from "../api/client.js";
 import { VaultPickerModal } from "./VaultPickerModal.js";
 
@@ -172,6 +173,7 @@ export function App() {
         })}
       </nav>
       {!vaultPath ? <VaultPickerModal onSelectVault={onSetVault} /> : null}
+      <ToastViewport />
     </div>
   );
 }

@@ -13,7 +13,7 @@ import {
   type ProjectSummary,
 } from "../api/client.js";
 import { ConfirmModal } from "../app/Modals.js";
-import { CenterState, ViewShell } from "./common.js";
+import { CenterState, showToast, ViewShell } from "./common.js";
 import { ProjectSelector } from "./ProjectSelector.js";
 
 type CharacterViewMode = "card" | "list";
@@ -1122,7 +1122,6 @@ export function CharactersView() {
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Character | null>(null);
-  const [feedback, setFeedback] = useState<{ kind: "success" | "error"; text: string } | null>(null);
 
   const loadData = async (targetProjectId = projectId) => {
     setLoading(true);
@@ -1181,7 +1180,6 @@ export function CharactersView() {
 
   const startCreate = (template: CharacterProfileTemplate) => {
     setTemplateChoosing(false);
-    setFeedback(null);
     setDraft({
       id: "",
       name: "",
@@ -1205,7 +1203,6 @@ export function CharactersView() {
 
     setAiCreateLoading(true);
     setAiCreateError(null);
-    setFeedback(null);
     try {
       const response = await api.assistCharacter({
         mode: input.mode,
@@ -1232,12 +1229,12 @@ export function CharactersView() {
       setTemplateChoosing(false);
       setEditorMode("create");
       setSaveError(null);
-      setFeedback({
-        kind: "success",
-        text: input.mode === "fanfic"
+      showToast(
+        input.mode === "fanfic"
           ? "AI 已生成角色草稿。同人资料可能不准确，请核对后再保存。"
           : "AI 已生成角色草稿，请检查后再保存。",
-      });
+        "success",
+      );
     } catch (generateError) {
       setAiCreateError(generateError instanceof ApiError ? generateError.message : "AI 生成角色失败");
     } finally {
@@ -1246,7 +1243,6 @@ export function CharactersView() {
   };
 
   const startEdit = (character: Character) => {
-    setFeedback(null);
     setDraft({
       id: character.id,
       name: character.name,
@@ -1275,10 +1271,10 @@ export function CharactersView() {
         setSaveError(null);
       }
       setDeleteTarget(null);
-      setFeedback({ kind: "success", text: `已删除角色「${deleteTarget.name}」。` });
+      showToast(`已删除角色「${deleteTarget.name}」。`, "success");
       await loadData(projectId);
     } catch (deleteError) {
-      setFeedback({ kind: "error", text: deleteError instanceof ApiError ? deleteError.message : "删除角色失败" });
+      showToast(deleteError instanceof ApiError ? deleteError.message : "删除角色失败", "error");
       setDeleteTarget(null);
     }
   };
@@ -1301,13 +1297,15 @@ export function CharactersView() {
         id: editorMode === "create" ? slugify(draft.id || name) : draft.id,
         name,
       };
-      if (editorMode === "create") {
+      const isCreate = editorMode === "create";
+      if (isCreate) {
         await api.createCharacter(projectId, payload);
       } else {
         await api.updateCharacter(projectId, payload.id, payload);
       }
       setEditorMode(null);
       setDraft(null);
+      showToast(isCreate ? `角色「${name}」已创建` : `角色「${name}」已保存`, "success");
       await loadData(projectId);
     } catch (persistError) {
       setSaveError(persistError instanceof ApiError ? persistError.message : "保存角色失败");
@@ -1356,19 +1354,16 @@ export function CharactersView() {
         </div>
         <span className="faint">共 {filteredCharacters.length} / {characters.length} 位</span>
       </div>
-      {feedback ? (
-        <div className={`model-feedback ${feedback.kind === "success" ? "model-feedback-success" : "model-feedback-error"}`}>
-          {feedback.text}
-        </div>
-      ) : null}
-
       {showState ? (
         <CenterState
           loading={loading}
           error={error}
           vaultMissing={vaultMissing}
           empty={filteredCharacters.length === 0}
-          emptyText={search ? "没有匹配的角色" : "还没有角色，点右上角「新建角色」"}
+          emptyTitle={search ? "没有匹配的角色" : "还没有角色"}
+          emptyText={search ? "换个关键词试试，或清空搜索查看全部角色。" : "先创建第一个角色，后续角色卡、头像和关系都会在这里汇总。"}
+          emptyActionLabel={search ? undefined : "新建第一个角色"}
+          onEmptyAction={search ? undefined : () => setTemplateChoosing(true)}
         />
       ) : viewMode === "card" ? (
         <div className="character-card-grid">

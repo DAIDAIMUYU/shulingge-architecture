@@ -543,6 +543,28 @@ input[type="radio"] { width: 15px; height: 15px; margin: 0; accent-color: var(--
 .empty { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; color: var(--text-muted); text-align: center; padding: 48px; }
 .placeholder-view { padding: 64px; }
 .placeholder-view h2 { font-family: var(--font-serif); font-size: 24px; color: var(--text-primary); margin-bottom: 10px; }
+.toast-viewport { position: fixed; right: clamp(16px, 2.5vw, 28px); top: clamp(16px, 2.5vw, 28px); z-index: 160; display: grid; gap: 10px; width: min(360px, calc(100vw - 32px)); pointer-events: none; }
+.toast { min-height: 48px; display: flex; align-items: flex-start; gap: 10px; padding: 12px 14px; border: 1px solid var(--border); border-radius: var(--radius-md); background-color: var(--surface-card-glass); background-image: none; backdrop-filter: var(--surface-blur); box-shadow: var(--shadow-popover); color: var(--text-primary); font-size: 13px; line-height: 1.55; pointer-events: auto; animation: toastIn .24s ease both; }
+.toast svg { flex: none; margin-top: 1px; }
+.toast-success { border-color: color-mix(in srgb, var(--agent-done) 42%, var(--border)); }
+.toast-success svg { color: var(--agent-done); }
+.toast-error { border-color: color-mix(in srgb, var(--danger) 46%, var(--border)); }
+.toast-error svg { color: var(--danger); }
+.toast-info svg { color: var(--primary); }
+.loading-state { min-height: 280px; }
+.loading-card { width: min(360px, 100%); display: grid; gap: 14px; padding: 18px; border: 1px solid var(--border); border-radius: var(--radius-md); background-color: var(--surface-card-glass); backdrop-filter: var(--surface-blur); box-shadow: var(--shadow-card); color: var(--text-secondary); }
+.loading-head { display: flex; align-items: center; justify-content: center; gap: 8px; color: var(--text-primary); font-weight: 600; }
+.skeleton-stack { display: grid; gap: 9px; }
+.skeleton-stack span { height: 12px; border-radius: 999px; background: linear-gradient(90deg, color-mix(in srgb, var(--bg-hover) 72%, transparent), color-mix(in srgb, var(--primary-light) 72%, transparent), color-mix(in srgb, var(--bg-hover) 72%, transparent)); background-size: 220% 100%; animation: skeletonShimmer 1.45s ease-in-out infinite; }
+.skeleton-stack span:nth-child(2) { width: 84%; }
+.skeleton-stack span:nth-child(3) { width: 62%; }
+.empty-state { min-height: 280px; padding: 42px 22px; gap: 14px; }
+.empty-state-mark { width: 58px; height: 58px; display: grid; place-items: center; border: 1px solid color-mix(in srgb, var(--border-strong) 62%, transparent); border-radius: var(--radius-lg); background: linear-gradient(180deg, var(--surface-card-glass), color-mix(in srgb, var(--primary-light) 30%, transparent)); box-shadow: var(--shadow-card); }
+.empty-state.error .empty-state-mark { background: color-mix(in srgb, var(--danger) 10%, var(--surface-card-glass)); border-color: color-mix(in srgb, var(--danger) 34%, var(--border)); }
+.empty-state.error .empty-icon { color: var(--danger); }
+.empty-state-copy { display: grid; gap: 6px; max-width: 420px; }
+.empty-state-copy strong { color: var(--text-primary); font-size: 15px; }
+.empty-state-copy p { margin: 0; color: var(--text-muted); line-height: 1.75; }
 
 /* ===== 通用页面：页头 / 列表 / 详情 / 设置 ===== */
 .view { height: 100%; display: flex; flex-direction: column; background: transparent; min-width: 0; }
@@ -1253,6 +1275,14 @@ body::after,
 @keyframes themeBackdropFade {
   from { opacity: 1; }
   to { opacity: 0; }
+}
+@keyframes toastIn {
+  from { opacity: 0; transform: translateY(-8px) scale(.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes skeletonShimmer {
+  0% { background-position: 120% 0; }
+  100% { background-position: -120% 0; }
 }
 @media (prefers-reduced-motion: reduce) {
   * { animation: none !important; transition: none !important; }

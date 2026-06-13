@@ -18,7 +18,7 @@ import {
   type WorldbookTemplate,
 } from "../api/client.js";
 import { ConfirmModal } from "../app/Modals.js";
-import { CenterState, ViewShell } from "./common.js";
+import { CenterState, showToast, ViewShell } from "./common.js";
 import { ProjectSelector } from "./ProjectSelector.js";
 import { Select } from "./Select.js";
 
@@ -1129,7 +1129,6 @@ export function WorldbookView() {
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<WorldbookEntry | null>(null);
-  const [feedback, setFeedback] = useState<{ kind: "success" | "error"; text: string } | null>(null);
 
   const loadData = async (targetProjectId = projectId) => {
     setLoading(true);
@@ -1179,7 +1178,6 @@ export function WorldbookView() {
 
   const startCreate = (template: WorldbookTemplate) => {
     setTemplateChoosing(false);
-    setFeedback(null);
     setDraft(createDraft(origin, template));
     setSaveError(null);
     setEditorMode("create");
@@ -1203,7 +1201,6 @@ export function WorldbookView() {
 
     setAiCreateLoading(true);
     setAiCreateError(null);
-    setFeedback(null);
     try {
       const response = await api.assistWorldbook({
         mode: input.mode,
@@ -1228,12 +1225,12 @@ export function WorldbookView() {
       setTemplateChoosing(false);
       setEditorMode("create");
       setSaveError(null);
-      setFeedback({
-        kind: "success",
-        text: input.mode === "fanfic"
+      showToast(
+        input.mode === "fanfic"
           ? "AI 已生成世界大纲草稿。同人资料可能不准确，请核对后再保存。"
           : "AI 已生成世界大纲草稿，请检查后再保存。",
-      });
+        "success",
+      );
     } catch (generateError) {
       setAiCreateError(generateError instanceof ApiError ? generateError.message : "AI 生成世界大纲失败");
     } finally {
@@ -1242,7 +1239,6 @@ export function WorldbookView() {
   };
 
   const startEdit = (entry: WorldbookEntry) => {
-    setFeedback(null);
     setDraft(createDraft(entry.origin ?? origin, entry.template ?? entry.profile?.template ?? "simple", entry));
     setEditorMode("edit");
     setSaveError(null);
@@ -1284,7 +1280,8 @@ export function WorldbookView() {
         appliesToAgents: undefined,
         relatedChapters: undefined,
       };
-      if (editorMode === "create") {
+      const isCreate = editorMode === "create";
+      if (isCreate) {
         await api.createWorldbookEntry(projectId, payload);
       } else {
         await api.updateWorldbookEntry(projectId, payload.id, payload);
@@ -1292,7 +1289,7 @@ export function WorldbookView() {
       setEditorMode(null);
       setDraft(null);
       setOrigin(payload.origin ?? origin);
-      setFeedback({ kind: "success", text: "世界大纲已保存" });
+      showToast(isCreate ? "世界大纲条目已创建" : "世界大纲已保存", "success");
       await loadData(projectId);
     } catch (persistError) {
       setSaveError(persistError instanceof ApiError ? persistError.message : "保存世界大纲失败");
@@ -1305,10 +1302,10 @@ export function WorldbookView() {
     try {
       await api.deleteWorldbookEntry(projectId, entry.id);
       setDeleteTarget(null);
-      setFeedback({ kind: "success", text: "世界大纲条目已删除" });
+      showToast("世界大纲条目已删除", "success");
       await loadData(projectId);
     } catch (deleteError) {
-      setFeedback({ kind: "error", text: deleteError instanceof ApiError ? deleteError.message : "删除世界大纲失败" });
+      showToast(deleteError instanceof ApiError ? deleteError.message : "删除世界大纲失败", "error");
     }
   };
 
@@ -1344,7 +1341,6 @@ export function WorldbookView() {
         <span className="grow" />
         <span className="faint">共 {filteredEntries.length} / {entries.length} 条</span>
       </div>
-      {feedback ? <div className={feedback.kind === "success" ? "character-assist-success" : "err-card"}>{feedback.text}</div> : null}
       <div className="worldbook-origin-tabs">
         {ORIGIN_OPTIONS.map((option) => (
           <button type="button" key={option.id} className={origin === option.id ? "active" : ""} onClick={() => setOrigin(option.id)}>
@@ -1359,7 +1355,10 @@ export function WorldbookView() {
           error={error}
           vaultMissing={vaultMissing}
           empty={filteredEntries.length === 0}
-          emptyText={search ? "没有找到匹配的世界大纲条目" : `还没有${originLabel(origin)}，点右上角「新建大纲条目」开始整理。`}
+          emptyTitle={search ? "没有匹配的大纲条目" : `还没有${originLabel(origin)}`}
+          emptyText={search ? "换个关键词试试，或切换原创/原作页签。" : "先创建第一条世界设定，AI 写作时会通读这些世界观资料。"}
+          emptyActionLabel={search ? undefined : "新建第一个大纲条目"}
+          onEmptyAction={search ? undefined : () => setTemplateChoosing(true)}
         />
       ) : (
         <div className="worldbook-group-stack">

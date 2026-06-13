@@ -11,7 +11,7 @@ import {
   type RelationInput,
 } from "../api/client.js";
 import { ConfirmModal } from "../app/Modals.js";
-import { CenterState, ViewShell } from "./common.js";
+import { CenterState, EmptyState, showToast, ViewShell } from "./common.js";
 import { ProjectSelector } from "./ProjectSelector.js";
 import { Select } from "./Select.js";
 import { filterRelations, layoutKnowledgeGraph, type GraphNodeLayout } from "./relations-graph.js";
@@ -409,13 +409,15 @@ export function RelationsView() {
         stage: draft.stage?.trim() || undefined,
         sourceChapters: draft.sourceChapters ?? [],
       };
-      if (editorMode === "edit") {
+      const isEdit = editorMode === "edit";
+      if (isEdit) {
         await api.updateRelation(projectId, payload.id, payload);
       } else {
         await api.createRelation(projectId, payload);
       }
       setEditorMode(null);
       setDraft(createDraft());
+      showToast(isEdit ? "关系已保存" : "关系已创建", "success");
       await reload();
     } catch (saveRelationError) {
       setSaveError(saveRelationError instanceof ApiError ? saveRelationError.message : "保存关系失败");
@@ -434,9 +436,10 @@ export function RelationsView() {
         setSelectedRelationId(null);
       }
       setDeleteTarget(null);
+      showToast("关系已删除", "success");
       await reload();
     } catch (deleteError) {
-      setError(deleteError instanceof ApiError ? deleteError.message : "删除关系失败");
+      showToast(deleteError instanceof ApiError ? deleteError.message : "删除关系失败", "error");
       setDeleteTarget(null);
     }
   }
@@ -509,8 +512,11 @@ export function RelationsView() {
               <div className="graph-stage interactive">
                 {layout.nodes.length === 0 ? (
                   <div className="graph-canvas">
-                    <Network size={42} strokeWidth={1.25} />
-                    <div>当前项目还没有可展示的图谱节点</div>
+                    <EmptyState
+                      icon={Network}
+                      title="还没有图谱节点"
+                      description="当前项目还没有可展示的角色、世界大纲或时间线事件。先补充资料后，图谱会自动聚合。"
+                    />
                   </div>
                 ) : (
                   <svg
@@ -627,7 +633,13 @@ export function RelationsView() {
               <span className="col relation-row-actions">操作</span>
             </div>
             {filteredRelations.length === 0 ? (
-              <div className="relation-empty">没有找到匹配的关系。可以新建一条人物关系来连接图谱中的角色。</div>
+              <EmptyState
+                icon={Users}
+                title={search ? "没有匹配的关系" : "还没有人物关系"}
+                description={search ? "换个关键词试试，或清空搜索查看全部关系。" : "新建一条人物关系后，图谱会立即出现对应连线。"}
+                actionLabel={!search && characters.length >= 2 ? "新建第一条关系" : undefined}
+                onAction={!search && characters.length >= 2 ? openCreate : undefined}
+              />
             ) : filteredRelations.map((relation) => (
               <div
                 className={`list-row ${selectedRelationId === relation.id ? "active" : ""}`}
