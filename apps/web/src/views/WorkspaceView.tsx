@@ -2322,34 +2322,42 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate, onFocus
                 <span className="grow" />
                 <button
                   type="button"
-                  className={`btn ${quickLookupOpen ? "toolbar-active" : ""}`}
+                  className={`btn toolbar-action toolbar-action-lookup ${quickLookupOpen ? "toolbar-active" : ""}`}
                   onClick={openQuickLookup}
                   disabled={!lookupProjectId}
+                  title="速查"
                 >
                   <Search size={15} strokeWidth={2} />
-                  速查
+                  <span className="toolbar-action-label">速查</span>
                 </button>
                 <button
                   type="button"
-                  className="btn"
+                  className="btn toolbar-action toolbar-action-review"
                   onClick={openReviewConfirm}
                   disabled={reviewing || !hasValidActiveChapter}
+                  title="一键质检"
                 >
                   <Check size={15} strokeWidth={2} />
-                  {reviewing ? `质检中 ${reviewElapsedSeconds}s` : "一键质检"}
+                  <span className="toolbar-action-label">{reviewing ? `质检中 ${reviewElapsedSeconds}s` : "一键质检"}</span>
                 </button>
                 <button
                   type="button"
-                  className="btn btn-primary"
+                  className="btn btn-primary toolbar-action toolbar-action-polish"
                   onClick={openPolishConfirm}
                   disabled={polishing || executingTaskId !== null || !hasValidActiveChapter}
+                  title="一键润色"
                 >
                   <Sparkles size={15} strokeWidth={2} />
-                  {polishing ? `润色中 ${polishElapsedSeconds}s` : "一键润色"}
+                  <span className="toolbar-action-label">{polishing ? `润色中 ${polishElapsedSeconds}s` : "一键润色"}</span>
                 </button>
-                <button type="button" className="btn" onClick={toggleFocusMode} title="Ctrl+Shift+F 切换专注">
+                <button
+                  type="button"
+                  className="btn toolbar-action toolbar-action-focus"
+                  onClick={toggleFocusMode}
+                  title="Ctrl+Shift+F 切换专注"
+                >
                   {focusMode ? <Minimize2 size={15} strokeWidth={2} /> : <Maximize2 size={15} strokeWidth={2} />}
-                  {focusMode ? "退出专注" : "专注模式"}
+                  <span className="toolbar-action-label">{focusMode ? "退出专注" : "专注模式"}</span>
                 </button>
               </div>
               {outlinePopoverOpen ? (
