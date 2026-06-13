@@ -356,13 +356,16 @@ input[type="radio"] { width: 15px; height: 15px; margin: 0; accent-color: var(--
 .faint { color: var(--text-muted); }
 
 /* ===== App Shell：四列 64 / 264 / 1fr / 384 ===== */
-.app-shell { display: grid; grid-template-columns: 64px 1fr; height: 100%; }
+.app-shell { display: grid; grid-template-columns: 64px minmax(0,1fr); width: 100%; height: 100dvh; overflow: hidden; }
 .app-shell.app-focus-mode { grid-template-columns: 1fr; }
 .app-shell.app-focus-mode .rail,
 .app-shell.app-focus-mode .mobile-shell-header,
 .app-shell.app-focus-mode .mobile-nav { display: none; }
 .app-shell.app-focus-mode .main { padding-bottom: 0; }
-.workspace { display: grid; grid-template-columns: 264px minmax(0,1fr) clamp(320px, 26vw, 380px); height: 100%; min-height: 0; padding-top: var(--workspace-safe-top); }
+.workspace { display: grid; grid-template-columns: 264px minmax(0,1fr) clamp(320px, 26vw, 380px); width: 100%; height: 100%; min-height: 0; overflow: hidden; }
+.workspace > .tree-panel,
+.workspace > .editor-pane,
+.workspace > .chat-pane { align-self: start; height: calc(100% - var(--workspace-safe-top)); min-height: 0; margin-top: var(--workspace-safe-top); }
 .workspace.focus-mode { grid-template-columns: minmax(0,1fr); }
 .workspace.focus-mode .tree-panel,
 .workspace.focus-mode .chat-pane { display: none; }
@@ -377,8 +380,7 @@ input[type="radio"] { width: 15px; height: 15px; margin: 0; accent-color: var(--
 .main { min-width: 0; height: 100%; overflow: hidden; display: flex; flex-direction: column; position: relative; }
 .main > .view,
 .main > .workspace { flex: 1; min-height: 0; }
-.main > .workspace { position: fixed; top: 0; right: 0; bottom: 0; left: 64px; width: auto; height: auto; animation: none; transform: none; }
-.app-shell.app-focus-mode .main > .workspace { left: 0; }
+.main > .workspace { position: relative; inset: auto; animation: none; transform: none; }
 .mobile-shell-header,
 .mobile-nav,
 .workspace-mobile-header { display: none; }
@@ -454,12 +456,12 @@ input[type="radio"] { width: 15px; height: 15px; margin: 0; accent-color: var(--
 
 /* 第三列：编辑器（纸张，周围留呼吸） */
 .editor-pane { background: transparent; display: flex; flex-direction: column; min-width: 0; }
-.editor-scroll { flex: 1; overflow: auto; display: flex; justify-content: center; padding: 44px 48px 64px; }
-.paper { width: 100%; max-width: 900px; background-color: var(--bg-card); background-image: none; background-blend-mode: multiply, normal; border: 1px solid var(--border); border-radius: var(--radius-lg); box-shadow: var(--shadow-paper); display: flex; flex-direction: column; align-self: flex-start; min-height: calc(100% - 0px); position: relative; }
+.editor-scroll { flex: 1; min-width: 0; overflow: auto; display: flex; justify-content: center; padding: 44px 48px 64px; }
+.paper { width: 100%; min-width: 0; max-width: 900px; overflow: hidden; background-color: var(--bg-card); background-image: none; background-blend-mode: multiply, normal; border: 1px solid var(--border); border-radius: var(--radius-lg); box-shadow: var(--shadow-paper); display: flex; flex-direction: column; align-self: flex-start; min-height: calc(100% - 0px); position: relative; }
 .paper::before { content: ""; position: absolute; inset: 10px; border: 1px solid color-mix(in srgb, var(--border) 58%, transparent); border-radius: calc(var(--radius-lg) - 5px); pointer-events: none; }
-.editor-workbench { width: 100%; max-width: 940px; display: grid; grid-template-columns: minmax(0,1fr); gap: 28px; justify-content: center; align-items: start; }
+.editor-workbench { width: 100%; min-width: 0; max-width: 940px; display: grid; grid-template-columns: minmax(0,1fr); gap: 28px; justify-content: center; align-items: start; }
 .editor-workbench.focus-mode { grid-template-columns: minmax(0, 900px); max-width: 900px; }
-.paper-toolbar { display: flex; align-items: center; gap: 2px; min-height: 64px; padding: 12px 16px 0; border-bottom: 1px solid var(--border); background: color-mix(in srgb, var(--surface-toolbar-glass) 90%, var(--bg-panel)); position: relative; z-index: 1; }
+.paper-toolbar { display: flex; align-items: center; gap: 2px; min-width: 0; min-height: 64px; padding: 12px 16px 0; border-bottom: 1px solid var(--border); background: color-mix(in srgb, var(--surface-toolbar-glass) 90%, var(--bg-panel)); position: relative; z-index: 1; }
 .paper-toolbar .sep { width: 1px; height: 20px; background: var(--border); margin: 0 8px; }
 .paper-toolbar .grow { flex: 1; }
 .editor-mode-switch { margin-left: 8px; flex: none; }
@@ -1002,9 +1004,15 @@ input[type="radio"] { width: 15px; height: 15px; margin: 0; accent-color: var(--
   .editor-workbench { grid-template-columns: minmax(0,1fr); max-width: 860px; }
 }
 
-@media (max-width: 1280px) {
-  .workspace { grid-template-columns: 264px minmax(0,1fr); }
-  .editor-workbench { grid-template-columns: minmax(0,1fr); max-width: 860px; }
+@media (max-width: 1800px) {
+  .workspace { grid-template-columns: clamp(220px, 16vw, 264px) minmax(0,1fr); }
+  .tree-head { padding-left: clamp(16px, 1.6vw, 20px); padding-right: clamp(16px, 1.6vw, 20px); }
+  .tree-scroll { padding-left: clamp(10px, 1.1vw, 12px); padding-right: clamp(10px, 1.1vw, 12px); }
+  .editor-scroll { justify-content: flex-start; padding-left: clamp(16px, 2vw, 32px); padding-right: clamp(16px, 2vw, 32px); }
+  .editor-workbench { grid-template-columns: minmax(0,1fr); width: min(100%, clamp(600px, 58vw, 760px)); max-width: 100%; justify-items: stretch; }
+  .paper { max-width: 100%; }
+  .paper-toolbar { height: auto; min-height: 64px; flex-wrap: wrap; row-gap: 8px; padding-bottom: 10px; }
+  .paper-toolbar .grow { flex: 1 1 auto; }
   .chat-pane { display: none; }
 }
 @media (max-width: 768px) {
@@ -1068,6 +1076,9 @@ input[type="radio"] { width: 15px; height: 15px; margin: 0; accent-color: var(--
   .app-shell.app-focus-mode .mobile-nav { display: none; }
   .main > .workspace { position: static; inset: auto; width: auto; height: 100%; transform: none; }
   .workspace { grid-template-columns: 1fr; height: 100%; padding-top: 0; }
+  .workspace > .tree-panel,
+  .workspace > .editor-pane,
+  .workspace > .chat-pane { align-self: stretch; height: auto; margin-top: 0; }
   .workspace {
     display: flex;
     flex-direction: column;
