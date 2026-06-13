@@ -1198,10 +1198,9 @@ input[type="radio"] { width: 15px; height: 15px; margin: 0; accent-color: var(--
     height: auto;
     min-height: 0;
     padding: 8px 10px;
-    flex-wrap: nowrap;
-    overflow-x: auto;
-    overflow-y: hidden;
-    row-gap: 0;
+    flex-wrap: wrap;
+    overflow: visible;
+    row-gap: 6px;
   }
   .workspace.mobile-panel-editor .paper-toolbar > *,
   .workspace.mobile-panel-inspector .paper-toolbar > * {
@@ -1210,12 +1209,23 @@ input[type="radio"] { width: 15px; height: 15px; margin: 0; accent-color: var(--
   .workspace.mobile-panel-editor .paper-toolbar::-webkit-scrollbar,
   .workspace.mobile-panel-inspector .paper-toolbar::-webkit-scrollbar {
     height: 4px;
+    display: none;
   }
   .workspace.mobile-panel-editor .paper-toolbar .btn,
   .workspace.mobile-panel-inspector .paper-toolbar .btn,
   .workspace.mobile-panel-editor .paper-toolbar .btn-icon,
   .workspace.mobile-panel-inspector .paper-toolbar .btn-icon {
     height: 30px;
+  }
+  .workspace.mobile-panel-editor .paper-toolbar .btn,
+  .workspace.mobile-panel-inspector .paper-toolbar .btn {
+    width: auto;
+    min-width: 72px;
+    padding: 0 9px;
+    justify-content: center;
+    gap: 5px;
+    overflow: visible;
+    color: inherit;
   }
   .workspace.mobile-panel-editor .paper-toolbar .editor-mode-switch,
   .workspace.mobile-panel-inspector .paper-toolbar .editor-mode-switch {
