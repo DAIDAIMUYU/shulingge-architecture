@@ -47,14 +47,25 @@ const PRIMARY_NAV: NavItem[] = [
 
 const SETTINGS_NAV: NavItem = { id: "settings", icon: Settings, label: "设置" };
 const NAV = [...PRIMARY_NAV, SETTINGS_NAV];
-const MOBILE_LAYOUT_BREAKPOINT = 820;
+const COMPACT_LAYOUT_WIDTH = 900;
+const COMPACT_LAYOUT_HEIGHT = 720;
 
-function getLayoutWidth() {
+function getCompactLayout() {
   if (typeof window === "undefined") {
-    return Number.POSITIVE_INFINITY;
+    return false;
   }
-  const viewportWidth = window.visualViewport?.width ?? window.innerWidth;
-  return viewportWidth * (window.devicePixelRatio || 1);
+  const cssViewportWidth = window.visualViewport?.width ?? window.innerWidth;
+  const windowWidth = window.outerWidth || window.innerWidth;
+  return Math.min(cssViewportWidth, windowWidth) <= COMPACT_LAYOUT_WIDTH;
+}
+
+function getCompactHeight() {
+  if (typeof window === "undefined") {
+    return false;
+  }
+  const cssViewportHeight = window.visualViewport?.height ?? window.innerHeight;
+  const windowHeight = window.outerHeight || window.innerHeight;
+  return Math.min(cssViewportHeight, windowHeight) <= COMPACT_LAYOUT_HEIGHT;
 }
 
 interface AppViewProps {
@@ -91,7 +102,13 @@ export function App() {
     if (typeof window === "undefined") {
       return false;
     }
-    return getLayoutWidth() <= MOBILE_LAYOUT_BREAKPOINT;
+    return getCompactLayout();
+  });
+  const [compactHeight, setCompactHeight] = useState(() => {
+    if (typeof window === "undefined") {
+      return false;
+    }
+    return getCompactHeight();
   });
   const [currentProjectId, setCurrentProjectId] = useState<string | null>(() => {
     if (typeof window === "undefined") {
@@ -108,7 +125,8 @@ export function App() {
   const Current = VIEWS[view] ?? VIEWS.workspace;
   useEffect(() => {
     const updateLayoutMode = () => {
-      setMobileLayout(getLayoutWidth() <= MOBILE_LAYOUT_BREAKPOINT);
+      setMobileLayout(getCompactLayout());
+      setCompactHeight(getCompactHeight());
     };
     updateLayoutMode();
     window.addEventListener("resize", updateLayoutMode);
@@ -138,7 +156,7 @@ export function App() {
     setVaultPath(null);
   };
   const currentLabel = NAV.find((item) => item.id === view)?.label ?? "写作";
-  const shellClassName = `app-shell ${mobileLayout ? "app-mobile-layout" : "app-desktop-layout"}${
+  const shellClassName = `app-shell ${mobileLayout ? "app-mobile-layout" : "app-desktop-layout"}${compactHeight ? " app-compact-height" : ""}${
     view === "workspace" && workspaceFocusMode ? " app-focus-mode" : ""
   }`;
 
