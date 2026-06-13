@@ -397,7 +397,7 @@ input[type="radio"] { width: 15px; height: 15px; margin: 0; accent-color: var(--
 .app-desktop-layout .rail { display: flex !important; }
 .app-desktop-layout .workspace {
   display: grid !important;
-  grid-template-columns: clamp(196px, 23vw, 228px) minmax(0,1fr) !important;
+  grid-template-columns: clamp(176px, 18vw, 220px) minmax(0,1fr) clamp(220px, 22vw, 280px) !important;
   height: 100% !important;
 }
 .app-desktop-layout .workspace > .tree-panel,
@@ -408,7 +408,7 @@ input[type="radio"] { width: 15px; height: 15px; margin: 0; accent-color: var(--
   margin-top: var(--workspace-safe-top) !important;
 }
 .app-desktop-layout .workspace > .chat-pane {
-  display: none !important;
+  display: flex !important;
 }
 .app-desktop-layout .workspace .editor-statusbar {
   display: flex !important;
@@ -663,9 +663,9 @@ input[type="radio"] { width: 15px; height: 15px; margin: 0; accent-color: var(--
   margin: 8px 0 14px;
 }
 
-@media (min-width: 1181px) {
+@media (min-width: 1041px) {
   .app-desktop-layout .workspace {
-    grid-template-columns: clamp(224px, 15vw, 248px) minmax(0,1fr) clamp(300px, 21vw, 340px) !important;
+    grid-template-columns: clamp(196px, 18vw, 228px) minmax(0,1fr) clamp(240px, 22vw, 300px) !important;
   }
   .app-desktop-layout .workspace > .chat-pane {
     display: flex !important;
@@ -693,6 +693,12 @@ input[type="radio"] { width: 15px; height: 15px; margin: 0; accent-color: var(--
   .app-desktop-layout .paper-toolbar .toolbar-action-polish {
     width: auto;
     min-width: 0;
+  }
+}
+
+@media (min-width: 1361px) {
+  .app-desktop-layout .workspace {
+    grid-template-columns: clamp(224px, 15vw, 248px) minmax(0,1fr) clamp(300px, 21vw, 340px) !important;
   }
 }
 
@@ -1345,7 +1351,7 @@ input[type="radio"] { width: 15px; height: 15px; margin: 0; accent-color: var(--
   .paper-body { padding-left: clamp(34px, 5.2vw, 68px); padding-right: clamp(34px, 5.2vw, 68px); }
 }
 
-@media (max-width: 1180px) {
+@media (max-width: 820px) {
   .workspace { grid-template-columns: clamp(176px, 19vw, 204px) minmax(0,1fr); }
   .workspace > .chat-pane { display: none; }
   .tree-head { min-height: 92px; padding: 20px 14px 10px; gap: 8px; flex-direction: column; align-items: stretch; }
@@ -1378,7 +1384,7 @@ input[type="radio"] { width: 15px; height: 15px; margin: 0; accent-color: var(--
   .writing-progress { flex-basis: min(280px, 42vw); min-width: 170px; }
 }
 
-@media (max-width: 880px) {
+@media (max-width: 820px) {
   .workspace { grid-template-columns: clamp(168px, 24vw, 192px) minmax(0,1fr); }
   .workspace > .chat-pane { display: none; }
   .editor-scroll { padding-left: clamp(12px, 2.4vw, 22px); padding-right: clamp(12px, 2.4vw, 22px); }
@@ -1388,7 +1394,7 @@ input[type="radio"] { width: 15px; height: 15px; margin: 0; accent-color: var(--
   .writing-progress { min-width: 150px; }
 }
 
-@media (max-width: 1180px) and (max-height: 760px) {
+@media (max-width: 820px) and (max-height: 760px) {
   .editor-scroll { padding-top: 14px; padding-bottom: 22px; }
   .paper-body { padding-top: 28px; padding-bottom: 42px; }
   .chapter-title { font-size: 28px; line-height: 1.16; }
@@ -1950,17 +1956,145 @@ body::after,
 
 /* Prevent desktop and mobile chrome from mixing near the breakpoint under
    browser zoom or Windows display scaling. */
-@media (min-width: 821px) {
-  .app-desktop-layout .mobile-shell-header,
-  .app-desktop-layout .mobile-nav,
-  .app-desktop-layout .workspace-mobile-header {
+@media (max-width: 820px) {
+  .app-mobile-layout .rail {
     display: none !important;
   }
 }
 
-@media (max-width: 820px) {
-  .app-mobile-layout .rail {
-    display: none !important;
+.app-shell.app-desktop-layout:not(.app-focus-mode) {
+  grid-template-columns: 64px minmax(0, 1fr) !important;
+  grid-template-rows: minmax(0, 1fr) !important;
+}
+
+.app-shell.app-desktop-layout:not(.app-focus-mode) .rail {
+  display: flex !important;
+}
+
+.app-shell.app-desktop-layout:not(.app-focus-mode) .mobile-shell-header,
+.app-shell.app-desktop-layout:not(.app-focus-mode) .mobile-nav,
+.app-shell.app-desktop-layout:not(.app-focus-mode) .workspace-mobile-header {
+  display: none !important;
+}
+
+.app-shell.app-desktop-layout:not(.app-focus-mode) .main {
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+}
+
+.app-shell.app-desktop-layout:not(.app-focus-mode) .workspace {
+  display: grid !important;
+  grid-template-columns: minmax(208px, 232px) minmax(0, 1fr) minmax(220px, 260px) !important;
+  grid-template-rows: minmax(0, 1fr) !important;
+  height: 100% !important;
+  min-height: 0 !important;
+  overflow: hidden !important;
+  padding-top: 0 !important;
+}
+
+.app-shell.app-desktop-layout:not(.app-focus-mode) .workspace > .tree-panel,
+.app-shell.app-desktop-layout:not(.app-focus-mode) .workspace > .editor-pane,
+.app-shell.app-desktop-layout:not(.app-focus-mode) .workspace > .chat-pane {
+  display: flex !important;
+  align-self: start !important;
+  height: calc(100% - var(--workspace-safe-top)) !important;
+  min-height: 0 !important;
+  min-width: 0 !important;
+  margin-top: var(--workspace-safe-top) !important;
+}
+
+.app-shell.app-desktop-layout:not(.app-focus-mode) .editor-scroll {
+  justify-items: start !important;
+  padding-left: clamp(10px, 1.2vw, 20px) !important;
+  padding-right: clamp(10px, 1.2vw, 20px) !important;
+  min-width: 0 !important;
+  max-width: 100% !important;
+  overflow-x: hidden !important;
+}
+
+.app-shell.app-desktop-layout:not(.app-focus-mode) .editor-workbench {
+  width: 100% !important;
+  max-width: min(720px, 100%) !important;
+  justify-self: start !important;
+}
+
+.app-shell.app-desktop-layout:not(.app-focus-mode) .paper {
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+}
+
+.app-shell.app-desktop-layout:not(.app-focus-mode) .paper-toolbar {
+  flex-wrap: wrap !important;
+  overflow: hidden !important;
+  min-width: 0 !important;
+  row-gap: 6px;
+}
+
+.app-shell.app-desktop-layout:not(.app-focus-mode) .paper-toolbar > * {
+  flex: 0 1 auto;
+  min-width: 0;
+}
+
+.app-shell.app-desktop-layout:not(.app-focus-mode) .paper-toolbar .grow {
+  flex: 1 1 12px;
+  min-width: 0;
+}
+
+.app-shell.app-desktop-layout:not(.app-focus-mode) .paper-toolbar .toolbar-action {
+  flex: 0 0 auto;
+}
+
+@media (max-width: 1360px) {
+  .app-shell.app-desktop-layout:not(.app-focus-mode) .paper-toolbar .toolbar-action {
+    width: 32px;
+    min-width: 32px;
+    padding: 0;
+    gap: 0;
+  }
+
+  .app-shell.app-desktop-layout:not(.app-focus-mode) .paper-toolbar .toolbar-action-polish {
+    width: 34px;
+    min-width: 34px;
+  }
+
+  .app-shell.app-desktop-layout:not(.app-focus-mode) .paper-toolbar .toolbar-action-label {
+    display: none;
+  }
+
+  .app-shell.app-desktop-layout:not(.app-focus-mode) .paper-toolbar .editor-mode-switch button {
+    width: 36px;
+    min-width: 36px;
+    padding: 0;
+    overflow: hidden;
+    text-indent: -999px;
+    position: relative;
+  }
+
+  .app-shell.app-desktop-layout:not(.app-focus-mode) .paper-toolbar .editor-mode-switch button::after {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    text-indent: 0;
+  }
+
+  .app-shell.app-desktop-layout:not(.app-focus-mode) .paper-toolbar .editor-mode-switch button:first-child::after {
+    content: "普";
+  }
+
+  .app-shell.app-desktop-layout:not(.app-focus-mode) .paper-toolbar .editor-mode-switch button:last-child::after {
+    content: "码";
+  }
+}
+
+@media (min-width: 1361px) {
+  .app-shell.app-desktop-layout:not(.app-focus-mode) .workspace {
+    grid-template-columns: minmax(232px, 252px) minmax(0, 1fr) minmax(260px, 300px) !important;
+  }
+
+  .app-shell.app-desktop-layout:not(.app-focus-mode) .editor-workbench {
+    max-width: min(760px, 100%) !important;
   }
 }
 
