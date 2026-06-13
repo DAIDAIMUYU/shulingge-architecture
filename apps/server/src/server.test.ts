@@ -992,6 +992,90 @@ test("knowledge routes manage shared entries, novel knowledge items, and graph l
   }
 });
 
+test("rule CRUD routes persist project rules", async () => {
+  const vaultRoot = await createFixtureVault();
+  const server = await startServer({ vaultRoot });
+
+  try {
+    const createResponse = await fetch(`${server.baseUrl}/api/v1/knowledge/rules`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        projectId: "demo-series",
+        id: "no-ooc",
+        title: "禁止角色 OOC",
+        level: "hard",
+        scope: "project",
+        appliesTo: ["kanae"],
+        detectBy: ["manual", "ai-check"],
+        onViolation: "warn",
+        enabled: true,
+        source: "user",
+        priority: 20,
+        overridePolicy: "no-override",
+        tags: ["角色"],
+      }),
+    });
+    const createPayload = (await createResponse.json()) as {
+      ok: true;
+      data: { rule: { id: string; title: string; level: string; detectBy: string[] } };
+    };
+
+    const listResponse = await fetch(`${server.baseUrl}/api/v1/knowledge/rules?projectId=demo-series`);
+    const listPayload = (await listResponse.json()) as {
+      ok: true;
+      data: { rules: Array<{ id: string; title: string }> };
+    };
+
+    const updateResponse = await fetch(`${server.baseUrl}/api/v1/knowledge/rules/no-ooc`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        projectId: "demo-series",
+        title: "禁止角色行为 OOC",
+        enabled: false,
+        priority: 10,
+      }),
+    });
+    const updatePayload = (await updateResponse.json()) as {
+      ok: true;
+      data: { rule: { title: string; enabled: boolean; priority: number } };
+    };
+
+    const savedRule = await readJsonFile<{ title: string; tags: string[] }>(
+      vaultRoot,
+      "projects/demo-series/rules/no-ooc.json",
+    );
+
+    const deleteResponse = await fetch(`${server.baseUrl}/api/v1/knowledge/rules/no-ooc?projectId=demo-series`, {
+      method: "DELETE",
+    });
+    const listAfterDeleteResponse = await fetch(`${server.baseUrl}/api/v1/knowledge/rules?projectId=demo-series`);
+    const listAfterDeletePayload = (await listAfterDeleteResponse.json()) as {
+      ok: true;
+      data: { rules: Array<{ id: string }> };
+    };
+
+    assert.equal(createResponse.status, 200);
+    assert.equal(createPayload.data.rule.id, "no-ooc");
+    assert.equal(createPayload.data.rule.level, "hard");
+    assert.deepEqual(createPayload.data.rule.detectBy, ["manual", "ai-check"]);
+    assert.equal(listResponse.status, 200);
+    assert.equal(listPayload.data.rules.some((rule) => rule.id === "no-ooc"), true);
+    assert.equal(updateResponse.status, 200);
+    assert.equal(updatePayload.data.rule.title, "禁止角色行为 OOC");
+    assert.equal(updatePayload.data.rule.enabled, false);
+    assert.equal(updatePayload.data.rule.priority, 10);
+    assert.equal(savedRule.title, "禁止角色行为 OOC");
+    assert.deepEqual(savedRule.tags, ["角色"]);
+    assert.equal(deleteResponse.status, 200);
+    assert.equal(listAfterDeletePayload.data.rules.some((rule) => rule.id === "no-ooc"), false);
+  } finally {
+    await server.close();
+    await rm(vaultRoot, { recursive: true, force: true });
+  }
+});
+
 test("export and backup routes write sanitized artifacts inside vault", async () => {
   const vaultRoot = await createFixtureVault();
   const server = await startServer({ vaultRoot });

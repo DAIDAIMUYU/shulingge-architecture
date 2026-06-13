@@ -628,6 +628,41 @@ export interface WorldbookEntryInput {
   relatedNovels?: string[];
   appliesToAgents?: string[];
 }
+export type RuleLevel = "locked" | "hard" | "soft" | "preference";
+export type RuleScope = "system" | "global" | "vault" | "project" | "novel" | "volume" | "chapter" | "task" | "agent";
+export type RuleDetectBy = "hard-check" | "ai-check" | "manual" | "mixed";
+export type RuleViolationAction = "block" | "rewrite" | "warn" | "record" | "pause";
+export type RuleOverridePolicy = "locked" | "allow-branch-override" | "append-only" | "disable-in-branch" | "no-override";
+export interface RuleRecord {
+  id: string;
+  title: string;
+  level: RuleLevel;
+  scope: RuleScope;
+  appliesTo?: string[];
+  detectBy: RuleDetectBy[];
+  onViolation: RuleViolationAction;
+  enabled: boolean;
+  source: string;
+  priority: number;
+  overridePolicy: RuleOverridePolicy;
+  tags: string[];
+  createdAt?: string;
+  updatedAt?: string;
+}
+export interface RuleInput {
+  id: string;
+  title: string;
+  level?: RuleLevel;
+  scope?: RuleScope;
+  appliesTo?: string[];
+  detectBy?: RuleDetectBy[];
+  onViolation?: RuleViolationAction;
+  enabled?: boolean;
+  source?: string;
+  priority?: number;
+  overridePolicy?: RuleOverridePolicy;
+  tags?: string[];
+}
 export interface ModelConfig {
   id: string;
   name?: string;
@@ -959,6 +994,17 @@ export const api = {
     })).entry,
   deleteWorldbookEntry: async (projectId: string, entryId: string): Promise<{ id: string; deleted: true }> =>
     del<{ id: string; deleted: true }>(withQuery(`/knowledge/worldbook/${encodeURIComponent(entryId)}`, { projectId })),
+  listRulesByProject: async (projectId: string): Promise<RuleRecord[]> =>
+    unwrapList<RuleRecord>(await get(withQuery("/knowledge/rules", { projectId })), "rules"),
+  createRule: async (projectId: string, payload: RuleInput): Promise<RuleRecord> =>
+    (await post<{ rule: RuleRecord }>("/knowledge/rules", { projectId, ...payload })).rule,
+  updateRule: async (projectId: string, ruleId: string, payload: Partial<RuleInput>): Promise<RuleRecord> =>
+    (await patch<{ rule: RuleRecord }>(`/knowledge/rules/${encodeURIComponent(ruleId)}`, {
+      projectId,
+      ...payload,
+    })).rule,
+  deleteRule: async (projectId: string, ruleId: string): Promise<{ id: string; deleted: true }> =>
+    del<{ id: string; deleted: true }>(withQuery(`/knowledge/rules/${encodeURIComponent(ruleId)}`, { projectId })),
   knowledgeGraph: (projectId?: string, novelId?: string) =>
     get<KnowledgeGraph>(withQuery("/knowledge/graph", { projectId, novelId })),
   listModels: async (): Promise<ModelConfig[]> => unwrapList<ModelConfig>(await get("/models"), "models"),

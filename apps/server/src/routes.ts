@@ -55,26 +55,31 @@ import {
   createCharacter,
   createKnowledgeItem,
   createRelation,
+  createRule,
   createTimelineEvent,
   createWorldbookEntry,
   deleteCharacter,
   deleteKnowledgeItem,
   deleteRelation,
+  deleteRule,
   deleteTimelineEvent,
   deleteWorldbookEntry,
   getCharacter,
   getKnowledgeItem,
   getRelation,
+  getRule,
   getTimelineEvent,
   getWorldbookEntry,
   listCharacters,
   listKnowledgeItems,
   listRelations,
+  listRules,
   listTimelineEvents,
   listWorldbookEntries,
   updateCharacter,
   updateKnowledgeItem,
   updateRelation,
+  updateRule,
   updateTimelineEvent,
   updateWorldbookEntry,
 } from "./knowledge.js";
@@ -1680,6 +1685,65 @@ export const routeDefinitions: RouteDefinition[] = [
         snapshotPath: body.snapshotPath,
         range: body.range,
       });
+    },
+  },
+  {
+    method: "GET",
+    path: "/api/v1/knowledge/rules",
+    async handler(request, context) {
+      const vaultRoot = requireVaultRoot(context);
+      return {
+        rules: await listRules(vaultRoot, {
+          projectId: request.query.get("projectId") ?? "",
+        }),
+      };
+    },
+  },
+  {
+    method: "POST",
+    path: "/api/v1/knowledge/rules",
+    async handler(request, context) {
+      const vaultRoot = requireVaultRoot(context);
+      const body = (request.body as { projectId?: string } & Record<string, unknown>) ?? {};
+      return {
+        rule: await createRule(vaultRoot, { projectId: body.projectId ?? "" }, body as never),
+      };
+    },
+  },
+  {
+    method: "GET",
+    path: "/api/v1/knowledge/rules/:ruleId",
+    async handler(request, context) {
+      const vaultRoot = requireVaultRoot(context);
+      return {
+        rule: await getRule(vaultRoot, { projectId: request.query.get("projectId") ?? "" }, request.params.ruleId),
+      };
+    },
+  },
+  {
+    method: "PATCH",
+    path: "/api/v1/knowledge/rules/:ruleId",
+    async handler(request, context) {
+      const vaultRoot = requireVaultRoot(context);
+      const body = (request.body as { projectId?: string } & Record<string, unknown>) ?? {};
+      return {
+        rule: await updateRule(
+          vaultRoot,
+          { projectId: body.projectId ?? "" },
+          request.params.ruleId,
+          body as never,
+        ),
+      };
+    },
+  },
+  {
+    method: "DELETE",
+    path: "/api/v1/knowledge/rules/:ruleId",
+    async handler(request, context) {
+      const vaultRoot = requireVaultRoot(context);
+      return await deleteRule(vaultRoot, {
+        projectId: request.query.get("projectId") ?? "",
+      }, request.params.ruleId);
     },
   },
   {

@@ -34,7 +34,12 @@ interface RemoteGatewayControllerOptions {
 }
 
 function detectTailscaleAddress(): string | undefined {
-  const interfaces = os.networkInterfaces();
+  let interfaces: NodeJS.Dict<os.NetworkInterfaceInfo[]>;
+  try {
+    interfaces = os.networkInterfaces();
+  } catch {
+    return undefined;
+  }
 
   for (const [name, entries] of Object.entries(interfaces)) {
     for (const entry of entries ?? []) {

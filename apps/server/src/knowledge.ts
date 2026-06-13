@@ -6,11 +6,13 @@ import {
   characterSchema,
   knowledgeItemSchema,
   relationSchema,
+  ruleSchema,
   timelineEventSchema,
   worldbookEntrySchema,
   type Character,
   type KnowledgeItem,
   type Relation,
+  type Rule,
   type TimelineEvent,
   type WorldbookEntry,
 } from "@shulingge/shared";
@@ -18,7 +20,7 @@ import { readJsonFile, resolveSafePath, writeJsonFile } from "@shulingge/vault-c
 
 import { createHttpError } from "./errors.js";
 
-type KnowledgeEntityType = "worldbook" | "characters" | "relations" | "timeline" | "knowledge-items";
+type KnowledgeEntityType = "worldbook" | "characters" | "relations" | "timeline" | "knowledge-items" | "rules";
 
 interface ProjectLocator {
   projectId: string;
@@ -63,6 +65,7 @@ type TimelineInput = Partial<Omit<TimelineEvent, "schemaVersion">> &
   Pick<TimelineEvent, "id" | "title" | "line" | "order">;
 type KnowledgeItemInput = Partial<Omit<KnowledgeItem, "schemaVersion">> &
   Pick<KnowledgeItem, "id" | "content">;
+type RuleInput = Partial<Omit<Rule, "schemaVersion">> & Pick<Rule, "id" | "title">;
 
 const worldbookDescriptor: EntityDescriptor<WorldbookEntry> = {
   type: "worldbook",
@@ -125,6 +128,17 @@ const knowledgeItemDescriptor: EntityDescriptor<KnowledgeItem> = {
     return path.posix.join(this.collectionPath(locator), `${entityId}.json`);
   },
   schema: knowledgeItemSchema,
+};
+
+const ruleDescriptor: EntityDescriptor<Rule> = {
+  type: "rules",
+  collectionPath(locator) {
+    return path.posix.join("projects", locator.projectId, "rules");
+  },
+  relativePath(locator, entityId) {
+    return path.posix.join(this.collectionPath(locator), `${entityId}.json`);
+  },
+  schema: ruleSchema,
 };
 
 function assertProjectLocator(locator: Partial<ProjectLocator>): asserts locator is ProjectLocator {
@@ -332,6 +346,25 @@ function normalizeKnowledgeItem(input: KnowledgeItemInput, current?: KnowledgeIt
   });
 }
 
+function normalizeRule(input: RuleInput, current?: Rule): Rule {
+  return ruleSchema.parse({
+    id: input.id ?? current?.id ?? "",
+    title: input.title ?? current?.title ?? "",
+    level: input.level ?? current?.level ?? "soft",
+    scope: input.scope ?? current?.scope ?? "project",
+    appliesTo: input.appliesTo ?? current?.appliesTo ?? [],
+    detectBy: input.detectBy ?? current?.detectBy ?? ["manual"],
+    onViolation: input.onViolation ?? current?.onViolation ?? "warn",
+    enabled: input.enabled ?? current?.enabled ?? true,
+    source: input.source ?? current?.source ?? "user",
+    priority: input.priority ?? current?.priority ?? 50,
+    overridePolicy: input.overridePolicy ?? current?.overridePolicy ?? "no-override",
+    tags: input.tags ?? current?.tags ?? [],
+    schemaVersion: CURRENT_SCHEMA_VERSION,
+    ...createTimestampFields(current),
+  });
+}
+
 async function saveEntity<T extends { id: string }>(
   vaultRoot: string,
   locator: ProjectLocator | NovelLocator,
@@ -529,6 +562,40 @@ export async function deleteKnowledgeItem(vaultRoot: string, locator: NovelLocat
   await readEntity(vaultRoot, locator, knowledgeItemDescriptor, itemId);
   await rm(resolveSafePath(vaultRoot, knowledgeItemDescriptor.relativePath(locator, itemId)), { force: true });
   return { id: itemId, deleted: true };
+}
+
+export async function listRules(vaultRoot: string, locator: ProjectLocator): Promise<Rule[]> {
+  assertProjectLocator(locator);
+  return readCollection(vaultRoot, locator, ruleDescriptor);
+}
+
+export async function createRule(vaultRoot: string, locator: ProjectLocator, input: RuleInput) {
+  assertProjectLocator(locator);
+  await ensureUniqueEntity(vaultRoot, locator, ruleDescriptor, input.id);
+  return saveEntity(vaultRoot, locator, ruleDescriptor, normalizeRule(input));
+}
+
+export async function getRule(vaultRoot: string, locator: ProjectLocator, ruleId: string) {
+  assertProjectLocator(locator);
+  return readEntity(vaultRoot, locator, ruleDescriptor, ruleId);
+}
+
+export async function updateRule(
+  vaultRoot: string,
+  locator: ProjectLocator,
+  ruleId: string,
+  input: Partial<RuleInput>,
+) {
+  assertProjectLocator(locator);
+  const current = await readEntity(vaultRoot, locator, ruleDescriptor, ruleId);
+  return saveEntity(vaultRoot, locator, ruleDescriptor, normalizeRule({ ...input, id: ruleId, title: input.title ?? current.title }, current));
+}
+
+export async function deleteRule(vaultRoot: string, locator: ProjectLocator, ruleId: string) {
+  assertProjectLocator(locator);
+  await readEntity(vaultRoot, locator, ruleDescriptor, ruleId);
+  await rm(resolveSafePath(vaultRoot, ruleDescriptor.relativePath(locator, ruleId)), { force: true });
+  return { id: ruleId, deleted: true };
 }
 
 export async function buildKnowledgeGraph(vaultRoot: string, locator: NovelLocator): Promise<KnowledgeGraph> {
