@@ -1024,7 +1024,7 @@ input[type="radio"] { width: 15px; height: 15px; margin: 0; accent-color: var(--
   .paper { max-width: 100%; }
 }
 
-@media (max-width: 768px) {
+@media (max-width: 960px) {
   .app-shell { grid-template-columns: 1fr; }
   .rail { display: none; }
   .mobile-shell-header {
