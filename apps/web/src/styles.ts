@@ -1217,8 +1217,8 @@ input[type="radio"] { width: 15px; height: 15px; margin: 0; accent-color: var(--
   .workspace.mobile-panel-inspector .paper-toolbar .btn-icon {
     height: 30px;
   }
-  .workspace.mobile-panel-editor .paper-toolbar .btn,
-  .workspace.mobile-panel-inspector .paper-toolbar .btn {
+  .workspace.mobile-panel-editor .paper-toolbar .btn:not(.btn-primary):not(.btn-danger),
+  .workspace.mobile-panel-inspector .paper-toolbar .btn:not(.btn-primary):not(.btn-danger) {
     width: auto;
     min-width: 72px;
     padding: 0 9px;
@@ -1445,6 +1445,12 @@ input[type="radio"] { width: 15px; height: 15px; margin: 0; accent-color: var(--
 
 .btn.btn-primary:active {
   background-color: var(--primary-hover);
+  color: var(--text-on-primary);
+}
+
+.paper-toolbar .btn.btn-primary,
+.paper-toolbar .btn.btn-primary:hover,
+.paper-toolbar .btn.btn-primary:active {
   color: var(--text-on-primary);
 }
 
