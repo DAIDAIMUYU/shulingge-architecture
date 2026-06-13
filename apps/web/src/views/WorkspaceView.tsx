@@ -2789,9 +2789,9 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate, onFocus
               <b style={{ width: `${wordProgress ?? 0}%` }} />
             </i>
           </div>
-          <span>全书 {formatWordCount(totalWordCount)}</span>
-          <span>批注 {metadataAnnotationsCount}</span>
-          <span>锁定 {metadataLocksCount}</span>
+          <span className="status-metric">全书 {formatWordCount(totalWordCount)}</span>
+          <span className="status-metric">批注 {metadataAnnotationsCount}</span>
+          <span className="status-metric">锁定 {metadataLocksCount}</span>
         </div>
       </section>
 

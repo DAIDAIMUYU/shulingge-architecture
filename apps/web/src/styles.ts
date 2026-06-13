@@ -531,8 +531,9 @@ input[type="radio"] { width: 15px; height: 15px; margin: 0; accent-color: var(--
 .rich-manuscript li { margin: 0.25em 0; }
 .source-manuscript { font-family: var(--font-mono); font-size: 14.5px; line-height: 1.82; letter-spacing: 0; padding: 0; tab-size: 2; white-space: pre; overflow: auto; max-width: 740px; }
 .editor-empty { flex: 1; min-height: 420px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; color: var(--text-muted); text-align: center; }
-.editor-statusbar { display: flex; align-items: center; gap: 20px; padding: 11px 28px; border-top: 1px solid var(--border); background: color-mix(in srgb, var(--bg-panel) 82%, transparent); font-size: 12px; color: var(--text-secondary); }
-.editor-statusbar .grow { flex: 1; }
+.editor-statusbar { display: flex; align-items: center; gap: 18px; min-width: 0; padding: 11px 28px; border-top: 1px solid var(--border); background: color-mix(in srgb, var(--bg-panel) 82%, transparent); font-size: 12px; color: var(--text-secondary); }
+.editor-statusbar .grow { flex: 1 1 auto; min-width: 12px; }
+.editor-statusbar > span { white-space: nowrap; flex: none; }
 .save-status { display: inline-flex; align-items: center; gap: 7px; min-width: 132px; color: var(--text-secondary); font-weight: 500; }
 .save-status-saved { color: var(--success); }
 .save-status-saving { color: var(--primary); }
@@ -543,7 +544,8 @@ input[type="radio"] { width: 15px; height: 15px; margin: 0; accent-color: var(--
 .save-dot.saving { background: var(--primary); box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 14%, transparent); animation: breathe 1.1s ease-in-out infinite; }
 .save-dot.dirty { background: var(--warning); box-shadow: 0 0 0 3px color-mix(in srgb, var(--warning) 14%, transparent); }
 .save-dot.error { background: var(--danger); box-shadow: 0 0 0 3px color-mix(in srgb, var(--danger) 14%, transparent); }
-.writing-progress { min-width: min(280px, 34vw); display: grid; grid-template-columns: auto auto; gap: 3px 12px; align-items: center; color: var(--text-secondary); }
+.writing-progress { flex: 0 1 min(280px, 34vw); min-width: 180px; display: grid; grid-template-columns: auto auto; gap: 3px 12px; align-items: center; color: var(--text-secondary); }
+.writing-progress span { white-space: nowrap; }
 .writing-progress span:first-child { color: var(--text-primary); font-weight: 600; }
 .writing-progress i { grid-column: 1 / -1; height: 5px; overflow: hidden; border-radius: 999px; background: color-mix(in srgb, var(--border) 70%, transparent); box-shadow: inset 0 1px 1px color-mix(in srgb, var(--primary-ink) 10%, transparent); }
 .writing-progress b { display: block; height: 100%; min-width: 0; border-radius: inherit; background: linear-gradient(90deg, var(--accent-cinnabar), var(--primary)); transition: width var(--motion-slow) var(--motion-ease); }
@@ -1047,6 +1049,9 @@ input[type="radio"] { width: 15px; height: 15px; margin: 0; accent-color: var(--
   .paper-toolbar { padding: 10px 12px 8px; gap: 1px; row-gap: 6px; }
   .paper-body { padding: 48px clamp(24px, 4.8vw, 52px) 68px; }
   .chapter-title { font-size: 32px; }
+  .editor-statusbar { gap: 12px; padding-left: 18px; padding-right: 18px; }
+  .editor-statusbar .status-metric { display: none; }
+  .writing-progress { flex-basis: min(280px, 42vw); min-width: 170px; }
 }
 
 @media (max-width: 880px) {
@@ -1054,6 +1059,9 @@ input[type="radio"] { width: 15px; height: 15px; margin: 0; accent-color: var(--
   .workspace > .chat-pane { display: none; }
   .editor-scroll { padding-left: clamp(12px, 2.4vw, 22px); padding-right: clamp(12px, 2.4vw, 22px); }
   .editor-workbench { max-width: min(720px, 100%); }
+  .editor-statusbar { gap: 10px; padding-left: 14px; padding-right: 14px; }
+  .save-status { min-width: 0; }
+  .writing-progress { min-width: 150px; }
 }
 
 @media (max-width: 640px) {
@@ -1160,10 +1168,10 @@ input[type="radio"] { width: 15px; height: 15px; margin: 0; accent-color: var(--
     padding: 10px 12px 24px;
   }
   .workspace.mobile-panel-editor .paper {
-    min-height: min(620px, calc(100dvh - 250px));
+    min-height: min(560px, calc(100dvh - 232px));
   }
   .workspace.mobile-panel-editor .paper-body {
-    padding: 24px 20px 48px;
+    padding: 22px 20px 36px;
   }
   .workspace.mobile-panel-editor .chapter-title {
     font-size: 27px;
@@ -1269,6 +1277,33 @@ input[type="radio"] { width: 15px; height: 15px; margin: 0; accent-color: var(--
   .relation-editor-modal { width: min(100%, calc(100vw - 24px)); }
   .character-template-grid { grid-template-columns: 1fr; }
   .character-template-card-wide { grid-column: auto; }
+}
+
+@media (max-width: 640px) and (max-height: 820px) {
+  .mobile-shell-header { padding-top: 7px; padding-bottom: 7px; }
+  .workspace-mobile-header { padding-top: 8px; padding-bottom: 8px; }
+  .workspace-mobile-title { font-size: 18px; }
+  .workspace-mobile-sub { margin-top: 2px; }
+  .workspace-mobile-tabs { margin-top: 8px; }
+  .workspace.mobile-panel-editor .editor-scroll,
+  .workspace.mobile-panel-inspector .editor-scroll {
+    padding-top: 8px;
+    padding-bottom: 14px;
+  }
+  .workspace.mobile-panel-editor .paper {
+    min-height: min(480px, calc(100dvh - 216px));
+  }
+  .workspace.mobile-panel-editor .paper-body {
+    padding: 18px 18px 28px;
+  }
+  .workspace.mobile-panel-editor .chapter-title {
+    font-size: 24px;
+    line-height: 1.18;
+  }
+  .workspace.mobile-panel-editor .title-rule {
+    margin-top: 14px;
+    margin-bottom: 24px;
+  }
 }
 
 /* Theme surfaces: every theme uses one global image layer and translucent app surfaces. */
