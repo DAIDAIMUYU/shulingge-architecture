@@ -265,6 +265,25 @@ function joinValues(values: string[] | undefined, fallback = "未填写"): strin
   return values?.length ? values.join("、") : fallback;
 }
 
+function metadataNumber(metadata: EditorChapter["metadata"] | undefined, ...keys: string[]): number | null {
+  if (!metadata) {
+    return null;
+  }
+  for (const key of keys) {
+    const value = metadata[key];
+    if (typeof value === "number" && Number.isFinite(value) && value > 0) {
+      return value;
+    }
+    if (typeof value === "string") {
+      const parsed = Number(value);
+      if (Number.isFinite(parsed) && parsed > 0) {
+        return parsed;
+      }
+    }
+  }
+  return null;
+}
+
 function characterOneLine(character: Character): string {
   return firstText(
     character.profile?.basic?.oneLine,
@@ -432,6 +451,8 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
     locator.chapterId;
   const outline = useMemo(() => buildOutline(draft), [draft]);
   const metadataWordCount = chapter?.metadata?.wordCount ?? draft.replace(/\s/g, "").length;
+  const targetWordCount = metadataNumber(chapter?.metadata, "targetWordCount", "wordTarget", "goalWordCount", "targetWords");
+  const wordProgress = targetWordCount ? Math.min(100, Math.round((metadataWordCount / targetWordCount) * 100)) : null;
   const metadataAnnotationsCount = annotations.length;
   const metadataLocksCount = locks.length;
   const selectedRun = useMemo(
@@ -1807,9 +1828,28 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
     });
   };
 
+  useEffect(() => {
+    if (!focusMode) {
+      return;
+    }
+    const onKeyDown = (event: globalThis.KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setFocusMode(false);
+      }
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [focusMode]);
+
   return (
     <>
     <div className={`workspace mobile-panel-${mobilePanel}${focusMode ? " focus-mode" : ""}`}>
+      {focusMode ? (
+        <button type="button" className="focus-exit-button" onClick={toggleFocusMode} aria-label="退出专注模式">
+          <Minimize2 size={15} strokeWidth={2} />
+          退出专注
+        </button>
+      ) : null}
       <div className="workspace-mobile-header">
         <div className="workspace-mobile-summary">
           <div>
@@ -2671,20 +2711,27 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
         </div>
 
         <div className="editor-statusbar">
-          <span>
+          <span className={`save-status save-status-${saveState}`}>
             <span className={`save-dot ${saveState}`} />
             {saveState === "saving"
-              ? "保存中…"
+              ? "正在保存…"
               : saveState === "dirty"
-                ? "未保存"
+                ? "有未保存修改"
                 : saveState === "error"
-                  ? "保存失败"
+                  ? "保存失败，请稍后重试"
                   : saveState === "saved"
-                    ? "已保存"
-                    : "就绪"}
+                    ? "已自动保存"
+                    : "正文已就绪"}
           </span>
           <span className="grow" />
-          <span>字数 {metadataWordCount}</span>
+          <div className="writing-progress" aria-label="写作进度">
+            <span>本章 {formatWordCount(metadataWordCount)}</span>
+            <span>{targetWordCount ? `目标 ${formatWordCount(targetWordCount)} · ${wordProgress}%` : "未设目标"}</span>
+            <i>
+              <b style={{ width: `${wordProgress ?? 0}%` }} />
+            </i>
+          </div>
+          <span>全书 {formatWordCount(totalWordCount)}</span>
           <span>批注 {metadataAnnotationsCount}</span>
           <span>锁定 {metadataLocksCount}</span>
         </div>
