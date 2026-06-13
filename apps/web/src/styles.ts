@@ -1002,7 +1002,7 @@ input[type="radio"] { width: 15px; height: 15px; margin: 0; accent-color: var(--
   .editor-workbench { grid-template-columns: minmax(0,1fr); max-width: 860px; }
   .chat-pane { display: none; }
 }
-@media (max-width: 1024px) {
+@media (max-width: 768px) {
   .app-shell { grid-template-columns: 1fr; }
   .rail { display: none; }
   .mobile-shell-header {
