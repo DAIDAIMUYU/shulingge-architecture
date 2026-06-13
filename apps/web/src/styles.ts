@@ -1025,7 +1025,7 @@ input[type="radio"] { width: 15px; height: 15px; margin: 0; accent-color: var(--
 }
 
 @media (max-width: 1024px) {
-  .app-shell { grid-template-columns: 1fr; }
+  .app-shell { grid-template-columns: 1fr; grid-template-rows: auto minmax(0,1fr) auto; }
   .rail { display: none; }
   .mobile-shell-header {
     display: flex;
@@ -1044,10 +1044,8 @@ input[type="radio"] { width: 15px; height: 15px; margin: 0; accent-color: var(--
   .mobile-nav {
     display: flex;
     gap: 8px;
-    position: fixed;
-    left: 0;
-    right: 0;
-    bottom: 0;
+    position: static;
+    min-height: 86px;
     padding: 10px 12px calc(10px + env(safe-area-inset-bottom));
     overflow-x: auto;
     background: color-mix(in srgb, var(--bg-panel) 94%, transparent);
@@ -1080,7 +1078,7 @@ input[type="radio"] { width: 15px; height: 15px; margin: 0; accent-color: var(--
     border-color: var(--primary-light);
     box-shadow: inset 0 -2px 0 var(--accent-cinnabar);
   }
-  .main { padding-bottom: 88px; }
+  .main { min-height: 0; padding-bottom: 0; }
   .app-shell.app-focus-mode .main { padding-bottom: 0; }
   .app-shell.app-focus-mode .mobile-nav { display: none; }
   .main > .workspace { position: static; inset: auto; width: auto; height: 100%; transform: none; }
@@ -1127,13 +1125,13 @@ input[type="radio"] { width: 15px; height: 15px; margin: 0; accent-color: var(--
   .workspace.mobile-panel-editor .editor-scroll,
   .workspace.mobile-panel-inspector .editor-scroll {
     justify-content: stretch;
-    padding: 10px 12px 132px;
+    padding: 10px 12px 24px;
   }
   .workspace.mobile-panel-editor .paper {
     min-height: min(620px, calc(100dvh - 250px));
   }
   .workspace.mobile-panel-editor .paper-body {
-    padding: 24px 20px 84px;
+    padding: 24px 20px 48px;
   }
   .workspace.mobile-panel-editor .chapter-title {
     font-size: 27px;
