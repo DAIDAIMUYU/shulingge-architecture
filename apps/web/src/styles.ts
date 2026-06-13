@@ -373,7 +373,8 @@ input[type="radio"] { width: 15px; height: 15px; margin: 0; accent-color: var(--
 .workspace > .chat-pane { align-self: start; width: 100%; min-width: 0; max-width: 100%; height: calc(100% - var(--workspace-safe-top)); min-height: 0; margin-top: var(--workspace-safe-top); position: relative; }
 .workspace.focus-mode { grid-template-columns: minmax(0,1fr); }
 .workspace.focus-mode .tree-panel,
-.workspace.focus-mode .chat-pane { display: none; }
+.workspace.focus-mode .chat-pane,
+.workspace.focus-mode .workspace-mobile-header { display: none !important; }
 .workspace.focus-mode .editor-scroll { padding: clamp(24px, 4vw, 56px) clamp(20px, 8vw, 120px) clamp(44px, 7vw, 90px); align-items: flex-start; }
 .workspace.focus-mode .paper { max-width: min(880px, 100%); min-height: calc(100vh - 130px); box-shadow: 0 30px 90px color-mix(in srgb, var(--primary-ink) 18%, transparent), var(--shadow-paper); }
 .workspace.focus-mode .paper-toolbar { opacity: .34; transition: opacity var(--motion-normal) ease, background-color .32s ease, border-color .32s ease; }
