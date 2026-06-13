@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import {
   Bot,
   Clock,
@@ -47,6 +47,15 @@ const PRIMARY_NAV: NavItem[] = [
 
 const SETTINGS_NAV: NavItem = { id: "settings", icon: Settings, label: "设置" };
 const NAV = [...PRIMARY_NAV, SETTINGS_NAV];
+const MOBILE_LAYOUT_BREAKPOINT = 820;
+
+function getLayoutWidth() {
+  if (typeof window === "undefined") {
+    return Number.POSITIVE_INFINITY;
+  }
+  const viewportWidth = window.visualViewport?.width ?? window.innerWidth;
+  return viewportWidth * (window.devicePixelRatio || 1);
+}
 
 interface AppViewProps {
   currentProjectId: string | null;
@@ -78,6 +87,12 @@ const VIEWS: Record<string, (props: AppViewProps) => ReactNode> = {
 export function App() {
   const [view, setView] = useState("workspace");
   const [workspaceFocusMode, setWorkspaceFocusMode] = useState(false);
+  const [mobileLayout, setMobileLayout] = useState(() => {
+    if (typeof window === "undefined") {
+      return false;
+    }
+    return getLayoutWidth() <= MOBILE_LAYOUT_BREAKPOINT;
+  });
   const [currentProjectId, setCurrentProjectId] = useState<string | null>(() => {
     if (typeof window === "undefined") {
       return null;
@@ -91,6 +106,19 @@ export function App() {
     return window.localStorage.getItem("shulingge.web.vaultPath");
   });
   const Current = VIEWS[view] ?? VIEWS.workspace;
+  useEffect(() => {
+    const updateLayoutMode = () => {
+      setMobileLayout(getLayoutWidth() <= MOBILE_LAYOUT_BREAKPOINT);
+    };
+    updateLayoutMode();
+    window.addEventListener("resize", updateLayoutMode);
+    window.visualViewport?.addEventListener("resize", updateLayoutMode);
+    return () => {
+      window.removeEventListener("resize", updateLayoutMode);
+      window.visualViewport?.removeEventListener("resize", updateLayoutMode);
+    };
+  }, []);
+
   const onSelectProject = (projectId: string) => {
     setCurrentProjectId(projectId);
     window.localStorage.setItem("shulingge.web.projectId", projectId);
@@ -110,7 +138,9 @@ export function App() {
     setVaultPath(null);
   };
   const currentLabel = NAV.find((item) => item.id === view)?.label ?? "写作";
-  const shellClassName = `app-shell${view === "workspace" && workspaceFocusMode ? " app-focus-mode" : ""}`;
+  const shellClassName = `app-shell ${mobileLayout ? "app-mobile-layout" : "app-desktop-layout"}${
+    view === "workspace" && workspaceFocusMode ? " app-focus-mode" : ""
+  }`;
 
   return (
     <div className={shellClassName}>

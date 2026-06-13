@@ -361,6 +361,7 @@ input[type="radio"] { width: 15px; height: 15px; margin: 0; accent-color: var(--
 
 /* ===== App Shell：四列 64 / 264 / 1fr / 384 ===== */
 .app-shell { display: grid; grid-template-columns: 64px minmax(0,1fr); width: 100%; height: 100%; max-height: 100dvh; overflow: hidden; }
+.app-shell.app-mobile-layout { grid-template-columns: 1fr; grid-template-rows: minmax(0,1fr) auto; }
 .app-shell.app-focus-mode { grid-template-columns: 1fr; }
 .app-shell.app-focus-mode .rail,
 .app-shell.app-focus-mode .mobile-shell-header,
@@ -388,6 +389,13 @@ input[type="radio"] { width: 15px; height: 15px; margin: 0; accent-color: var(--
 .mobile-shell-header,
 .mobile-nav,
 .workspace-mobile-header { display: none; }
+.app-desktop-layout .mobile-shell-header,
+.app-desktop-layout .mobile-nav,
+.app-desktop-layout .workspace-mobile-header { display: none !important; }
+.app-shell.app-desktop-layout { grid-template-columns: 64px minmax(0,1fr); grid-template-rows: minmax(0,1fr); }
+.app-desktop-layout .rail { display: flex !important; }
+.app-mobile-layout .rail { display: none !important; }
+.app-mobile-layout .main { height: auto; min-height: 0; }
 
 /* 第一列：图标导航 */
 .rail { background: var(--bg-panel); background-image: none; border-right: 1px solid var(--border); display: flex; flex-direction: column; align-items: center; padding: 16px 0; gap: 6px; overflow-x: hidden; overflow-y: auto; scrollbar-width: none; }
@@ -1086,8 +1094,8 @@ input[type="radio"] { width: 15px; height: 15px; margin: 0; accent-color: var(--
   }
 }
 
-@media (max-width: 640px) {
-  .app-shell { grid-template-columns: 1fr; grid-template-rows: auto minmax(0,1fr) auto; }
+@media (max-width: 820px) {
+  .app-shell { grid-template-columns: 1fr; grid-template-rows: minmax(0,1fr) auto; }
   .rail { display: none; }
   .mobile-shell-header {
     display: flex;
@@ -1105,10 +1113,10 @@ input[type="radio"] { width: 15px; height: 15px; margin: 0; accent-color: var(--
   .mobile-shell-sub { font-size: 11px; color: var(--text-muted); margin-top: 3px; }
   .mobile-nav {
     display: flex;
-    gap: 8px;
+    gap: 7px;
     position: static;
-    min-height: 86px;
-    padding: 10px 12px calc(10px + env(safe-area-inset-bottom));
+    min-height: 74px;
+    padding: 8px 10px calc(8px + env(safe-area-inset-bottom));
     overflow-x: auto;
     background: color-mix(in srgb, var(--bg-panel) 94%, transparent);
     background-image: none;
@@ -1117,11 +1125,11 @@ input[type="radio"] { width: 15px; height: 15px; margin: 0; accent-color: var(--
     z-index: 40;
   }
   .mobile-nav-item {
-    min-width: 68px;
-    height: 56px;
-    padding: 0 10px;
+    min-width: 64px;
+    height: 50px;
+    padding: 0 8px;
     border: 1px solid var(--border);
-    border-radius: 14px;
+    border-radius: 12px;
     background: var(--bg-card);
     background-image: var(--surface-sheen);
     color: var(--text-secondary);
@@ -1187,7 +1195,7 @@ input[type="radio"] { width: 15px; height: 15px; margin: 0; accent-color: var(--
   .workspace.mobile-panel-editor .editor-scroll,
   .workspace.mobile-panel-inspector .editor-scroll {
     justify-content: stretch;
-    padding: 10px 12px 24px;
+    padding: 10px 12px 124px;
   }
   .workspace.mobile-panel-editor .paper {
     min-height: min(560px, calc(100dvh - 232px));
@@ -1218,10 +1226,10 @@ input[type="radio"] { width: 15px; height: 15px; margin: 0; accent-color: var(--
   .workspace.mobile-panel-inspector .paper-toolbar {
     height: auto;
     min-height: 0;
-    padding: 8px 10px;
+    padding: 7px 8px;
     flex-wrap: wrap;
     overflow: visible;
-    row-gap: 6px;
+    row-gap: 5px;
   }
   .workspace.mobile-panel-editor .paper-toolbar > *,
   .workspace.mobile-panel-inspector .paper-toolbar > * {
@@ -1251,13 +1259,13 @@ input[type="radio"] { width: 15px; height: 15px; margin: 0; accent-color: var(--
   .workspace.mobile-panel-editor .paper-toolbar .toolbar-action,
   .workspace.mobile-panel-inspector .paper-toolbar .toolbar-action {
     width: auto;
-    min-width: 72px;
-    padding: 0 9px;
+    min-width: 68px;
+    padding: 0 8px;
     gap: 5px;
   }
   .workspace.mobile-panel-editor .paper-toolbar .toolbar-action-polish,
   .workspace.mobile-panel-inspector .paper-toolbar .toolbar-action-polish {
-    min-width: 88px;
+    min-width: 84px;
   }
   .workspace.mobile-panel-editor .paper-toolbar .toolbar-action-label,
   .workspace.mobile-panel-inspector .paper-toolbar .toolbar-action-label {
@@ -1270,9 +1278,9 @@ input[type="radio"] { width: 15px; height: 15px; margin: 0; accent-color: var(--
   }
   .workspace.mobile-panel-editor .paper-toolbar .editor-mode-switch button,
   .workspace.mobile-panel-inspector .paper-toolbar .editor-mode-switch button {
-    min-width: 64px;
-    padding-left: 9px;
-    padding-right: 9px;
+    min-width: 60px;
+    padding-left: 8px;
+    padding-right: 8px;
     font-size: 12px;
   }
   .editor-statusbar {
@@ -1338,7 +1346,7 @@ input[type="radio"] { width: 15px; height: 15px; margin: 0; accent-color: var(--
   .character-template-card-wide { grid-column: auto; }
 }
 
-@media (max-width: 640px) and (max-height: 820px) {
+@media (max-width: 820px) and (max-height: 820px) {
   .mobile-shell-header { padding-top: 7px; padding-bottom: 7px; }
   .workspace-mobile-header { padding-top: 8px; padding-bottom: 8px; }
   .workspace-mobile-title { font-size: 18px; }
@@ -1565,6 +1573,23 @@ body::after,
 .search-result-item {
   transition: background-color .32s ease, border-color .32s ease, color .32s ease, box-shadow .32s ease, opacity .32s ease, filter .32s ease, transform var(--motion-normal) ease;
 }
+
+/* Prevent desktop and mobile chrome from mixing near the breakpoint under
+   browser zoom or Windows display scaling. */
+@media (min-width: 821px) {
+  .mobile-shell-header,
+  .mobile-nav,
+  .workspace-mobile-header {
+    display: none !important;
+  }
+}
+
+@media (max-width: 820px) {
+  .rail {
+    display: none !important;
+  }
+}
+
 @keyframes themeBackdropFade {
   from { opacity: 1; }
   to { opacity: 0; }
