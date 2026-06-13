@@ -712,7 +712,7 @@ function ShortcutsPanel({
             <Keyboard size={16} />
             <div>
               <div className="mini-card-title">格式操作</div>
-              <div className="mini-card-sub">仍通过编辑器顶部工具栏触发，加粗 / 斜体 / 引用 / 列表已真实生效。</div>
+              <div className="mini-card-sub">Ctrl/Cmd+B 加粗，Ctrl/Cmd+I 斜体，Ctrl/Cmd+S 保存，Ctrl/Cmd+Shift+F 切换专注。</div>
             </div>
           </div>
         </div>

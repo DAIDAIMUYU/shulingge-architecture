@@ -285,6 +285,44 @@ input[type="radio"] { width: 15px; height: 15px; margin: 0; accent-color: var(--
 .btn-icon:active { transform: translateY(1px); }
 .btn-icon.active { background: linear-gradient(180deg, var(--primary-soft), var(--primary-light)); color: var(--primary); box-shadow: inset 0 -1px 0 color-mix(in srgb, var(--accent-cinnabar) 26%, transparent); }
 .btn-icon.danger:hover { background: rgba(169,68,66,.10); color: var(--danger); }
+.btn-icon[title],
+.btn-icon[aria-label],
+.tree-search-clear[title],
+.chat-send[title] { position: relative; }
+.btn-icon[title]::after,
+.btn-icon[aria-label]::after,
+.tree-search-clear[title]::after,
+.chat-send[title]::after {
+  content: attr(title);
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 8px);
+  z-index: 200;
+  max-width: 180px;
+  padding: 5px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background-color: var(--surface-card-glass);
+  backdrop-filter: var(--surface-control-blur);
+  box-shadow: var(--shadow-popover);
+  color: var(--text-primary);
+  font-size: 12px;
+  line-height: 1.35;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transform: translate(-50%, 4px);
+  transition: opacity var(--motion-fast) ease, transform var(--motion-fast) ease;
+}
+.btn-icon[aria-label]:not([title])::after { content: attr(aria-label); }
+.btn-icon[title]:hover::after,
+.btn-icon[aria-label]:hover::after,
+.btn-icon[title]:focus-visible::after,
+.btn-icon[aria-label]:focus-visible::after,
+.tree-search-clear[title]:hover::after,
+.tree-search-clear[title]:focus-visible::after,
+.chat-send[title]:hover::after,
+.chat-send[title]:focus-visible::after { opacity: 1; transform: translate(-50%, 0); }
 .btn:disabled { opacity: .45; cursor: not-allowed; }
 .input { height: 34px; padding: 0 12px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--bg-card); background-image: var(--surface-sheen); color: var(--text-primary); font-size: 13px; transition: border-color .18s ease, box-shadow .18s ease, background .18s ease; outline: none; }
 .input:focus { border-color: var(--primary); box-shadow: var(--focus-ring); background-color: var(--bg-card); }

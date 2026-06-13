@@ -128,8 +128,8 @@ const TOOLS = [
   { kind: "undo" as const, Icon: Undo2, label: "撤销" },
   { kind: "redo" as const, Icon: Redo2, label: "重做" },
   { sep: true as const },
-  { kind: "bold" as const, Icon: Bold, label: "加粗" },
-  { kind: "italic" as const, Icon: Italic, label: "斜体" },
+  { kind: "bold" as const, Icon: Bold, label: "加粗 Ctrl+B" },
+  { kind: "italic" as const, Icon: Italic, label: "斜体 Ctrl+I" },
   { kind: "heading" as const, Icon: Heading2, label: "二级标题" },
   { kind: "quote" as const, Icon: Quote, label: "引用" },
   { kind: "list" as const, Icon: List, label: "列表" },
@@ -977,6 +977,26 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
     },
     [locator, preferences.autosaveDelayMs],
   );
+
+  const saveNow = useCallback(async () => {
+    if (!vaultSelected || !hasValidActiveChapter) {
+      return;
+    }
+    if (saveTimer.current) {
+      clearTimeout(saveTimer.current);
+      saveTimer.current = null;
+    }
+    setSaveState("saving");
+    try {
+      const saved = await api.saveChapter(locator.chapterId, draft, locator.projectId, locator.novelId);
+      setChapter(saved);
+      setSaveState("saved");
+      showToast("正文已保存", "success");
+    } catch {
+      setSaveState("error");
+      showToast("正文保存失败", "error");
+    }
+  }, [draft, hasValidActiveChapter, locator, vaultSelected]);
 
   const onEdit = (text: string) => {
     setDraft(text);
@@ -1841,6 +1861,37 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
     return () => document.removeEventListener("keydown", onKeyDown);
   }, [focusMode]);
 
+  useEffect(() => {
+    const onKeyDown = (event: globalThis.KeyboardEvent) => {
+      const isMod = event.ctrlKey || event.metaKey;
+      if (!isMod || event.altKey) {
+        return;
+      }
+      const key = event.key.toLowerCase();
+      if (key === "s") {
+        event.preventDefault();
+        void saveNow();
+        return;
+      }
+      if (key === "b") {
+        event.preventDefault();
+        runEditorCommand((activeEditor) => activeEditor.chain().focus().toggleBold().run());
+        return;
+      }
+      if (key === "i") {
+        event.preventDefault();
+        runEditorCommand((activeEditor) => activeEditor.chain().focus().toggleItalic().run());
+        return;
+      }
+      if (event.shiftKey && key === "f") {
+        event.preventDefault();
+        toggleFocusMode();
+      }
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [runEditorCommand, saveNow]);
+
   return (
     <>
     <div className={`workspace mobile-panel-${mobilePanel}${focusMode ? " focus-mode" : ""}`}>
@@ -1858,7 +1909,7 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
               字数 {metadataWordCount} · 批注 {metadataAnnotationsCount} · 锁定 {metadataLocksCount}
             </div>
           </div>
-          <button type="button" className="btn" onClick={toggleFocusMode}>
+          <button type="button" className="btn" onClick={toggleFocusMode} title="Ctrl+Shift+F 切换专注">
             {focusMode ? <Minimize2 size={15} strokeWidth={2} /> : <Maximize2 size={15} strokeWidth={2} />}
             {focusMode ? "退出专注" : "专注"}
           </button>
@@ -2289,7 +2340,7 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
                   <Sparkles size={15} strokeWidth={2} />
                   {polishing ? `润色中 ${polishElapsedSeconds}s` : "一键润色"}
                 </button>
-                <button type="button" className="btn" onClick={toggleFocusMode}>
+                <button type="button" className="btn" onClick={toggleFocusMode} title="Ctrl+Shift+F 切换专注">
                   {focusMode ? <Minimize2 size={15} strokeWidth={2} /> : <Maximize2 size={15} strokeWidth={2} />}
                   {focusMode ? "退出专注" : "专注模式"}
                 </button>
