@@ -137,12 +137,17 @@ body::after {
 }
 body.bg-ink::before {
   opacity: 1;
-  background-image: linear-gradient(180deg, rgba(255,253,247,0.74), rgba(248,243,234,0.80)), linear-gradient(90deg, rgba(255,253,247,0.54), rgba(255,253,247,0.36) 48%, rgba(255,253,247,0.58)), url("/backgrounds/paper-light.png");
+  background-image: linear-gradient(180deg, rgba(255,253,247,0.28), rgba(248,243,234,0.36)), linear-gradient(90deg, rgba(255,253,247,0.20), rgba(255,253,247,0.10) 48%, rgba(255,253,247,0.22)), url("/backgrounds/paper-light.png");
   background-blend-mode: normal, normal, normal;
 }
 :root[data-theme="dark"] body.bg-ink::before {
   opacity: 0;
   background-image: none;
+}
+body.bg-ink {
+  --paper-texture: none;
+  --paper-texture-strong: none;
+  --paper-edge-wash: none;
 }
 body.bg-ink .rail,
 body.bg-ink .tree-panel,
@@ -150,8 +155,9 @@ body.bg-ink .chat-pane,
 body.bg-ink .mobile-shell-header,
 body.bg-ink .mobile-nav,
 body.bg-ink .workspace-mobile-header {
-  background-color: color-mix(in srgb, var(--bg-panel) 88%, transparent);
-  backdrop-filter: blur(10px) saturate(1.04);
+  background-color: rgba(252,250,244,0.76);
+  background-image: none;
+  backdrop-filter: blur(12px) saturate(1.08);
 }
 body.bg-ink .paper,
 body.bg-ink .list-card,
@@ -167,12 +173,51 @@ body.bg-ink .quick-lookup-panel,
 body.bg-ink .outline-popover,
 body.bg-ink .graph-stage,
 body.bg-ink .graph-canvas {
-  background-color: color-mix(in srgb, var(--bg-card) 90%, transparent);
-  backdrop-filter: blur(10px) saturate(1.03);
+  background-color: rgba(255,253,247,0.82);
+  background-image: none;
+  backdrop-filter: blur(12px) saturate(1.06);
 }
 body.bg-ink .paper {
-  background-color: color-mix(in srgb, #FFFDF7 96%, transparent);
+  background-color: rgba(255,253,247,0.92);
+  background-image: none;
   box-shadow: var(--shadow-paper), 0 22px 72px rgba(74,57,30,0.13);
+}
+body.bg-ink .paper-body,
+body.bg-ink .rich-editor-shell,
+body.bg-ink .source-manuscript {
+  background-image: none;
+}
+body.bg-ink .paper-toolbar,
+body.bg-ink .editor-statusbar,
+body.bg-ink .chat-input,
+body.bg-ink .chat-input-box,
+body.bg-ink .tree-search-field,
+body.bg-ink .quick-lookup-search,
+body.bg-ink .input,
+body.bg-ink .textarea,
+body.bg-ink .tree-create-menu,
+body.bg-ink .tree-context-menu,
+body.bg-ink .character-project-menu,
+body.bg-ink .worldbook-origin-tabs,
+body.bg-ink .view-toggle,
+body.bg-ink .segmented,
+body.bg-ink .search,
+body.bg-ink .quick-lookup-item,
+body.bg-ink .mini-card,
+body.bg-ink .quote-line,
+body.bg-ink .review-report-card,
+body.bg-ink .run-inline,
+body.bg-ink .msg.ai .msg-bubble {
+  background-color: rgba(255,253,247,0.78);
+  background-image: none;
+  backdrop-filter: blur(10px) saturate(1.04);
+}
+body.bg-ink .paper-toolbar,
+body.bg-ink .editor-statusbar {
+  background-color: rgba(252,250,244,0.82);
+}
+:root:not([data-theme="dark"]) body.bg-ink.paper-texture {
+  background-image: none;
 }
 :root[data-theme="dark"] body.bg-ink .rail,
 :root[data-theme="dark"] body.bg-ink .tree-panel,
