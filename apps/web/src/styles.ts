@@ -539,7 +539,15 @@ input[type="radio"] { width: 15px; height: 15px; margin: 0; accent-color: var(--
   display: none !important;
 }
 .app-mobile-layout.app-compact-height .workspace-mobile-header {
-  padding: 6px 10px;
+  position: absolute;
+  top: 42px;
+  right: 8px;
+  z-index: 42;
+  width: auto;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  backdrop-filter: none;
 }
 .app-mobile-layout.app-compact-height .workspace-mobile-summary {
   display: none;
@@ -549,11 +557,14 @@ input[type="radio"] { width: 15px; height: 15px; margin: 0; accent-color: var(--
 }
 .app-mobile-layout.app-compact-height .workspace-mobile-tabs.segmented {
   padding: 2px;
+  width: auto;
+  box-shadow: var(--shadow-card);
 }
 .app-mobile-layout.app-compact-height .workspace-mobile-tabs button {
   height: 24px;
-  padding: 0 10px;
-  font-size: 12px;
+  min-width: 42px;
+  padding: 0 8px;
+  font-size: 11px;
 }
 .app-mobile-layout.app-compact-height .mobile-nav {
   top: 0;
@@ -583,7 +594,7 @@ input[type="radio"] { width: 15px; height: 15px; margin: 0; accent-color: var(--
   flex-wrap: nowrap;
   overflow-x: auto;
   overflow-y: hidden;
-  min-height: 36px;
+  min-height: 34px;
   padding: 3px 7px;
   row-gap: 0;
 }
@@ -595,7 +606,7 @@ input[type="radio"] { width: 15px; height: 15px; margin: 0; accent-color: var(--
 }
 .app-mobile-layout.app-compact-height .workspace.mobile-panel-editor .editor-scroll,
 .app-mobile-layout.app-compact-height .workspace.mobile-panel-inspector .editor-scroll {
-  padding-top: 4px;
+  padding-top: 6px;
   padding-bottom: 10px;
 }
 .app-mobile-layout.app-compact-height .workspace.mobile-panel-editor .paper {
@@ -1296,16 +1307,17 @@ input[type="radio"] { width: 15px; height: 15px; margin: 0; accent-color: var(--
 }
 
 @media (max-width: 1180px) {
-  .workspace { grid-template-columns: clamp(196px, 23vw, 228px) minmax(0,1fr); }
+  .workspace { grid-template-columns: clamp(176px, 19vw, 204px) minmax(0,1fr); }
   .workspace > .chat-pane { display: none; }
-  .tree-head { min-height: 104px; padding: 22px 16px 12px; gap: 8px; flex-direction: column; align-items: stretch; }
+  .tree-head { min-height: 92px; padding: 20px 14px 10px; gap: 8px; flex-direction: column; align-items: stretch; }
   .tree-head > div:first-child { min-width: 0; }
   .tree-head h2 { font-size: 16px; line-height: 1.32; }
   .tree-head-actions { justify-content: flex-end; gap: 2px; }
-  .tree-scroll { padding-left: 8px; padding-right: 8px; }
-  .tree-item { padding-left: 10px; padding-right: 10px; }
-  .editor-scroll { padding: 26px clamp(12px, 2.2vw, 24px) 44px; }
-  .editor-workbench { max-width: min(760px, 100%); }
+  .tree-scroll { padding-left: 7px; padding-right: 7px; }
+  .tree-item { padding-left: 9px; padding-right: 9px; }
+  .editor-scroll { padding: 22px clamp(8px, 1.3vw, 14px) 36px; justify-items: stretch; }
+  .editor-workbench { max-width: 100%; width: 100%; }
+  .paper { max-width: 100%; width: 100%; }
   .paper-toolbar { padding: 10px 10px 8px; gap: 3px; row-gap: 6px; }
   .paper-toolbar .sep,
   .paper-toolbar .grow { display: none; }
@@ -1315,7 +1327,12 @@ input[type="radio"] { width: 15px; height: 15px; margin: 0; accent-color: var(--
   .paper-toolbar .toolbar-action-polish { width: 34px; min-width: 34px; }
   .editor-mode-switch { margin-left: 4px; }
   .editor-mode-switch button { height: 28px; padding: 0 8px; }
-  .paper-body { padding: 48px clamp(24px, 4.8vw, 52px) 68px; }
+  .paper-body { padding: 40px clamp(18px, 3.4vw, 38px) 56px; }
+  .manuscript,
+  .rich-editor-shell,
+  .source-manuscript {
+    max-width: min(700px, 100%);
+  }
   .chapter-title { font-size: 32px; }
   .editor-statusbar { gap: 12px; padding-left: 18px; padding-right: 18px; }
   .editor-statusbar .status-metric { display: none; }
@@ -1323,7 +1340,7 @@ input[type="radio"] { width: 15px; height: 15px; margin: 0; accent-color: var(--
 }
 
 @media (max-width: 880px) {
-  .workspace { grid-template-columns: clamp(188px, 26vw, 220px) minmax(0,1fr); }
+  .workspace { grid-template-columns: clamp(168px, 24vw, 192px) minmax(0,1fr); }
   .workspace > .chat-pane { display: none; }
   .editor-scroll { padding-left: clamp(12px, 2.4vw, 22px); padding-right: clamp(12px, 2.4vw, 22px); }
   .editor-workbench { max-width: min(720px, 100%); }
@@ -1333,10 +1350,10 @@ input[type="radio"] { width: 15px; height: 15px; margin: 0; accent-color: var(--
 }
 
 @media (max-width: 1180px) and (max-height: 760px) {
-  .editor-scroll { padding-top: 16px; padding-bottom: 24px; }
-  .paper-body { padding-top: 32px; padding-bottom: 46px; }
-  .chapter-title { font-size: 30px; line-height: 1.18; }
-  .title-rule { margin-top: 14px; margin-bottom: 24px; }
+  .editor-scroll { padding-top: 14px; padding-bottom: 22px; }
+  .paper-body { padding-top: 28px; padding-bottom: 42px; }
+  .chapter-title { font-size: 28px; line-height: 1.16; }
+  .title-rule { margin-top: 12px; margin-bottom: 20px; }
   .manuscript,
   .rich-editor-shell,
   .rich-manuscript {

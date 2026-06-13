@@ -47,8 +47,8 @@ const PRIMARY_NAV: NavItem[] = [
 
 const SETTINGS_NAV: NavItem = { id: "settings", icon: Settings, label: "设置" };
 const NAV = [...PRIMARY_NAV, SETTINGS_NAV];
-const COMPACT_LAYOUT_WIDTH = 900;
-const COMPACT_LAYOUT_HEIGHT = 720;
+const COMPACT_LAYOUT_WIDTH = 1120;
+const COMPACT_LAYOUT_HEIGHT = 620;
 
 function getCompactLayout() {
   if (typeof window === "undefined") {
