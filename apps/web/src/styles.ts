@@ -45,8 +45,8 @@ export const globalCss = `
   --radius-sm: 6px;
   --radius-md: 10px;
   --radius-lg: 14px;
-  --paper-noise: radial-gradient(circle at 12% 18%, rgba(112,84,43,0.030) 0 0.7px, transparent 1px), radial-gradient(circle at 74% 33%, rgba(112,84,43,0.024) 0 0.8px, transparent 1.1px), radial-gradient(circle at 46% 82%, rgba(112,84,43,0.020) 0 0.7px, transparent 1px);
-  --paper-fibers: repeating-linear-gradient(102deg, rgba(106,82,46,0.018) 0 0.8px, transparent 0.8px 28px), repeating-linear-gradient(14deg, rgba(255,255,255,0.22) 0 0.8px, transparent 0.8px 42px);
+  --paper-noise: none;
+  --paper-fibers: none;
   --paper-texture: none;
   --paper-texture-strong: none;
   --paper-edge-wash: none;
@@ -87,8 +87,8 @@ export const globalCss = `
   --agent-running: #5BA37E;
   --agent-done: #6DB590;
   --agent-error: #CC7766;
-  --paper-noise: radial-gradient(circle at 12% 18%, rgba(255,235,196,0.018) 0 0.7px, transparent 1px), radial-gradient(circle at 74% 33%, rgba(255,235,196,0.014) 0 0.8px, transparent 1.1px), radial-gradient(circle at 46% 82%, rgba(255,235,196,0.012) 0 0.7px, transparent 1px);
-  --paper-fibers: repeating-linear-gradient(102deg, rgba(255,238,205,0.016) 0 0.8px, transparent 0.8px 28px), repeating-linear-gradient(14deg, rgba(255,255,255,0.018) 0 0.8px, transparent 0.8px 42px);
+  --paper-noise: none;
+  --paper-fibers: none;
   --paper-texture: none;
   --paper-texture-strong: none;
   --paper-edge-wash: none;
@@ -255,18 +255,18 @@ body.background-decoration::after {
     url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='620' height='220' viewBox='0 0 620 220'%3E%3Cpath d='M12 172 C82 146 122 154 174 112 C224 72 260 98 308 66 C360 30 418 80 464 58 C518 34 556 58 608 38' fill='none' stroke='%237EB18D' stroke-opacity='.10' stroke-width='15' stroke-linecap='round'/%3E%3Cpath d='M28 190 C112 168 180 184 252 142 C330 96 404 142 492 104 C548 80 584 88 610 74' fill='none' stroke='%237EB18D' stroke-opacity='.07' stroke-width='9' stroke-linecap='round'/%3E%3C/svg%3E");
 }
 body.paper-texture {
-  --paper-texture: var(--paper-fibers), var(--paper-noise), radial-gradient(circle at 18% 12%, rgba(126,94,45,0.040), transparent 24%), radial-gradient(circle at 82% 34%, rgba(126,94,45,0.030), transparent 28%), linear-gradient(115deg, rgba(255,255,255,0.38), rgba(255,255,255,0) 42%);
-  --paper-texture-strong: var(--paper-fibers), var(--paper-noise), radial-gradient(circle at 22% 18%, rgba(132,96,42,0.060), transparent 26%), radial-gradient(circle at 76% 58%, rgba(132,96,42,0.046), transparent 30%), linear-gradient(100deg, rgba(255,255,255,0.32), transparent 46%);
-  --paper-edge-wash: radial-gradient(circle at 0% 0%, rgba(145,105,50,0.070), transparent 34%), radial-gradient(circle at 100% 18%, rgba(178,58,48,0.030), transparent 30%), radial-gradient(circle at 50% 100%, rgba(113,83,39,0.052), transparent 34%);
-  background-image: var(--paper-fibers), var(--paper-noise), radial-gradient(circle at 8% 0%, color-mix(in srgb, var(--primary-light) 34%, transparent), transparent 34%), radial-gradient(circle at 98% 12%, color-mix(in srgb, var(--accent-cinnabar-light) 30%, transparent), transparent 28%), linear-gradient(180deg, rgba(255,250,239,0.54), rgba(244,239,230,0.12));
-  background-blend-mode: normal, multiply, normal, normal, normal;
+  --paper-texture: none;
+  --paper-texture-strong: none;
+  --paper-edge-wash: none;
+  background-image: none;
+  background-blend-mode: normal;
 }
 :root[data-theme="dark"] body.paper-texture {
-  --paper-texture: var(--paper-fibers), var(--paper-noise), radial-gradient(circle at 18% 12%, rgba(255,239,206,0.018), transparent 24%), radial-gradient(circle at 82% 34%, rgba(255,230,190,0.014), transparent 28%), linear-gradient(115deg, rgba(255,255,255,0.026), rgba(255,255,255,0) 42%);
-  --paper-texture-strong: var(--paper-fibers), var(--paper-noise), radial-gradient(circle at 22% 18%, rgba(255,238,210,0.026), transparent 26%), radial-gradient(circle at 76% 58%, rgba(255,227,190,0.020), transparent 30%), linear-gradient(100deg, rgba(255,255,255,0.030), transparent 46%);
-  --paper-edge-wash: radial-gradient(circle at 0% 0%, rgba(180,128,64,0.046), transparent 34%), radial-gradient(circle at 100% 18%, rgba(208,106,93,0.028), transparent 30%), radial-gradient(circle at 50% 100%, rgba(116,84,45,0.040), transparent 34%);
-  background-image: var(--paper-fibers), var(--paper-noise), radial-gradient(circle at 8% 0%, color-mix(in srgb, var(--primary-light) 28%, transparent), transparent 34%), radial-gradient(circle at 98% 12%, color-mix(in srgb, var(--accent-cinnabar-light) 28%, transparent), transparent 28%);
-  background-blend-mode: normal, screen, normal, normal;
+  --paper-texture: none;
+  --paper-texture-strong: none;
+  --paper-edge-wash: none;
+  background-image: none;
+  background-blend-mode: normal;
 }
 h1,h2,h3,h4 { margin: 0; font-weight: 600; text-wrap: balance; }
 ul { margin: 0; padding: 0; list-style: none; }
@@ -437,7 +437,7 @@ body.paper-texture .paper { background-color: #FFFDF5; box-shadow: var(--shadow-
 .quick-lookup-field p { margin: 0; color: var(--text-secondary); font-size: 12px; line-height: 1.7; overflow-wrap: anywhere; }
 .quick-lookup-field.multiline { grid-template-columns: 1fr; gap: 3px; }
 .paper-body { padding: 64px clamp(48px, 8vw, 96px) 78px; flex: 1; display: flex; flex-direction: column; position: relative; z-index: 1; }
-body.paper-texture .paper-body { background-image: radial-gradient(circle at 16% 8%, rgba(146,105,46,0.040), transparent 24%), radial-gradient(circle at 88% 72%, rgba(91,62,27,0.030), transparent 28%); background-blend-mode: multiply; }
+body.paper-texture .paper-body { background-image: none; background-blend-mode: normal; }
 .chapter-title { font-family: var(--font-serif); font-size: 36px; font-weight: 600; letter-spacing: .06em; line-height: 1.25; color: var(--primary-ink); text-align: center; }
 .chapter-title-input { width: 100%; padding: 0 0 4px; border: 0; border-bottom: 1px solid transparent; outline: none; background: transparent; color: var(--text-primary); }
 .chapter-title-input:focus { border-bottom-color: var(--border-strong); }
@@ -445,7 +445,7 @@ body.paper-texture .paper-body { background-image: radial-gradient(circle at 16%
 .manuscript { font-family: var(--font-serif); font-size: 17px; line-height: 2; letter-spacing: .025em; color: var(--text-primary); border: 0; outline: none; resize: none; background: transparent; width: 100%; max-width: 680px; margin: 0 auto; flex: 1; min-height: 360px; }
 .manuscript::placeholder { color: var(--text-muted); }
 .rich-editor-shell { position: relative; flex: 1; min-height: 360px; display: flex; width: 100%; max-width: 680px; margin: 0 auto; }
-body.paper-texture .rich-editor-shell { background-image: linear-gradient(90deg, rgba(178,58,48,0.014), transparent 22%, transparent 82%, rgba(40,92,69,0.016)); }
+body.paper-texture .rich-editor-shell { background-image: none; }
 .rich-editor-shell > div:not(.rich-editor-placeholder) { flex: 1; display: flex; min-width: 0; position: relative; z-index: 1; }
 .rich-editor-placeholder { position: absolute; top: 0; left: 0; right: 0; z-index: 1; pointer-events: none; color: var(--text-muted); font-family: var(--font-serif); font-size: 17px; line-height: 2; letter-spacing: .025em; }
 .rich-manuscript { min-height: 360px; white-space: pre-wrap; word-break: break-word; caret-color: var(--accent-cinnabar); font-size: 17px; line-height: 2; letter-spacing: .025em; }
@@ -462,7 +462,7 @@ body.paper-texture .rich-editor-shell { background-image: linear-gradient(90deg,
 .rich-manuscript ol { margin: 0.7em 0 0.9em; padding-left: 1.35em; }
 .rich-manuscript li { margin: 0.25em 0; }
 .source-manuscript { font-family: var(--font-mono); line-height: 1.8; letter-spacing: 0; padding: 0; tab-size: 2; white-space: pre; overflow: auto; max-width: 720px; }
-body.paper-texture .source-manuscript { background-image: linear-gradient(90deg, rgba(178,58,48,0.014), transparent 22%, transparent 82%, rgba(40,92,69,0.016)); }
+body.paper-texture .source-manuscript { background-image: none; }
 .editor-empty { flex: 1; min-height: 420px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; color: var(--text-muted); text-align: center; }
 .editor-statusbar { display: flex; align-items: center; gap: 20px; padding: 11px 28px; border-top: 1px solid var(--border); background: color-mix(in srgb, var(--bg-panel) 82%, transparent); font-size: 12px; color: var(--text-secondary); }
 .editor-statusbar .grow { flex: 1; }
@@ -1083,6 +1083,144 @@ body.paper-texture .source-manuscript { background-image: linear-gradient(90deg,
   .hero-card, .editor-card-head { flex-direction: column; }
   .project-inline-field { width: 100%; }
   .project-inline-field .input { width: 100%; }
+}
+
+/* 水墨背景模式的最终覆盖：放在常规与移动端规则之后，确保写作页三栏透出全局背景。 */
+body.bg-ink {
+  --paper-texture: none;
+  --paper-texture-strong: none;
+  --paper-edge-wash: none;
+}
+
+body.bg-ink.background-decoration::after {
+  opacity: 0;
+  background-image: none;
+}
+
+body.bg-ink .rail,
+body.bg-ink .tree-panel,
+body.bg-ink .chat-pane,
+body.bg-ink .mobile-shell-header,
+body.bg-ink .mobile-nav,
+body.bg-ink .workspace-mobile-header {
+  background-color: rgba(252,250,244,0.78);
+  background-image: none;
+  backdrop-filter: blur(12px) saturate(1.08);
+}
+
+body.bg-ink .tree-panel,
+body.bg-ink .chat-pane {
+  background-color: rgba(252,250,244,0.80);
+}
+
+body.bg-ink .paper {
+  background-color: rgba(255,253,247,0.90);
+  background-image: none;
+  backdrop-filter: blur(12px) saturate(1.06);
+  box-shadow: var(--shadow-paper), 0 22px 72px rgba(74,57,30,0.13);
+}
+
+body.bg-ink .paper-body,
+body.bg-ink .rich-editor-shell,
+body.bg-ink .source-manuscript,
+body.bg-ink.paper-texture .paper-body,
+body.bg-ink.paper-texture .rich-editor-shell,
+body.bg-ink.paper-texture .source-manuscript {
+  background-image: none;
+  background-blend-mode: normal;
+}
+
+body.bg-ink .paper-toolbar,
+body.bg-ink .editor-statusbar,
+body.bg-ink .chat-input {
+  background-color: rgba(252,250,244,0.82);
+  background-image: none;
+  backdrop-filter: blur(10px) saturate(1.04);
+}
+
+body.bg-ink .chat-input-box,
+body.bg-ink .tree-search-field,
+body.bg-ink .quick-lookup-search,
+body.bg-ink .input,
+body.bg-ink .textarea,
+body.bg-ink .tree-create-menu,
+body.bg-ink .tree-context-menu,
+body.bg-ink .character-project-menu,
+body.bg-ink .worldbook-origin-tabs,
+body.bg-ink .view-toggle,
+body.bg-ink .segmented,
+body.bg-ink .search,
+body.bg-ink .quick-lookup-item,
+body.bg-ink .quick-lookup-item.expanded,
+body.bg-ink .mini-card,
+body.bg-ink .quote-line,
+body.bg-ink .review-report-card,
+body.bg-ink .run-inline,
+body.bg-ink .msg.ai .msg-bubble {
+  background-color: rgba(255,253,247,0.78);
+  background-image: none;
+  backdrop-filter: blur(10px) saturate(1.04);
+}
+
+body.bg-ink .list-card,
+body.bg-ink .info-card,
+body.bg-ink .hero-card,
+body.bg-ink .editor-card,
+body.bg-ink .character-card,
+body.bg-ink .character-template-card,
+body.bg-ink .character-editor-top,
+body.bg-ink .character-accordion-item,
+body.bg-ink .worldbook-group,
+body.bg-ink .worldbook-character-picker,
+body.bg-ink .timeline-event-body,
+body.bg-ink .project-card,
+body.bg-ink .vault-card,
+body.bg-ink .vault-modal,
+body.bg-ink .quick-lookup-panel,
+body.bg-ink .outline-popover,
+body.bg-ink .graph-stage,
+body.bg-ink .graph-canvas {
+  background-color: rgba(255,253,247,0.82);
+  background-image: none;
+  backdrop-filter: blur(12px) saturate(1.06);
+}
+
+:root[data-theme="dark"] body.bg-ink::before,
+:root[data-theme="dark"] body.bg-ink.background-decoration::after {
+  opacity: 0;
+  background-image: none;
+}
+
+:root[data-theme="dark"] body.bg-ink .rail,
+:root[data-theme="dark"] body.bg-ink .tree-panel,
+:root[data-theme="dark"] body.bg-ink .chat-pane,
+:root[data-theme="dark"] body.bg-ink .mobile-shell-header,
+:root[data-theme="dark"] body.bg-ink .mobile-nav,
+:root[data-theme="dark"] body.bg-ink .workspace-mobile-header,
+:root[data-theme="dark"] body.bg-ink .paper-toolbar,
+:root[data-theme="dark"] body.bg-ink .editor-statusbar,
+:root[data-theme="dark"] body.bg-ink .chat-input {
+  background-color: var(--bg-panel);
+  backdrop-filter: none;
+}
+
+:root[data-theme="dark"] body.bg-ink .paper,
+:root[data-theme="dark"] body.bg-ink .chat-input-box,
+:root[data-theme="dark"] body.bg-ink .list-card,
+:root[data-theme="dark"] body.bg-ink .info-card,
+:root[data-theme="dark"] body.bg-ink .hero-card,
+:root[data-theme="dark"] body.bg-ink .editor-card,
+:root[data-theme="dark"] body.bg-ink .character-card,
+:root[data-theme="dark"] body.bg-ink .worldbook-group,
+:root[data-theme="dark"] body.bg-ink .timeline-event-body,
+:root[data-theme="dark"] body.bg-ink .project-card,
+:root[data-theme="dark"] body.bg-ink .vault-modal,
+:root[data-theme="dark"] body.bg-ink .quick-lookup-panel,
+:root[data-theme="dark"] body.bg-ink .outline-popover,
+:root[data-theme="dark"] body.bg-ink .graph-stage,
+:root[data-theme="dark"] body.bg-ink .graph-canvas {
+  background-color: var(--bg-card);
+  backdrop-filter: none;
 }
 @media (prefers-reduced-motion: reduce) {
   * { animation: none !important; transition: none !important; }
