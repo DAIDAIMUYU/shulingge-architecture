@@ -15,6 +15,13 @@ import { createHttpError } from "./errors.js";
 
 type CreateAgentInput = Partial<Agent> & { id?: string; name?: string };
 type UpdateAgentInput = Partial<Omit<Agent, "id" | "schemaVersion" | "createdAt">>;
+type ImportAgentMode = "overwrite" | "skip";
+
+export interface AgentImportResult {
+  imported: Agent[];
+  skipped: string[];
+  overwritten: string[];
+}
 
 const updateAgentSchema = agentSchema.partial().omit({
   id: true,
@@ -232,5 +239,71 @@ export async function deleteAgent(vaultRoot: string, agentId: string): Promise<{
   return {
     deleted: true,
     agentId,
+  };
+}
+
+function parseImportAgentsPayload(input: unknown): Agent[] {
+  const rawAgents = Array.isArray(input)
+    ? input
+    : input && typeof input === "object" && Array.isArray((input as { agents?: unknown }).agents)
+      ? (input as { agents: unknown[] }).agents
+      : null;
+
+  if (!rawAgents) {
+    throw createHttpError(400, "AGENTS_IMPORT_INVALID_PAYLOAD", "导入内容必须是智能体数组，或包含 agents 数组的 JSON 对象");
+  }
+
+  try {
+    return rawAgents.map((agent) => agentSchema.parse(agent)).sort(compareAgents);
+  } catch (error) {
+    throw createHttpError(400, "AGENTS_IMPORT_INVALID_CONFIG", `导入的智能体配置无效：${formatValidationError(error)}`);
+  }
+}
+
+export async function exportAgents(vaultRoot: string): Promise<{ exportedAt: string; agents: Agent[] }> {
+  return {
+    exportedAt: new Date().toISOString(),
+    agents: await listAgents(vaultRoot),
+  };
+}
+
+export async function importAgents(
+  vaultRoot: string,
+  input: unknown,
+  mode: ImportAgentMode = "overwrite",
+): Promise<AgentImportResult> {
+  const agents = parseImportAgentsPayload(input);
+  const existing = new Set((await listAgents(vaultRoot)).map((agent) => agent.id));
+  const imported: Agent[] = [];
+  const skipped: string[] = [];
+  const overwritten: string[] = [];
+  const seen = new Set<string>();
+
+  for (const agent of agents) {
+    if (seen.has(agent.id)) {
+      throw createHttpError(400, "AGENTS_IMPORT_DUPLICATE_ID", `导入文件中存在重复智能体 ID：${agent.id}`);
+    }
+    seen.add(agent.id);
+
+    if (existing.has(agent.id) && mode === "skip") {
+      skipped.push(agent.id);
+      continue;
+    }
+
+    const nextAgent = agentSchema.parse({
+      ...agent,
+      updatedAt: new Date().toISOString(),
+    });
+    await writeJsonFile(vaultRoot, getAgentRelativePath(nextAgent.id), nextAgent);
+    imported.push(nextAgent);
+    if (existing.has(agent.id)) {
+      overwritten.push(agent.id);
+    }
+  }
+
+  return {
+    imported,
+    skipped,
+    overwritten,
   };
 }

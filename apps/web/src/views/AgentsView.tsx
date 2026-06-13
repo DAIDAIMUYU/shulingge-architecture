@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type KeyboardEvent } from "react";
-import { AlertCircle, CheckCircle2, ChevronDown, ChevronRight, Pencil, Plus, Trash2, X } from "lucide-react";
+import { AlertCircle, CheckCircle2, ChevronDown, ChevronRight, Download, Pencil, Plus, Trash2, Upload, X } from "lucide-react";
 
 import {
   api,
@@ -617,6 +617,93 @@ function AgentEditorModal({
   );
 }
 
+function AgentImportModal({
+  value,
+  mode,
+  saving,
+  feedback,
+  onValueChange,
+  onModeChange,
+  onImport,
+  onCancel,
+}: {
+  value: string;
+  mode: "overwrite" | "skip";
+  saving: boolean;
+  feedback: FeedbackState | null;
+  onValueChange: (value: string) => void;
+  onModeChange: (mode: "overwrite" | "skip") => void;
+  onImport: () => void;
+  onCancel: () => void;
+}) {
+  useEffect(() => {
+    const onKeyDown = (event: globalThis.KeyboardEvent) => {
+      if (event.key === "Escape") {
+        onCancel();
+      }
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [onCancel]);
+
+  return (
+    <div className="vault-modal-backdrop" onMouseDown={onCancel}>
+      <section
+        className="vault-modal agent-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="agent-import-title"
+        onMouseDown={(event) => event.stopPropagation()}
+      >
+        <div className="agent-modal-head">
+          <div>
+            <h2 id="agent-import-title">导入智能体模板</h2>
+            <p>粘贴导出的 JSON。导入前会校验每个智能体配置。</p>
+          </div>
+          <button type="button" className="btn-icon" aria-label="关闭" onClick={onCancel}>
+            <X size={18} />
+          </button>
+        </div>
+
+        <div className="agent-modal-body">
+          {feedback ? (
+            <div className={`model-feedback model-feedback-${feedback.kind}`}>
+              {feedback.kind === "success" ? <CheckCircle2 size={16} /> : feedback.kind === "error" ? <AlertCircle size={16} /> : null}
+              <span>{feedback.message}</span>
+            </div>
+          ) : null}
+          <div className="segmented">
+            <button type="button" className={mode === "overwrite" ? "on" : ""} onClick={() => onModeChange("overwrite")}>
+              同 ID 覆盖
+            </button>
+            <button type="button" className={mode === "skip" ? "on" : ""} onClick={() => onModeChange("skip")}>
+              同 ID 跳过
+            </button>
+          </div>
+          <label className="form-block">
+            <span>模板 JSON</span>
+            <textarea
+              className="textarea code-surface"
+              value={value}
+              placeholder='{"agents":[{"id":"story-advisor","name":"情节顾问",...}]}'
+              onChange={(event) => onValueChange(event.target.value)}
+            />
+          </label>
+        </div>
+
+        <div className="vault-modal-actions agent-modal-actions">
+          <button type="button" className="btn btn-ghost" disabled={saving} onClick={onCancel}>
+            取消
+          </button>
+          <button type="button" className="btn btn-primary" disabled={saving || !value.trim()} onClick={onImport}>
+            {saving ? "导入中..." : "确认导入"}
+          </button>
+        </div>
+      </section>
+    </div>
+  );
+}
+
 export function AgentsView() {
   const [agents, setAgents] = useState<AgentConfig[]>([]);
   const [models, setModels] = useState<ModelConfig[]>([]);
@@ -627,6 +714,11 @@ export function AgentsView() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [agentToDelete, setAgentToDelete] = useState<AgentConfig | null>(null);
+  const [importOpen, setImportOpen] = useState(false);
+  const [importText, setImportText] = useState("");
+  const [importMode, setImportMode] = useState<"overwrite" | "skip">("overwrite");
+  const [importing, setImporting] = useState(false);
+  const [importFeedback, setImportFeedback] = useState<FeedbackState | null>(null);
   const [feedback, setFeedback] = useState<FeedbackState | null>(null);
   const [modalFeedback, setModalFeedback] = useState<FeedbackState | null>(null);
 
@@ -736,6 +828,53 @@ export function AgentsView() {
     }
   }
 
+  async function exportAgentTemplates(): Promise<void> {
+    setFeedback(null);
+    try {
+      const bundle = await api.exportAgents();
+      const content = JSON.stringify(bundle, null, 2);
+      const blob = new Blob([content], { type: "application/json;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = `shulingge-agents-${new Date().toISOString().slice(0, 10)}.json`;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      URL.revokeObjectURL(url);
+      setFeedback({ kind: "success", message: `已导出 ${bundle.agents.length} 个智能体模板` });
+    } catch (error) {
+      setFeedback({ kind: "error", message: error instanceof Error ? error.message : "智能体模板导出失败" });
+    }
+  }
+
+  async function importAgentTemplates(): Promise<void> {
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(importText);
+    } catch {
+      setImportFeedback({ kind: "error", message: "JSON 解析失败，请检查逗号、引号和括号" });
+      return;
+    }
+
+    setImporting(true);
+    setImportFeedback(null);
+    try {
+      const result = await api.importAgents(parsed, importMode);
+      await loadAgents();
+      setImportOpen(false);
+      setImportText("");
+      setFeedback({
+        kind: "success",
+        message: `已导入 ${result.imported.length} 个智能体，覆盖 ${result.overwritten.length} 个，跳过 ${result.skipped.length} 个`,
+      });
+    } catch (error) {
+      setImportFeedback({ kind: "error", message: error instanceof Error ? error.message : "智能体模板导入失败" });
+    } finally {
+      setImporting(false);
+    }
+  }
+
   const updateDraft = (patch: Partial<AgentDraft>) => setDraft((current) => ({ ...current, ...patch }));
   const updatePermission = (key: keyof AgentPermissions, value: boolean) =>
     setDraft((current) => ({
@@ -758,6 +897,21 @@ export function AgentsView() {
               <p className="view-sub">共 {sortedAgents.length} 个智能体，按执行顺序排列。点击某一行即可编辑。</p>
             </div>
             <div className="view-actions">
+              <button type="button" className="btn" onClick={() => void exportAgentTemplates()}>
+                <Download size={15} />
+                导出模板
+              </button>
+              <button
+                type="button"
+                className="btn"
+                onClick={() => {
+                  setImportOpen(true);
+                  setImportFeedback(null);
+                }}
+              >
+                <Upload size={15} />
+                导入模板
+              </button>
               <button type="button" className="btn btn-primary" onClick={startCreate}>
                 <Plus size={15} />
                 新建智能体
@@ -870,6 +1024,23 @@ export function AgentsView() {
           onSpeakChange={updateSpeak}
           onSave={() => void saveAgent()}
           onCancel={closeEditor}
+        />
+      ) : null}
+
+      {importOpen ? (
+        <AgentImportModal
+          value={importText}
+          mode={importMode}
+          saving={importing}
+          feedback={importFeedback}
+          onValueChange={setImportText}
+          onModeChange={setImportMode}
+          onImport={() => void importAgentTemplates()}
+          onCancel={() => {
+            if (!importing) {
+              setImportOpen(false);
+            }
+          }}
         />
       ) : null}
 

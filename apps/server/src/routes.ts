@@ -44,7 +44,9 @@ import { buildHealthReport } from "./doctor.js";
 import {
   createAgent,
   deleteAgent,
+  exportAgents,
   getAgent,
+  importAgents,
   listAgents,
   updateAgent,
 } from "./agents.js";
@@ -490,6 +492,24 @@ export const routeDefinitions: RouteDefinition[] = [
         active: agents.filter((agent) => agent.enabled),
         reserved: agents.filter((agent) => !agent.enabled),
       };
+    },
+  },
+  {
+    method: "GET",
+    path: "/api/v1/agents/export",
+    async handler(_request, context) {
+      const vaultRoot = requireVaultRoot(context);
+      return await exportAgents(vaultRoot);
+    },
+  },
+  {
+    method: "POST",
+    path: "/api/v1/agents/import",
+    async handler(request, context) {
+      const vaultRoot = requireVaultRoot(context);
+      const body = (request.body as Record<string, unknown> | undefined) ?? {};
+      const mode = body.mode === "skip" ? "skip" : "overwrite";
+      return await importAgents(vaultRoot, body.payload ?? body.agents ?? body, mode);
     },
   },
   {

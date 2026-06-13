@@ -745,6 +745,15 @@ export interface AgentConfigInput {
   permissions?: AgentPermissions;
   speak?: AgentSpeakConfig;
 }
+export interface AgentExportBundle {
+  exportedAt: string;
+  agents: AgentConfig[];
+}
+export interface AgentImportResult {
+  imported: AgentConfig[];
+  skipped: string[];
+  overwritten: string[];
+}
 export interface KnowledgeGraph {
   nodes?: Array<{ id: string; label?: string; type?: string; [k: string]: unknown }>;
   edges?: Array<{ id?: string; from?: string; to?: string; source?: string; target?: string; label?: string; type?: string; [k: string]: unknown }>;
@@ -757,6 +766,10 @@ export const api = {
   vaultStatus: () => get<VaultStatus>("/vault"),
   selectVault: (rootPath: string) => post<VaultStatus>("/vault/select", { rootPath }),
   listAgents: async (): Promise<AgentInfo[]> => unwrapList<AgentInfo>(await get("/agents"), "agents"),
+  exportAgents: async (): Promise<AgentExportBundle> =>
+    get<AgentExportBundle>("/agents/export"),
+  importAgents: async (payload: unknown, mode: "overwrite" | "skip" = "overwrite"): Promise<AgentImportResult> =>
+    post<AgentImportResult>("/agents/import", { payload, mode }),
   getAgent: async (agentId: string): Promise<AgentConfig> =>
     (await get<{ agent: AgentConfig }>(`/agents/${encodeURIComponent(agentId)}`)).agent,
   createAgent: async (payload: AgentConfigInput): Promise<AgentConfig> =>
