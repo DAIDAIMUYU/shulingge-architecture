@@ -391,7 +391,7 @@ input[type="radio"] { width: 15px; height: 15px; margin: 0; accent-color: var(--
 
 /* 第二列：章节树 */
 .tree-panel { background: var(--bg-panel); background-image: none; border-right: 1px solid var(--border); display: flex; flex-direction: column; min-height: 0; }
-.tree-head { flex: none; min-height: 82px; display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 22px 20px 14px; }
+.tree-head { flex: none; min-height: 104px; display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 38px 20px 14px; background-color: color-mix(in srgb, var(--surface-panel-glass) 86%, var(--bg-panel)); border-bottom: 1px solid color-mix(in srgb, var(--border) 72%, transparent); }
 .tree-head h2 { font-family: var(--font-serif); font-size: 17px; font-weight: 600; letter-spacing: .03em; line-height: 1.35; }
 .tree-total-words { margin-top: 4px; font-size: 12px; line-height: 1.45; color: var(--text-muted); }
 .tree-head-actions { display: flex; align-items: center; gap: 4px; }
@@ -454,7 +454,7 @@ input[type="radio"] { width: 15px; height: 15px; margin: 0; accent-color: var(--
 .paper::before { content: ""; position: absolute; inset: 10px; border: 1px solid color-mix(in srgb, var(--border) 58%, transparent); border-radius: calc(var(--radius-lg) - 5px); pointer-events: none; }
 .editor-workbench { width: 100%; max-width: 940px; display: grid; grid-template-columns: minmax(0,1fr); gap: 28px; justify-content: center; align-items: start; }
 .editor-workbench.focus-mode { grid-template-columns: minmax(0, 900px); max-width: 900px; }
-.paper-toolbar { display: flex; align-items: center; gap: 2px; height: 52px; padding: 0 16px; border-bottom: 1px solid var(--border); background: color-mix(in srgb, var(--bg-panel) 62%, transparent); position: relative; z-index: 1; }
+.paper-toolbar { display: flex; align-items: center; gap: 2px; min-height: 64px; padding: 12px 16px 0; border-bottom: 1px solid var(--border); background: color-mix(in srgb, var(--surface-toolbar-glass) 90%, var(--bg-panel)); position: relative; z-index: 1; }
 .paper-toolbar .sep { width: 1px; height: 20px; background: var(--border); margin: 0 8px; }
 .paper-toolbar .grow { flex: 1; }
 .editor-mode-switch { margin-left: 8px; flex: none; }
@@ -558,7 +558,7 @@ input[type="radio"] { width: 15px; height: 15px; margin: 0; accent-color: var(--
 
 /* ===== 第四列：总控 AI 对话窗 ===== */
 .chat-pane { background: var(--bg-panel); background-image: none; border-left: 1px solid var(--border); display: flex; flex-direction: column; min-height: 0; }
-.chat-head { display: flex; align-items: center; gap: 12px; padding: 18px 20px; border-bottom: 1px solid var(--border); }
+.chat-head { display: flex; align-items: center; gap: 12px; min-height: 86px; padding: 30px 20px 18px; border-bottom: 1px solid color-mix(in srgb, var(--border) 72%, transparent); background-color: color-mix(in srgb, var(--surface-panel-glass) 86%, var(--bg-panel)); }
 .chat-avatar { width: 38px; height: 38px; border-radius: 11px; background: linear-gradient(135deg, var(--primary), var(--primary-hover)); color: var(--text-on-primary); display: grid; place-items: center; flex: none; box-shadow: inset 0 -2px 0 color-mix(in srgb, var(--accent-cinnabar) 36%, transparent), 0 8px 18px color-mix(in srgb, var(--primary) 18%, transparent); }
 .chat-head .ch-name { font-size: 14px; font-weight: 600; }
 .chat-head .ch-sub { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
@@ -1061,7 +1061,7 @@ input[type="radio"] { width: 15px; height: 15px; margin: 0; accent-color: var(--
   .main { padding-bottom: 88px; }
   .app-shell.app-focus-mode .main { padding-bottom: 0; }
   .app-shell.app-focus-mode .mobile-nav { display: none; }
-  .workspace { grid-template-columns: 1fr; }
+  .workspace { grid-template-columns: 1fr; height: 100%; }
   .workspace {
     display: flex;
     flex-direction: column;
