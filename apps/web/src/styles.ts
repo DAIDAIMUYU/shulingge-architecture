@@ -255,16 +255,16 @@ input[type="radio"] { width: 15px; height: 15px; margin: 0; accent-color: var(--
 *::-webkit-scrollbar-track { background: transparent; }
 
 .main > .view {
-  animation: pageEnter var(--motion-normal) var(--motion-ease) both;
+  animation: pageEnter .2s ease-out both;
 }
 .main > .workspace {
-  animation: pageFadeIn .22s ease-out both;
+  animation: pageFadeIn .2s ease-out both;
 }
 .card-grid,
 .character-card-grid,
 .timeline-stream,
 .worldbook-group-stack {
-  animation: surfaceFadeIn var(--motion-normal) var(--motion-ease) both;
+  animation: surfaceFadeIn .2s ease-out both;
 }
 
 /* ===== 组件 ===== */
@@ -1388,20 +1388,20 @@ body::after,
   to { opacity: 0; }
 }
 @keyframes surfaceFadeIn {
-  from { opacity: 0; transform: translateY(6px); }
-  to { opacity: 1; transform: translateY(0); }
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 @keyframes pageEnter {
-  from { opacity: 0; transform: translate3d(0, 5px, 0); }
-  to { opacity: 1; transform: translate3d(0, 0, 0); }
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 @keyframes pageFadeIn {
   from { opacity: 0; }
   to { opacity: 1; }
 }
 @keyframes listItemIn {
-  from { opacity: 0; transform: translateY(5px); }
-  to { opacity: 1; transform: translateY(0); }
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 @keyframes backdropIn {
   from { opacity: 0; }
