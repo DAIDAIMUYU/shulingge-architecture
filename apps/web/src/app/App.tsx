@@ -47,8 +47,8 @@ const PRIMARY_NAV: NavItem[] = [
 
 const SETTINGS_NAV: NavItem = { id: "settings", icon: Settings, label: "设置" };
 const NAV = [...PRIMARY_NAV, SETTINGS_NAV];
-const COMPACT_LAYOUT_WIDTH = 820;
-const COMPACT_LAYOUT_HEIGHT = 620;
+const COMPACT_LAYOUT_WIDTH = 1366;
+const COMPACT_LAYOUT_HEIGHT = 520;
 
 function getCompactLayout() {
   if (typeof window === "undefined") {
@@ -56,7 +56,7 @@ function getCompactLayout() {
   }
   const cssViewportWidth = window.visualViewport?.width ?? window.innerWidth;
   const windowWidth = window.outerWidth || window.innerWidth;
-  return Math.min(cssViewportWidth, windowWidth) <= COMPACT_LAYOUT_WIDTH;
+  return cssViewportWidth <= COMPACT_LAYOUT_WIDTH || windowWidth <= COMPACT_LAYOUT_WIDTH;
 }
 
 function getCompactHeight() {

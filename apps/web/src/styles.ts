@@ -1962,6 +1962,165 @@ body::after,
   }
 }
 
+@media (max-width: 1366px) {
+  .app-shell.app-desktop-layout:not(.app-focus-mode) {
+    grid-template-columns: 1fr !important;
+    grid-template-rows: minmax(0, 1fr) !important;
+  }
+
+  .app-shell.app-desktop-layout:not(.app-focus-mode) .rail {
+    display: none !important;
+  }
+
+  .app-shell.app-desktop-layout:not(.app-focus-mode) .main {
+    padding-bottom: 74px !important;
+  }
+
+  .app-shell.app-desktop-layout:not(.app-focus-mode) .workspace {
+    display: flex !important;
+    flex-direction: column !important;
+    height: 100% !important;
+  }
+
+  .app-shell.app-desktop-layout:not(.app-focus-mode) .workspace-mobile-header {
+    display: block !important;
+    flex: none !important;
+  }
+
+  .app-shell.app-desktop-layout:not(.app-focus-mode) .workspace > .tree-panel,
+  .app-shell.app-desktop-layout:not(.app-focus-mode) .workspace > .editor-pane,
+  .app-shell.app-desktop-layout:not(.app-focus-mode) .workspace > .chat-pane {
+    display: none !important;
+    flex: 1 1 0 !important;
+    height: auto !important;
+    margin-top: 0 !important;
+  }
+
+  .app-shell.app-desktop-layout:not(.app-focus-mode) .workspace.mobile-panel-chapters > .tree-panel,
+  .app-shell.app-desktop-layout:not(.app-focus-mode) .workspace.mobile-panel-editor > .editor-pane,
+  .app-shell.app-desktop-layout:not(.app-focus-mode) .workspace.mobile-panel-inspector > .editor-pane,
+  .app-shell.app-desktop-layout:not(.app-focus-mode) .workspace.mobile-panel-chat > .chat-pane {
+    display: flex !important;
+  }
+
+  .app-shell.app-desktop-layout:not(.app-focus-mode) .mobile-nav {
+    display: flex !important;
+    top: auto !important;
+    bottom: 0 !important;
+    min-height: 74px !important;
+    padding: 8px 10px calc(8px + env(safe-area-inset-bottom)) !important;
+  }
+
+  .app-shell.app-desktop-layout:not(.app-focus-mode) .editor-scroll {
+    justify-items: stretch !important;
+    padding: 12px clamp(10px, 2.4vw, 18px) 86px !important;
+  }
+
+  .app-shell.app-desktop-layout:not(.app-focus-mode) .editor-workbench,
+  .app-shell.app-desktop-layout:not(.app-focus-mode) .paper {
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+}
+
+.app-shell.app-mobile-layout {
+  grid-template-columns: 1fr !important;
+  grid-template-rows: minmax(0, 1fr) !important;
+}
+
+.app-shell.app-mobile-layout .rail {
+  display: none !important;
+}
+
+.app-shell.app-mobile-layout .main {
+  height: 100% !important;
+  min-height: 0 !important;
+  overflow: hidden !important;
+  padding-top: 0 !important;
+  padding-bottom: 74px !important;
+}
+
+.app-shell.app-mobile-layout .workspace {
+  display: flex !important;
+  flex-direction: column !important;
+  height: 100% !important;
+  min-height: 0 !important;
+  overflow: hidden !important;
+}
+
+.app-shell.app-mobile-layout .workspace-mobile-header {
+  display: block !important;
+  flex: none !important;
+  margin: 0 !important;
+}
+
+.app-shell.app-mobile-layout .workspace > .tree-panel,
+.app-shell.app-mobile-layout .workspace > .editor-pane,
+.app-shell.app-mobile-layout .workspace > .chat-pane {
+  display: none !important;
+  flex: 1 1 0 !important;
+  min-height: 0 !important;
+  height: auto !important;
+  margin-top: 0 !important;
+}
+
+.app-shell.app-mobile-layout .workspace.mobile-panel-chapters > .tree-panel,
+.app-shell.app-mobile-layout .workspace.mobile-panel-editor > .editor-pane,
+.app-shell.app-mobile-layout .workspace.mobile-panel-inspector > .editor-pane,
+.app-shell.app-mobile-layout .workspace.mobile-panel-chat > .chat-pane {
+  display: flex !important;
+}
+
+.app-shell.app-mobile-layout .workspace.mobile-panel-editor .editor-scroll,
+.app-shell.app-mobile-layout .workspace.mobile-panel-inspector .editor-scroll {
+  justify-items: stretch !important;
+  padding: 12px clamp(10px, 2.4vw, 18px) 86px !important;
+  overflow-x: hidden !important;
+}
+
+.app-shell.app-mobile-layout .workspace.mobile-panel-editor .editor-workbench,
+.app-shell.app-mobile-layout .workspace.mobile-panel-inspector .editor-workbench,
+.app-shell.app-mobile-layout .workspace.mobile-panel-editor .paper {
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+}
+
+.app-shell.app-mobile-layout .workspace.mobile-panel-editor .paper-toolbar,
+.app-shell.app-mobile-layout .workspace.mobile-panel-inspector .paper-toolbar {
+  flex-wrap: wrap !important;
+  overflow: hidden !important;
+}
+
+.app-shell.app-mobile-layout .workspace.mobile-panel-editor .paper-body {
+  padding: clamp(24px, 4vw, 42px) clamp(20px, 5vw, 48px) 52px !important;
+}
+
+.app-shell.app-mobile-layout .workspace.mobile-panel-editor .chapter-title {
+  font-size: clamp(26px, 5vw, 34px) !important;
+  text-align: center !important;
+}
+
+.app-shell.app-mobile-layout .workspace.mobile-panel-editor .manuscript,
+.app-shell.app-mobile-layout .workspace.mobile-panel-editor .rich-editor-shell,
+.app-shell.app-mobile-layout .workspace.mobile-panel-editor .source-manuscript {
+  max-width: min(700px, 100%) !important;
+  margin-left: auto !important;
+  margin-right: auto !important;
+}
+
+.app-shell.app-mobile-layout:not(.app-compact-height) .mobile-nav {
+  top: auto !important;
+  bottom: 0 !important;
+  min-height: 74px !important;
+  padding: 8px 10px calc(8px + env(safe-area-inset-bottom)) !important;
+}
+
+.app-shell.app-mobile-layout:not(.app-compact-height) .mobile-nav-item {
+  min-width: 64px !important;
+  height: 50px !important;
+}
+
 .app-shell.app-desktop-layout:not(.app-focus-mode) {
   grid-template-columns: 64px minmax(0, 1fr) !important;
   grid-template-rows: minmax(0, 1fr) !important;
@@ -1984,7 +2143,7 @@ body::after,
 
 .app-shell.app-desktop-layout:not(.app-focus-mode) .workspace {
   display: grid !important;
-  grid-template-columns: minmax(208px, 232px) minmax(0, 1fr) minmax(220px, 260px) !important;
+  grid-template-columns: minmax(232px, 252px) minmax(0, 1fr) !important;
   grid-template-rows: minmax(0, 1fr) !important;
   height: 100% !important;
   min-height: 0 !important;
@@ -1993,9 +2152,17 @@ body::after,
 }
 
 .app-shell.app-desktop-layout:not(.app-focus-mode) .workspace > .tree-panel,
-.app-shell.app-desktop-layout:not(.app-focus-mode) .workspace > .editor-pane,
-.app-shell.app-desktop-layout:not(.app-focus-mode) .workspace > .chat-pane {
+.app-shell.app-desktop-layout:not(.app-focus-mode) .workspace > .editor-pane {
   display: flex !important;
+  align-self: start !important;
+  height: calc(100% - var(--workspace-safe-top)) !important;
+  min-height: 0 !important;
+  min-width: 0 !important;
+  margin-top: var(--workspace-safe-top) !important;
+}
+
+.app-shell.app-desktop-layout:not(.app-focus-mode) .workspace > .chat-pane {
+  display: none !important;
   align-self: start !important;
   height: calc(100% - var(--workspace-safe-top)) !important;
   min-height: 0 !important;
@@ -2005,8 +2172,8 @@ body::after,
 
 .app-shell.app-desktop-layout:not(.app-focus-mode) .editor-scroll {
   justify-items: start !important;
-  padding-left: clamp(10px, 1.2vw, 20px) !important;
-  padding-right: clamp(10px, 1.2vw, 20px) !important;
+  padding-left: clamp(16px, 2vw, 32px) !important;
+  padding-right: clamp(16px, 2vw, 32px) !important;
   min-width: 0 !important;
   max-width: 100% !important;
   overflow-x: hidden !important;
@@ -2014,7 +2181,7 @@ body::after,
 
 .app-shell.app-desktop-layout:not(.app-focus-mode) .editor-workbench {
   width: 100% !important;
-  max-width: min(720px, 100%) !important;
+  max-width: min(920px, 100%) !important;
   justify-self: start !important;
 }
 
@@ -2088,13 +2255,17 @@ body::after,
   }
 }
 
-@media (min-width: 1361px) {
+@media (min-width: 1500px) {
   .app-shell.app-desktop-layout:not(.app-focus-mode) .workspace {
     grid-template-columns: minmax(232px, 252px) minmax(0, 1fr) minmax(260px, 300px) !important;
   }
 
+  .app-shell.app-desktop-layout:not(.app-focus-mode) .workspace > .chat-pane {
+    display: flex !important;
+  }
+
   .app-shell.app-desktop-layout:not(.app-focus-mode) .editor-workbench {
-    max-width: min(760px, 100%) !important;
+    max-width: min(720px, 100%) !important;
   }
 }
 
