@@ -20,6 +20,7 @@ import {
 import { ConfirmModal } from "../app/Modals.js";
 import { CenterState, ViewShell } from "./common.js";
 import { ProjectSelector } from "./ProjectSelector.js";
+import { Select } from "./Select.js";
 
 type EditorMode = "create" | "edit";
 type AssistMode = "original" | "fanfic";
@@ -708,9 +709,13 @@ function TimelineAiCreateModal({
           {mode ? (
             <>
               <div className="character-ai-message ai">这条事件属于哪条线？</div>
-              <select className="input" value={line} onChange={(event) => setLine(event.target.value as TimelineLine)} disabled={loading}>
-                {EDITABLE_LINES.map((option) => <option value={option.id} key={option.id}>{option.label}：{option.hint}</option>)}
-              </select>
+              <Select
+                value={line}
+                options={EDITABLE_LINES.map((option) => ({ value: option.id, label: option.label, hint: option.hint }))}
+                onChange={(nextValue) => setLine(nextValue as TimelineLine)}
+                disabled={loading}
+                ariaLabel="时间线线类型"
+              />
             </>
           ) : null}
 
@@ -951,9 +956,12 @@ function TimelineEditor({
               </label>
               <label className="form-block">
                 <span>线类型</span>
-                <select className="input" value={value.line} onChange={(event) => onChange({ ...value, line: event.target.value as TimelineLine })}>
-                  {EDITABLE_LINES.map((line) => <option value={line.id} key={line.id}>{line.label}：{line.hint}</option>)}
-                </select>
+                <Select
+                  value={value.line}
+                  options={EDITABLE_LINES.map((line) => ({ value: line.id, label: line.label, hint: line.hint }))}
+                  onChange={(nextValue) => onChange({ ...value, line: nextValue as TimelineLine })}
+                  ariaLabel="线类型"
+                />
               </label>
               <label className="form-block">
                 <span>发生时间</span>
@@ -971,10 +979,15 @@ function TimelineEditor({
               </label>
               <label className="form-block">
                 <span>重要程度</span>
-                <select className="input" value={value.importance ?? ""} onChange={(event) => onChange({ ...value, importance: (event.target.value || undefined) as TimelineImportance | undefined })}>
-                  <option value="">未标注</option>
-                  {IMPORTANCE_OPTIONS.map((option) => <option value={option.id} key={option.id}>{option.label}</option>)}
-                </select>
+                <Select
+                  value={value.importance ?? ""}
+                  options={[
+                    { value: "", label: "未标注" },
+                    ...IMPORTANCE_OPTIONS.map((option) => ({ value: option.id, label: option.label })),
+                  ]}
+                  onChange={(nextValue) => onChange({ ...value, importance: (nextValue || undefined) as TimelineImportance | undefined })}
+                  ariaLabel="重要程度"
+                />
               </label>
             </div>
             <label className="form-block">

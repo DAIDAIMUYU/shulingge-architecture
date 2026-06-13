@@ -15,6 +15,7 @@ import {
 } from "../api/client.js";
 import { ConfirmModal } from "../app/Modals.js";
 import { ProjectSelector } from "./ProjectSelector.js";
+import { Select } from "./Select.js";
 import { ViewShell } from "./common.js";
 
 const RULE_LEVEL_OPTIONS: Array<{ value: RuleLevel; label: string; hint: string }> = [
@@ -201,30 +202,42 @@ function RuleEditorModal({
             </label>
             <label className="form-block">
               <span>级别</span>
-              <select className="input" value={draft.level} onChange={(event) => onChange({ level: event.target.value as RuleLevel })}>
-                {RULE_LEVEL_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}：{option.hint}</option>)}
-              </select>
+              <Select
+                value={draft.level}
+                options={RULE_LEVEL_OPTIONS.map((option) => ({ value: option.value, label: option.label, hint: option.hint }))}
+                onChange={(nextValue) => onChange({ level: nextValue as RuleLevel })}
+                ariaLabel="规则级别"
+              />
             </label>
             <label className="form-block">
               <span>适用范围</span>
-              <select className="input" value={draft.scope} onChange={(event) => onChange({ scope: event.target.value as RuleScope })}>
-                {SCOPE_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-              </select>
+              <Select
+                value={draft.scope}
+                options={SCOPE_OPTIONS}
+                onChange={(nextValue) => onChange({ scope: nextValue as RuleScope })}
+                ariaLabel="适用范围"
+              />
             </label>
           </div>
 
           <div className="form-grid form-grid-2">
             <label className="form-block">
               <span>违反后处理</span>
-              <select className="input" value={draft.onViolation} onChange={(event) => onChange({ onViolation: event.target.value as RuleViolationAction })}>
-                {VIOLATION_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-              </select>
+              <Select
+                value={draft.onViolation}
+                options={VIOLATION_OPTIONS}
+                onChange={(nextValue) => onChange({ onViolation: nextValue as RuleViolationAction })}
+                ariaLabel="违反后处理"
+              />
             </label>
             <label className="form-block">
               <span>覆盖策略</span>
-              <select className="input" value={draft.overridePolicy} onChange={(event) => onChange({ overridePolicy: event.target.value as RuleOverridePolicy })}>
-                {OVERRIDE_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-              </select>
+              <Select
+                value={draft.overridePolicy}
+                options={OVERRIDE_OPTIONS}
+                onChange={(nextValue) => onChange({ overridePolicy: nextValue as RuleOverridePolicy })}
+                ariaLabel="覆盖策略"
+              />
             </label>
             <label className="form-block">
               <span>优先级</span>

@@ -15,6 +15,7 @@ import {
   type SkillRegistryRecord,
 } from "../api/client.js";
 import { ConfirmModal } from "../app/Modals.js";
+import { Select } from "./Select.js";
 import { ViewShell } from "./common.js";
 
 const AGENT_TYPE_OPTIONS: Array<{ value: AgentPermissionMode; label: string; hint: string }> = [
@@ -418,15 +419,12 @@ function AgentEditorModal({
               <label className="form-block">
                 <span>类型</span>
                 <span className="agent-field-hint">{currentType?.hint ?? "选择它在流程中的定位。"}</span>
-                <select
-                  className="input"
+                <Select
                   value={draft.type}
-                  onChange={(event) => onChange({ type: event.target.value as AgentPermissionMode })}
-                >
-                  {AGENT_TYPE_OPTIONS.map((option) => (
-                    <option key={option.value} value={option.value}>{option.label}</option>
-                  ))}
-                </select>
+                  options={AGENT_TYPE_OPTIONS.map((option) => ({ value: option.value, label: option.label, hint: option.hint }))}
+                  onChange={(nextValue) => onChange({ type: nextValue as AgentPermissionMode })}
+                  ariaLabel="智能体类型"
+                />
               </label>
             </div>
 
@@ -445,22 +443,22 @@ function AgentEditorModal({
               <label className="form-block">
                 <span>绑定模型</span>
                 <span className="agent-field-hint">可以先留空，之后在模型配置完成后再回来绑定。</span>
-                <select
-                  className="input"
+                <Select
                   value={draft.modelConfigId}
-                  onChange={(event) => onChange({ modelConfigId: event.target.value })}
-                >
-                  {availableModels.length > 0 ? (
-                    <option value="">默认(使用第一个可用模型)</option>
-                  ) : (
-                    <option value="" disabled>暂无可用模型，请先在设置页配置模型</option>
-                  )}
-                  {availableModels.map((model) => (
-                    <option key={model.id} value={model.id}>
-                      {model.id}{model.model ? ` · ${model.model}` : ""}
-                    </option>
-                  ))}
-                </select>
+                  placeholder="选择绑定模型"
+                  options={[
+                    availableModels.length > 0
+                      ? { value: "", label: "默认", hint: "使用第一个可用模型" }
+                      : { value: "", label: "暂无可用模型", hint: "请先在设置页配置模型", disabled: true },
+                    ...availableModels.map((model) => ({
+                      value: model.id,
+                      label: model.id,
+                      hint: model.model,
+                    })),
+                  ]}
+                  onChange={(nextValue) => onChange({ modelConfigId: nextValue })}
+                  ariaLabel="绑定模型"
+                />
               </label>
               <ToggleRow
                 checked={draft.enabled}
@@ -536,15 +534,12 @@ function AgentEditorModal({
                     <label className="form-block">
                       <span>输出格式</span>
                       <span className="agent-field-hint">{OUTPUT_FORMAT_OPTIONS.find((item) => item.value === draft.outputFormat)?.hint}</span>
-                      <select
-                        className="input"
+                      <Select
                         value={draft.outputFormat}
-                        onChange={(event) => onChange({ outputFormat: event.target.value as AgentOutputFormat })}
-                      >
-                        {OUTPUT_FORMAT_OPTIONS.map((option) => (
-                          <option key={option.value} value={option.value}>{option.label}</option>
-                        ))}
-                      </select>
+                        options={OUTPUT_FORMAT_OPTIONS.map((option) => ({ value: option.value, label: option.label, hint: option.hint }))}
+                        onChange={(nextValue) => onChange({ outputFormat: nextValue as AgentOutputFormat })}
+                        ariaLabel="输出格式"
+                      />
                     </label>
                     <label className="form-block">
                       <span>执行顺序</span>

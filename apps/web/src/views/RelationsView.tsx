@@ -13,6 +13,7 @@ import {
 import { ConfirmModal } from "../app/Modals.js";
 import { CenterState, ViewShell } from "./common.js";
 import { ProjectSelector } from "./ProjectSelector.js";
+import { Select } from "./Select.js";
 import { filterRelations, layoutKnowledgeGraph, type GraphNodeLayout } from "./relations-graph.js";
 
 const DEFAULT_PROJECT_ID = "demo-series";
@@ -679,29 +680,29 @@ export function RelationsView() {
               <div className="form-grid form-grid-2">
                 <label className="form-block">
                   <span>关系起点</span>
-                  <select
-                    className="input"
+                  <Select
                     value={draft.from}
-                    onChange={(event) => setDraft((current) => ({ ...current, from: event.target.value }))}
-                  >
-                    <option value="">请选择角色</option>
-                    {characters.map((character) => (
-                      <option key={character.id} value={character.id}>{character.name || character.id}</option>
-                    ))}
-                  </select>
+                    placeholder="请选择角色"
+                    options={[
+                      { value: "", label: "请选择角色" },
+                      ...characters.map((character) => ({ value: character.id, label: character.name || character.id })),
+                    ]}
+                    onChange={(nextValue) => setDraft((current) => ({ ...current, from: nextValue }))}
+                    ariaLabel="关系起点"
+                  />
                 </label>
                 <label className="form-block">
                   <span>关系终点</span>
-                  <select
-                    className="input"
+                  <Select
                     value={draft.to}
-                    onChange={(event) => setDraft((current) => ({ ...current, to: event.target.value }))}
-                  >
-                    <option value="">请选择角色</option>
-                    {characters.map((character) => (
-                      <option key={character.id} value={character.id}>{character.name || character.id}</option>
-                    ))}
-                  </select>
+                    placeholder="请选择角色"
+                    options={[
+                      { value: "", label: "请选择角色" },
+                      ...characters.map((character) => ({ value: character.id, label: character.name || character.id })),
+                    ]}
+                    onChange={(nextValue) => setDraft((current) => ({ ...current, to: nextValue }))}
+                    ariaLabel="关系终点"
+                  />
                 </label>
               </div>
               <div className="form-grid form-grid-2">

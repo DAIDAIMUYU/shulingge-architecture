@@ -20,6 +20,7 @@ import {
 import { ConfirmModal } from "../app/Modals.js";
 import { CenterState, ViewShell } from "./common.js";
 import { ProjectSelector } from "./ProjectSelector.js";
+import { Select } from "./Select.js";
 
 type EditorMode = "create" | "edit";
 type AssistMode = "original" | "fanfic";
@@ -743,9 +744,13 @@ function WorldbookAiCreateModal({
           {mode ? (
             <>
               <div className="character-ai-message ai">这条设定属于哪一类？</div>
-              <select className="input" value={category} onChange={(event) => setCategory(event.target.value as WorldbookCategory)} disabled={loading}>
-                {CATEGORY_OPTIONS.map((option) => <option value={option.id} key={option.id}>{option.label}</option>)}
-              </select>
+              <Select
+                value={category}
+                options={CATEGORY_OPTIONS.map((option) => ({ value: option.id, label: option.label }))}
+                onChange={(nextValue) => setCategory(nextValue as WorldbookCategory)}
+                disabled={loading}
+                ariaLabel="世界大纲类型"
+              />
             </>
           ) : null}
 
@@ -983,15 +988,21 @@ function WorldbookEditor({
               </label>
               <label className="form-block">
                 <span>来源</span>
-                <select className="input" value={value.origin ?? "original"} onChange={(event) => onChange({ ...value, origin: event.target.value as WorldbookOrigin })}>
-                  {ORIGIN_OPTIONS.map((option) => <option value={option.id} key={option.id}>{option.label}</option>)}
-                </select>
+                <Select
+                  value={value.origin ?? "original"}
+                  options={ORIGIN_OPTIONS.map((option) => ({ value: option.id, label: option.label }))}
+                  onChange={(nextValue) => onChange({ ...value, origin: nextValue as WorldbookOrigin })}
+                  ariaLabel="来源"
+                />
               </label>
               <label className="form-block">
                 <span>类型</span>
-                <select className="input" value={value.category === "setting" ? "other" : value.category ?? "other"} onChange={(event) => onChange({ ...value, category: event.target.value as WorldbookCategory })}>
-                  {CATEGORY_OPTIONS.map((option) => <option value={option.id} key={option.id}>{option.label}</option>)}
-                </select>
+                <Select
+                  value={value.category === "setting" ? "other" : value.category ?? "other"}
+                  options={CATEGORY_OPTIONS.map((option) => ({ value: option.id, label: option.label }))}
+                  onChange={(nextValue) => onChange({ ...value, category: nextValue as WorldbookCategory })}
+                  ariaLabel="类型"
+                />
               </label>
             </div>
             <div className="form-grid form-grid-3">
@@ -1001,10 +1012,15 @@ function WorldbookEditor({
               </label>
               <label className="form-block">
                 <span>重要程度</span>
-                <select className="input" value={value.importance ?? ""} onChange={(event) => onChange({ ...value, importance: (event.target.value || undefined) as WorldbookImportance | undefined })}>
-                  <option value="">未标注</option>
-                  {IMPORTANCE_OPTIONS.map((option) => <option value={option.id} key={option.id}>{option.label}</option>)}
-                </select>
+                <Select
+                  value={value.importance ?? ""}
+                  options={[
+                    { value: "", label: "未标注" },
+                    ...IMPORTANCE_OPTIONS.map((option) => ({ value: option.id, label: option.label })),
+                  ]}
+                  onChange={(nextValue) => onChange({ ...value, importance: (nextValue || undefined) as WorldbookImportance | undefined })}
+                  ariaLabel="重要程度"
+                />
               </label>
               <label className="form-block">
                 <span>关键词</span>

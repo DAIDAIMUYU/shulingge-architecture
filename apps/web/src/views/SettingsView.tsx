@@ -34,6 +34,7 @@ import {
   type RemoteGatewayStatus,
 } from "../api/client.js";
 import { ConfirmModal } from "../app/Modals.js";
+import { Select } from "./Select.js";
 import { ViewShell } from "./common.js";
 
 const SECTIONS = ["外观", "模型与 API", "远程访问", "通用", "智能体", "快捷键", "关于"] as const;
@@ -249,24 +250,23 @@ function ModelEditor({
           </label>
           <label className="form-block">
             <span>服务商</span>
-            <select
-              className="input"
+            <Select
               value={draft.provider}
-              onChange={(event) => {
-                const provider = event.target.value;
+              options={[
+                ...(!providerKnownInSelector
+                  ? [{ value: draft.provider, label: PROVIDER_LABELS[draft.provider] ?? draft.provider }]
+                  : []),
+                ...PROVIDER_OPTIONS,
+              ]}
+              onChange={(nextValue) => {
+                const provider = nextValue;
                 onChange({
                   provider,
                   baseUrl: DEFAULT_PROVIDER_BASE_URLS[provider] ?? "",
                 });
               }}
-            >
-              {!providerKnownInSelector ? (
-                <option value={draft.provider}>{PROVIDER_LABELS[draft.provider] ?? draft.provider}</option>
-              ) : null}
-              {PROVIDER_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>{option.label}</option>
-              ))}
-            </select>
+              ariaLabel="服务商"
+            />
           </label>
           <label className="form-block">
             <span>模型名</span>
