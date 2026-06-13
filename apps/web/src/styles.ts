@@ -1016,7 +1016,7 @@ input[type="radio"] { width: 15px; height: 15px; margin: 0; accent-color: var(--
   .chat-pane { display: flex; }
 }
 
-@media (max-width: 1120px) {
+@media (max-width: 1360px) {
   .workspace { grid-template-columns: clamp(204px, 24vw, 232px) minmax(0,1fr); }
   .workspace > .chat-pane { display: none; }
   .editor-scroll { padding-left: clamp(18px, 3vw, 30px); padding-right: clamp(18px, 3vw, 30px); }
