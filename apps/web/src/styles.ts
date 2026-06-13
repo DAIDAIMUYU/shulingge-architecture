@@ -215,6 +215,32 @@ input, textarea { font-family: inherit; }
 .outline-item-title { color: var(--text-primary); font-size: 13px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .outline-item-sub { color: var(--text-muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .outline-empty { padding: 18px 12px; color: var(--text-muted); font-size: 13px; line-height: 1.7; }
+.quick-lookup-panel { position: fixed; right: clamp(16px, 2.5vw, 32px); bottom: clamp(16px, 2.5vw, 32px); z-index: 70; width: min(390px, calc(100vw - 32px)); max-height: min(680px, calc(100vh - 32px)); display: flex; flex-direction: column; overflow: hidden; background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-lg); box-shadow: var(--shadow-popover); }
+.quick-lookup-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 16px 16px 12px; border-bottom: 1px solid var(--border); }
+.quick-lookup-head h2 { margin: 0; font-family: var(--font-serif); font-size: 20px; line-height: 1.3; }
+.quick-lookup-head p { margin: 4px 0 0; color: var(--text-muted); font-size: 12px; }
+.quick-lookup-tabs { margin: 12px 16px 0; }
+.quick-lookup-tabs button { flex: 1; }
+.quick-lookup-search { display: flex; align-items: center; gap: 8px; height: 36px; margin: 12px 16px; padding: 0 10px; background: var(--bg-panel); border: 1px solid var(--border); border-radius: var(--radius-sm); color: var(--text-muted); }
+.quick-lookup-search:focus-within { border-color: var(--primary); box-shadow: 0 0 0 2px var(--primary-light); }
+.quick-lookup-search input { min-width: 0; flex: 1; border: 0; outline: none; background: transparent; color: var(--text-primary); font-size: 13px; }
+.quick-lookup-error { margin: 0 16px 10px; padding: 9px 10px; border-radius: var(--radius-sm); border: 1px solid var(--border-strong); background: var(--bg-panel); color: var(--danger); font-size: 12px; line-height: 1.6; }
+.quick-lookup-body { flex: 1; min-height: 0; overflow: auto; display: flex; flex-direction: column; gap: 8px; padding: 0 12px 14px; }
+.quick-lookup-empty { min-height: 160px; display: grid; place-items: center; gap: 10px; padding: 18px; color: var(--text-muted); text-align: center; font-size: 13px; line-height: 1.7; }
+.quick-lookup-item { border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--bg-panel); overflow: hidden; }
+.quick-lookup-item.expanded { border-color: var(--border-strong); background: var(--bg-card); }
+.quick-lookup-item-main { width: 100%; display: flex; align-items: center; gap: 10px; padding: 11px 12px; border: 0; background: transparent; color: var(--text-secondary); text-align: left; cursor: pointer; }
+.quick-lookup-item-main:hover { background: var(--bg-hover); }
+.quick-lookup-avatar { width: 34px; height: 34px; display: grid; place-items: center; flex: none; border-radius: 50%; background: var(--primary-light); color: var(--primary); font-size: 14px; font-weight: 700; }
+.quick-lookup-avatar.outline { border-radius: var(--radius-sm); }
+.quick-lookup-title-block { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.quick-lookup-title-block strong { color: var(--text-primary); font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.quick-lookup-title-block span { color: var(--text-muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.quick-lookup-detail { display: grid; gap: 8px; padding: 0 12px 12px 56px; }
+.quick-lookup-field { display: grid; grid-template-columns: 74px minmax(0,1fr); gap: 8px; align-items: start; }
+.quick-lookup-field span { color: var(--text-muted); font-size: 12px; line-height: 1.6; }
+.quick-lookup-field p { margin: 0; color: var(--text-secondary); font-size: 12px; line-height: 1.7; overflow-wrap: anywhere; }
+.quick-lookup-field.multiline { grid-template-columns: 1fr; gap: 3px; }
 .paper-body { padding: 48px 56px 64px; flex: 1; display: flex; flex-direction: column; }
 .chapter-title { font-family: var(--font-serif); font-size: 28px; font-weight: 600; letter-spacing: .01em; line-height: 1.4; }
 .chapter-title-input { width: 100%; padding: 0 0 4px; border: 0; border-bottom: 1px solid transparent; outline: none; background: transparent; color: var(--text-primary); }
@@ -775,6 +801,14 @@ input, textarea { font-family: inherit; }
   .workspace.mobile-panel-inspector .paper-toolbar .grow {
     display: none;
   }
+  .quick-lookup-panel {
+    right: 10px;
+    left: 10px;
+    bottom: 92px;
+    width: auto;
+    max-height: min(620px, calc(100vh - 120px));
+  }
+  .quick-lookup-detail { padding-left: 12px; }
   .view-head {
     padding: 18px 16px 14px;
     flex-direction: column;

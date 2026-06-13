@@ -32,6 +32,7 @@ import {
   ApiError,
   type AgentInfo,
   type AnnotationRecord,
+  type Character,
   type DirectorChatMessage,
   type DirectorReviewReport,
   type DirectorTaskSuggestion,
@@ -39,6 +40,7 @@ import {
   type LockRecord,
   type RunRecord,
   type SearchResult,
+  type WorldbookEntry,
 } from "../api/client.js";
 import { readWebPreferences } from "../app/preferences.js";
 import { ConfirmModal, InputModal } from "../app/Modals.js";
@@ -54,6 +56,7 @@ import {
 type SaveState = "idle" | "dirty" | "saving" | "saved" | "error";
 type InspectorTab = "outline" | "annotations" | "locks" | "run";
 type MobilePanel = "chapters" | "editor" | "inspector" | "chat";
+type QuickLookupTab = "characters" | "worldbook";
 type ChatMessage =
   | { id: number; kind: "text"; role: "ai" | "user"; text: string }
   | { id: number; kind: "confirm"; task: DirectorTaskSuggestion; status: "pending" | "confirmed" | "cancelled" }
@@ -234,6 +237,93 @@ function serializeChatMessages(messages: ChatMessage[]): StoredChatMessage[] {
   return messages.map(({ id: _id, ...message }) => message);
 }
 
+function firstText(...values: Array<string | undefined | null>): string {
+  return values.map((value) => value?.trim()).find(Boolean) ?? "";
+}
+
+function compactText(value: string | undefined | null, fallback = "未填写"): string {
+  return value?.trim() || fallback;
+}
+
+function joinValues(values: string[] | undefined, fallback = "未填写"): string {
+  return values?.length ? values.join("、") : fallback;
+}
+
+function characterOneLine(character: Character): string {
+  return firstText(
+    character.profile?.basic?.oneLine,
+    character.summary,
+    character.profile?.basic?.occupation,
+    character.role,
+  );
+}
+
+function characterSearchText(character: Character): string {
+  return [
+    character.name,
+    character.summary,
+    character.role,
+    character.faction,
+    character.status,
+    character.profile?.basic?.fullName,
+    character.profile?.basic?.nickname,
+    character.profile?.basic?.oneLine,
+    character.profile?.basic?.occupation,
+    character.profile?.appearance?.firstImpression,
+    character.profile?.language?.speakingStyle,
+    character.profile?.belief?.currentGoal,
+  ].filter(Boolean).join(" ");
+}
+
+function worldbookTitle(entry: WorldbookEntry): string {
+  return firstText(entry.name, entry.title, entry.profile?.basic?.name, entry.id);
+}
+
+function worldbookSummary(entry: WorldbookEntry): string {
+  return firstText(entry.summary, entry.profile?.basic?.summary, entry.description, entry.content);
+}
+
+function worldbookSearchText(entry: WorldbookEntry): string {
+  return [
+    entry.title,
+    entry.name,
+    entry.summary,
+    entry.description,
+    entry.content,
+    ...(entry.keywords ?? []),
+    entry.profile?.basic?.alias,
+    entry.profile?.content?.traits,
+    entry.profile?.writing?.writingNotes,
+  ].filter(Boolean).join(" ");
+}
+
+const QUICK_WORLDBOOK_CATEGORY_LABELS: Record<string, string> = {
+  place: "地点/场所",
+  organization: "组织/势力",
+  people: "人物群体/种族",
+  history: "事件/历史",
+  event: "事件",
+  item: "物品/道具",
+  "power-system": "功法/能力体系",
+  rule: "规则/法则",
+  culture: "文化/习俗",
+  geography: "地理/环境",
+  politics: "政治/权力",
+  economy: "经济/资源",
+  religion: "宗教/信仰",
+  language: "语言/文字",
+  technology: "科技/技术水平",
+  "faction-relation": "势力关系",
+  setting: "设定",
+  other: "其他",
+};
+
+const QUICK_IMPORTANCE_LABELS: Record<string, string> = {
+  core: "核心",
+  important: "重要",
+  minor: "次要",
+};
+
 interface WorkspaceViewProps {
   currentProjectId?: string | null;
   vaultPath?: string | null;
@@ -292,6 +382,14 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
   const [conversationLoadedKey, setConversationLoadedKey] = useState("");
   const [conversationSaveError, setConversationSaveError] = useState<string | null>(null);
   const [chatInput, setChatInput] = useState("");
+  const [quickLookupOpen, setQuickLookupOpen] = useState(false);
+  const [quickLookupTab, setQuickLookupTab] = useState<QuickLookupTab>("characters");
+  const [quickLookupQuery, setQuickLookupQuery] = useState("");
+  const [quickLookupCharacters, setQuickLookupCharacters] = useState<Character[]>([]);
+  const [quickLookupWorldbook, setQuickLookupWorldbook] = useState<WorldbookEntry[]>([]);
+  const [quickLookupLoading, setQuickLookupLoading] = useState(false);
+  const [quickLookupError, setQuickLookupError] = useState<string | null>(null);
+  const [expandedQuickLookupId, setExpandedQuickLookupId] = useState<string | null>(null);
   const [selectionRange, setSelectionRange] = useState({ start: 0, end: 0 });
   const [history, setHistory] = useState<string[]>([]);
   const [future, setFuture] = useState<string[]>([]);
@@ -331,6 +429,20 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
   const hasAnyChapter = allChapters.length > 0;
   const hasValidActiveChapter = Boolean(activeId && chapter && allChapters.some((chapterItem) => chapterItem.id === activeId));
   const totalWordCount = allChapters.reduce((sum, chapterItem) => sum + chapterItem.wordCount, 0);
+  const lookupProjectId = locator.projectId || projectTree?.projectId || currentProjectId || "";
+  const quickLookupQueryText = quickLookupQuery.trim().toLowerCase();
+  const filteredQuickLookupCharacters = useMemo(
+    () => quickLookupCharacters.filter((item) =>
+      !quickLookupQueryText || characterSearchText(item).toLowerCase().includes(quickLookupQueryText),
+    ),
+    [quickLookupCharacters, quickLookupQueryText],
+  );
+  const filteredQuickLookupWorldbook = useMemo(
+    () => quickLookupWorldbook.filter((item) =>
+      !quickLookupQueryText || worldbookSearchText(item).toLowerCase().includes(quickLookupQueryText),
+    ),
+    [quickLookupWorldbook, quickLookupQueryText],
+  );
   const reviewAgents = useMemo(
     () => agents
       .filter((agent) => agent.enabled !== false && (agent.type === "checker" || agent.type === "blocker"))
@@ -359,6 +471,35 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
 
   const closeConfirm = () => {
     setConfirmRequest(null);
+  };
+
+  const loadQuickLookup = useCallback(async (projectId: string) => {
+    if (!projectId) {
+      setQuickLookupCharacters([]);
+      setQuickLookupWorldbook([]);
+      setQuickLookupError("暂无项目，请先选择或创建项目。");
+      return;
+    }
+
+    setQuickLookupLoading(true);
+    setQuickLookupError(null);
+    try {
+      const [characters, worldbook] = await Promise.all([
+        api.listCharactersByProject(projectId),
+        api.listWorldbookByProject(projectId),
+      ]);
+      setQuickLookupCharacters(characters);
+      setQuickLookupWorldbook(worldbook);
+    } catch (err) {
+      setQuickLookupError(err instanceof ApiError ? err.message : "速查资料加载失败");
+    } finally {
+      setQuickLookupLoading(false);
+    }
+  }, []);
+
+  const openQuickLookup = () => {
+    setQuickLookupOpen(true);
+    setExpandedQuickLookupId(null);
   };
 
   const loadProjectTree = useCallback(async (preferredProjectId?: string | null): Promise<ProjectTree | null> => {
@@ -435,6 +576,12 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
       }
     })();
   }, []);
+
+  useEffect(() => {
+    if (quickLookupOpen) {
+      void loadQuickLookup(lookupProjectId);
+    }
+  }, [loadQuickLookup, lookupProjectId, quickLookupOpen]);
 
   useEffect(() => {
     if (!vaultSelected) {
@@ -1971,6 +2118,15 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
                 <span className="grow" />
                 <button
                   type="button"
+                  className={`btn ${quickLookupOpen ? "toolbar-active" : ""}`}
+                  onClick={openQuickLookup}
+                  disabled={!lookupProjectId}
+                >
+                  <Search size={15} strokeWidth={2} />
+                  速查
+                </button>
+                <button
+                  type="button"
                   className="btn"
                   onClick={openReviewConfirm}
                   disabled={reviewing || !hasValidActiveChapter}
@@ -2562,6 +2718,28 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
         }}
       />
     ) : null}
+    {quickLookupOpen ? (
+      <QuickLookupPanel
+        tab={quickLookupTab}
+        query={quickLookupQuery}
+        loading={quickLookupLoading}
+        error={quickLookupError}
+        projectId={lookupProjectId}
+        characters={filteredQuickLookupCharacters}
+        worldbook={filteredQuickLookupWorldbook}
+        expandedId={expandedQuickLookupId}
+        totalCharacters={quickLookupCharacters.length}
+        totalWorldbook={quickLookupWorldbook.length}
+        onTabChange={(tab) => {
+          setQuickLookupTab(tab);
+          setExpandedQuickLookupId(null);
+        }}
+        onQueryChange={setQuickLookupQuery}
+        onToggleExpand={(id) => setExpandedQuickLookupId((current) => current === id ? null : id)}
+        onRefresh={() => void loadQuickLookup(lookupProjectId)}
+        onClose={() => setQuickLookupOpen(false)}
+      />
+    ) : null}
     </>
   );
 }
@@ -2637,6 +2815,218 @@ function ReviewReportModal({
           </button>
         </div>
       </div>
+    </div>
+  );
+}
+
+function QuickLookupPanel({
+  tab,
+  query,
+  loading,
+  error,
+  projectId,
+  characters,
+  worldbook,
+  expandedId,
+  totalCharacters,
+  totalWorldbook,
+  onTabChange,
+  onQueryChange,
+  onToggleExpand,
+  onRefresh,
+  onClose,
+}: {
+  tab: QuickLookupTab;
+  query: string;
+  loading: boolean;
+  error: string | null;
+  projectId: string;
+  characters: Character[];
+  worldbook: WorldbookEntry[];
+  expandedId: string | null;
+  totalCharacters: number;
+  totalWorldbook: number;
+  onTabChange(tab: QuickLookupTab): void;
+  onQueryChange(value: string): void;
+  onToggleExpand(id: string): void;
+  onRefresh(): void;
+  onClose(): void;
+}) {
+  const activeCount = tab === "characters" ? characters.length : worldbook.length;
+
+  return (
+    <aside className="quick-lookup-panel" aria-label="写作速查">
+      <div className="quick-lookup-head">
+        <div>
+          <h2>写作速查</h2>
+          <p>{projectId ? `当前项目：${projectId}` : "暂无项目"}</p>
+        </div>
+        <button type="button" className="btn-icon" aria-label="关闭速查" onClick={onClose}>
+          <X size={16} strokeWidth={2} />
+        </button>
+      </div>
+
+      <div className="quick-lookup-tabs segmented" role="tablist" aria-label="速查类型">
+        <button type="button" className={tab === "characters" ? "on" : ""} onClick={() => onTabChange("characters")}>
+          角色 {totalCharacters}
+        </button>
+        <button type="button" className={tab === "worldbook" ? "on" : ""} onClick={() => onTabChange("worldbook")}>
+          世界大纲 {totalWorldbook}
+        </button>
+      </div>
+
+      <div className="quick-lookup-search">
+        <Search size={15} strokeWidth={1.8} />
+        <input
+          value={query}
+          placeholder={tab === "characters" ? "搜索角色、身份、简介" : "搜索设定、关键词、描述"}
+          onChange={(event) => onQueryChange(event.target.value)}
+        />
+        {query ? (
+          <button type="button" className="tree-search-clear" aria-label="清空搜索" onClick={() => onQueryChange("")}>
+            <X size={13} strokeWidth={2} />
+          </button>
+        ) : null}
+      </div>
+
+      {error ? <div className="quick-lookup-error">{error}</div> : null}
+
+      <div className="quick-lookup-body">
+        {loading ? (
+          <div className="quick-lookup-empty">
+            <RefreshCw size={16} strokeWidth={2} className="spin-icon" />
+            <span>正在加载速查资料...</span>
+          </div>
+        ) : activeCount === 0 ? (
+          <div className="quick-lookup-empty">
+            {projectId ? "没有匹配的资料。" : "暂无项目，请先创建项目。"}
+            <button type="button" className="btn btn-ghost" onClick={onRefresh} disabled={!projectId}>
+              重新加载
+            </button>
+          </div>
+        ) : tab === "characters" ? (
+          characters.map((character) => (
+            <QuickCharacterCard
+              key={character.id}
+              character={character}
+              expanded={expandedId === `character:${character.id}`}
+              onToggle={() => onToggleExpand(`character:${character.id}`)}
+            />
+          ))
+        ) : (
+          worldbook.map((entry) => (
+            <QuickWorldbookCard
+              key={entry.id}
+              entry={entry}
+              expanded={expandedId === `worldbook:${entry.id}`}
+              onToggle={() => onToggleExpand(`worldbook:${entry.id}`)}
+            />
+          ))
+        )}
+      </div>
+    </aside>
+  );
+}
+
+function QuickCharacterCard({
+  character,
+  expanded,
+  onToggle,
+}: {
+  character: Character;
+  expanded: boolean;
+  onToggle(): void;
+}) {
+  const basic = character.profile?.basic ?? {};
+  const appearance = character.profile?.appearance ?? {};
+  const language = character.profile?.language ?? {};
+  const belief = character.profile?.belief ?? {};
+  const custom = Object.values(character.profile?.custom ?? {}).flat().filter((item) => item?.label || item?.value);
+
+  return (
+    <article className={`quick-lookup-item${expanded ? " expanded" : ""}`}>
+      <button type="button" className="quick-lookup-item-main" onClick={onToggle}>
+        <span className="quick-lookup-avatar">{character.name.slice(0, 1) || "角"}</span>
+        <span className="quick-lookup-title-block">
+          <strong>{character.name || "未命名角色"}</strong>
+          <span>{characterOneLine(character) || "暂无一句话介绍"}</span>
+        </span>
+        {expanded ? <ChevronDown size={15} strokeWidth={2} /> : <ChevronRight size={15} strokeWidth={2} />}
+      </button>
+
+      {expanded ? (
+        <div className="quick-lookup-detail">
+          <QuickField label="身份" value={firstText(basic.occupation, character.role)} />
+          <QuickField label="年龄/性别" value={[basic.age, basic.genderPronouns].filter(Boolean).join(" / ")} />
+          <QuickField label="外貌印象" value={firstText(appearance.firstImpression, appearance.appearanceImpression)} />
+          <QuickField label="说话方式" value={firstText(language.speakingStyle, language.catchphrases)} />
+          <QuickField label="当前目标" value={firstText(belief.currentGoal, belief.coreMotivation)} />
+          <QuickField label="标签" value={joinValues(character.tags)} />
+          {custom.slice(0, 4).map((item, index) => (
+            <QuickField key={`${character.id}-custom-${index}`} label={item.label || "自定义"} value={item.value} />
+          ))}
+        </div>
+      ) : null}
+    </article>
+  );
+}
+
+function QuickWorldbookCard({
+  entry,
+  expanded,
+  onToggle,
+}: {
+  entry: WorldbookEntry;
+  expanded: boolean;
+  onToggle(): void;
+}) {
+  const basic = entry.profile?.basic ?? {};
+  const content = entry.profile?.content ?? {};
+  const writing = entry.profile?.writing ?? {};
+  const custom = Object.values(entry.profile?.custom ?? {}).flat().filter((item) => item?.label || item?.value);
+
+  return (
+    <article className={`quick-lookup-item${expanded ? " expanded" : ""}`}>
+      <button type="button" className="quick-lookup-item-main" onClick={onToggle}>
+        <span className="quick-lookup-avatar outline">纲</span>
+        <span className="quick-lookup-title-block">
+          <strong>{worldbookTitle(entry) || "未命名设定"}</strong>
+          <span>{worldbookSummary(entry) || "暂无简介"}</span>
+        </span>
+        {expanded ? <ChevronDown size={15} strokeWidth={2} /> : <ChevronRight size={15} strokeWidth={2} />}
+      </button>
+
+      {expanded ? (
+        <div className="quick-lookup-detail">
+          <QuickField label="类型" value={entry.category ? QUICK_WORLDBOOK_CATEGORY_LABELS[entry.category] ?? entry.category : ""} />
+          <QuickField label="重要程度" value={entry.importance ? QUICK_IMPORTANCE_LABELS[entry.importance] ?? entry.importance : ""} />
+          <QuickField label="关键词" value={joinValues(entry.keywords)} />
+          <QuickField label="详细描述" value={firstText(entry.description, entry.profile?.basic?.description)} multiline />
+          <QuickField label="特性/机制" value={firstText(content.traits, content.mechanism, content.function)} multiline />
+          <QuickField label="写作注意" value={firstText(writing.writingNotes, writing.mood)} multiline />
+          <QuickField label="相关角色" value={joinValues(entry.relatedCharacters)} />
+          {custom.slice(0, 4).map((item, index) => (
+            <QuickField key={`${entry.id}-custom-${index}`} label={item.label || "自定义"} value={item.value} multiline />
+          ))}
+        </div>
+      ) : null}
+    </article>
+  );
+}
+
+function QuickField({
+  label,
+  value,
+  multiline = false,
+}: {
+  label: string;
+  value?: string;
+  multiline?: boolean;
+}) {
+  return (
+    <div className={`quick-lookup-field${multiline ? " multiline" : ""}`}>
+      <span>{label}</span>
+      <p>{compactText(value)}</p>
     </div>
   );
 }
