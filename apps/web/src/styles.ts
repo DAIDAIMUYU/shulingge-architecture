@@ -394,8 +394,81 @@ input[type="radio"] { width: 15px; height: 15px; margin: 0; accent-color: var(--
 .app-desktop-layout .workspace-mobile-header { display: none !important; }
 .app-shell.app-desktop-layout { grid-template-columns: 64px minmax(0,1fr); grid-template-rows: minmax(0,1fr); }
 .app-desktop-layout .rail { display: flex !important; }
+.app-desktop-layout .workspace {
+  display: grid !important;
+  grid-template-columns: clamp(196px, 23vw, 228px) minmax(0,1fr) !important;
+  height: 100% !important;
+}
+.app-desktop-layout .workspace > .tree-panel,
+.app-desktop-layout .workspace > .editor-pane {
+  display: flex !important;
+  align-self: start;
+  height: calc(100% - var(--workspace-safe-top)) !important;
+  margin-top: var(--workspace-safe-top) !important;
+}
+.app-desktop-layout .workspace > .chat-pane {
+  display: none !important;
+}
+.app-desktop-layout .workspace .editor-statusbar {
+  display: flex !important;
+}
+.app-desktop-layout .paper-toolbar .sep,
+.app-desktop-layout .paper-toolbar .grow {
+  display: none;
+}
+.app-desktop-layout .paper-toolbar .btn-icon {
+  width: 30px;
+  height: 30px;
+}
+.app-desktop-layout .paper-toolbar .toolbar-action {
+  width: 32px;
+  min-width: 32px;
+  height: 30px;
+  padding: 0;
+  gap: 0;
+}
+.app-desktop-layout .paper-toolbar .toolbar-action-label {
+  display: none;
+}
+.app-desktop-layout .paper-toolbar .toolbar-action-polish {
+  width: 34px;
+  min-width: 34px;
+}
 .app-mobile-layout .rail { display: none !important; }
 .app-mobile-layout .main { height: auto; min-height: 0; }
+
+@media (min-width: 1181px) {
+  .app-desktop-layout .workspace {
+    grid-template-columns: clamp(224px, 15vw, 248px) minmax(0,1fr) clamp(300px, 21vw, 340px) !important;
+  }
+  .app-desktop-layout .workspace > .chat-pane {
+    display: flex !important;
+  }
+  .app-desktop-layout .paper-toolbar .sep {
+    display: inline-block;
+  }
+  .app-desktop-layout .paper-toolbar .grow {
+    display: block;
+  }
+  .app-desktop-layout .paper-toolbar .btn-icon {
+    width: 32px;
+    height: 32px;
+  }
+  .app-desktop-layout .paper-toolbar .toolbar-action {
+    width: auto;
+    min-width: 0;
+    height: 34px;
+    padding: 0 14px;
+    gap: 6px;
+  }
+  .app-desktop-layout .paper-toolbar .toolbar-action-label {
+    display: inline;
+  }
+  .app-desktop-layout .paper-toolbar .toolbar-action-polish {
+    width: auto;
+    min-width: 0;
+  }
+}
 
 /* 第一列：图标导航 */
 .rail { background: var(--bg-panel); background-image: none; border-right: 1px solid var(--border); display: flex; flex-direction: column; align-items: center; padding: 16px 0; gap: 6px; overflow-x: hidden; overflow-y: auto; scrollbar-width: none; }
