@@ -494,6 +494,43 @@ input[type="radio"] { width: 15px; height: 15px; margin: 0; accent-color: var(--
   flex: 1 1 0;
   min-height: 0;
 }
+.app-mobile-layout .workspace.mobile-panel-editor .editor-scroll,
+.app-mobile-layout .workspace.mobile-panel-inspector .editor-scroll {
+  justify-items: stretch;
+}
+.app-mobile-layout .workspace.mobile-panel-editor .editor-workbench,
+.app-mobile-layout .workspace.mobile-panel-inspector .editor-workbench {
+  width: 100%;
+  max-width: 100%;
+}
+.app-mobile-layout .workspace.mobile-panel-editor .paper {
+  width: 100%;
+  max-width: 100%;
+}
+.app-mobile-layout .workspace.mobile-panel-editor .paper-body {
+  padding-left: clamp(24px, 7vw, 72px);
+  padding-right: clamp(24px, 7vw, 72px);
+}
+.app-mobile-layout .workspace.mobile-panel-editor .chapter-title,
+.app-mobile-layout .workspace.mobile-panel-editor .title-rule {
+  margin-left: 0;
+  margin-right: 0;
+}
+.app-mobile-layout .workspace.mobile-panel-editor .chapter-title,
+.app-mobile-layout .workspace.mobile-panel-editor .title-rule {
+  align-self: flex-start;
+}
+.app-mobile-layout .workspace.mobile-panel-editor .chapter-title {
+  width: min(760px, 100%);
+  text-align: left;
+}
+.app-mobile-layout .workspace.mobile-panel-editor .manuscript,
+.app-mobile-layout .workspace.mobile-panel-editor .rich-editor-shell,
+.app-mobile-layout .workspace.mobile-panel-editor .source-manuscript {
+  max-width: min(760px, 100%);
+  margin-left: 0;
+  margin-right: auto;
+}
 .app-mobile-layout .mobile-nav {
   display: flex !important;
   gap: 7px;
