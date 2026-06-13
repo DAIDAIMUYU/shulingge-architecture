@@ -1015,6 +1015,15 @@ input[type="radio"] { width: 15px; height: 15px; margin: 0; accent-color: var(--
   .paper { max-width: 100%; }
   .chat-pane { display: flex; }
 }
+
+@media (max-width: 1120px) {
+  .workspace { grid-template-columns: clamp(204px, 24vw, 232px) minmax(0,1fr); }
+  .workspace > .chat-pane { display: none; }
+  .editor-scroll { padding-left: clamp(18px, 3vw, 30px); padding-right: clamp(18px, 3vw, 30px); }
+  .editor-workbench { max-width: min(760px, 100%); }
+  .paper { max-width: 100%; }
+}
+
 @media (max-width: 768px) {
   .app-shell { grid-template-columns: 1fr; }
   .rail { display: none; }
