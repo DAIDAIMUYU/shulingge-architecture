@@ -1321,19 +1321,20 @@ input[type="radio"] { width: 15px; height: 15px; margin: 0; accent-color: var(--
 }
 
 @media (max-width: 1440px) {
-  .workspace { grid-template-columns: clamp(208px, 17vw, 232px) minmax(0,1fr) clamp(280px, 22vw, 320px); }
+  .workspace { grid-template-columns: clamp(232px, 18vw, 252px) minmax(0,1fr) clamp(276px, 21vw, 312px); }
   .tree-head { padding-left: clamp(16px, 1.6vw, 20px); padding-right: clamp(16px, 1.6vw, 20px); }
+  .tree-head h2 { white-space: nowrap; font-size: 15.5px; letter-spacing: .01em; }
   .tree-scroll { padding-left: clamp(10px, 1.1vw, 12px); padding-right: clamp(10px, 1.1vw, 12px); }
-  .editor-scroll { padding-left: clamp(18px, 1.8vw, 26px); padding-right: clamp(18px, 1.8vw, 26px); }
+  .editor-scroll { padding-left: clamp(12px, 1.3vw, 20px); padding-right: clamp(12px, 1.3vw, 20px); }
   .editor-workbench { grid-template-columns: minmax(0,1fr); max-width: 760px; justify-items: stretch; }
   .paper { max-width: 100%; }
   .chat-pane { display: flex; }
 }
 
 @media (max-width: 1360px) {
-  .workspace { grid-template-columns: clamp(188px, 16vw, 216px) minmax(0,1fr) clamp(248px, 21vw, 292px); }
+  .workspace { grid-template-columns: clamp(224px, 18vw, 244px) minmax(0,1fr) clamp(240px, 20vw, 280px); }
   .tree-head { min-height: 94px; padding: 28px 16px 12px; }
-  .tree-head h2 { font-size: 16px; }
+  .tree-head h2 { font-size: 15px; white-space: nowrap; letter-spacing: 0; }
   .tree-total-words { font-size: 11.5px; }
   .chat-head { min-height: 76px; padding: 24px 16px 14px; }
   .chat-scroll { padding: 16px 14px; }
@@ -1348,7 +1349,7 @@ input[type="radio"] { width: 15px; height: 15px; margin: 0; accent-color: var(--
   .workspace > .chat-pane { display: none; }
   .tree-head { min-height: 92px; padding: 20px 14px 10px; gap: 8px; flex-direction: column; align-items: stretch; }
   .tree-head > div:first-child { min-width: 0; }
-  .tree-head h2 { font-size: 16px; line-height: 1.32; }
+  .tree-head h2 { font-size: 15px; line-height: 1.32; white-space: nowrap; letter-spacing: 0; }
   .tree-head-actions { justify-content: flex-end; gap: 2px; }
   .tree-scroll { padding-left: 7px; padding-right: 7px; }
   .tree-item { padding-left: 9px; padding-right: 9px; }
