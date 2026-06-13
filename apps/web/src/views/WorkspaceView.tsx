@@ -1410,6 +1410,7 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
       loadingText: `【${polishAgent.name}】正在润色…`,
       onBeforeExecute: () => {
         setPolishing(true);
+        setPolishElapsedSeconds(0);
         setPolishStartedAt(Date.now());
       },
       onFinally: () => {
