@@ -996,6 +996,20 @@ export function SettingsView({ vaultPath, onSetVault, onClearVault }: SettingsVi
                   <span>{preferences.backgroundDecorationEnabled ? "已开启" : "关闭"}</span>
                 </label>
               </div>
+              <div className="form-row">
+                <div>
+                  <div className="fr-label">水墨背景</div>
+                  <div className="fr-desc">浅色主题下显示水墨山水背景图，并用宣纸蒙版淡化；深色主题暂不启用。</div>
+                </div>
+                <label className="switch-row">
+                  <input
+                    type="checkbox"
+                    checked={preferences.inkBackgroundEnabled}
+                    onChange={(event) => savePreferencePatch({ inkBackgroundEnabled: event.target.checked }, setPreferences, setPreferencesFeedback)}
+                  />
+                  <span>{preferences.inkBackgroundEnabled ? "已开启" : "关闭"}</span>
+                </label>
+              </div>
             </div>
           ) : null}
 

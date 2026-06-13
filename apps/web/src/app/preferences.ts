@@ -8,6 +8,7 @@ export interface WebPreferences {
   startInFocusMode: boolean;
   paperTextureEnabled: boolean;
   backgroundDecorationEnabled: boolean;
+  inkBackgroundEnabled: boolean;
   defaultInspectorTab: InspectorTabPreference;
   sendShortcut: SendShortcut;
   watchedAgentIds: string[];
@@ -21,6 +22,7 @@ export const DEFAULT_WEB_PREFERENCES: WebPreferences = {
   startInFocusMode: false,
   paperTextureEnabled: true,
   backgroundDecorationEnabled: true,
+  inkBackgroundEnabled: true,
   defaultInspectorTab: "outline",
   sendShortcut: "enter",
   watchedAgentIds: ["writer", "rule-guard", "director"],
@@ -38,6 +40,13 @@ export function applyBackgroundDecorationPreference(enabled: boolean): void {
     return;
   }
   document.body.classList.toggle("background-decoration", enabled);
+}
+
+export function applyInkBackgroundPreference(enabled: boolean): void {
+  if (typeof document === "undefined") {
+    return;
+  }
+  document.body.classList.toggle("bg-ink", enabled);
 }
 
 function isPreferredLanguage(value: unknown): value is PreferredLanguage {
@@ -75,6 +84,9 @@ export function normalizeWebPreferences(input: unknown): WebPreferences {
     backgroundDecorationEnabled: typeof record.backgroundDecorationEnabled === "boolean"
       ? record.backgroundDecorationEnabled
       : DEFAULT_WEB_PREFERENCES.backgroundDecorationEnabled,
+    inkBackgroundEnabled: typeof record.inkBackgroundEnabled === "boolean"
+      ? record.inkBackgroundEnabled
+      : DEFAULT_WEB_PREFERENCES.inkBackgroundEnabled,
     defaultInspectorTab: isInspectorTab(record.defaultInspectorTab)
       ? record.defaultInspectorTab
       : DEFAULT_WEB_PREFERENCES.defaultInspectorTab,
@@ -113,6 +125,7 @@ export function writeWebPreferences(next: WebPreferences): WebPreferences {
   }
   applyPaperTexturePreference(normalized.paperTextureEnabled);
   applyBackgroundDecorationPreference(normalized.backgroundDecorationEnabled);
+  applyInkBackgroundPreference(normalized.inkBackgroundEnabled);
   return normalized;
 }
 
