@@ -248,6 +248,22 @@ input, textarea { font-family: inherit; }
 .title-rule { width: 40px; height: 2px; background: var(--primary); margin: 18px 0 28px; border-radius: 2px; }
 .manuscript { font-family: var(--font-serif); font-size: 16px; line-height: 1.95; letter-spacing: .02em; color: var(--text-primary); border: 0; outline: none; resize: none; background: transparent; width: 100%; flex: 1; min-height: 320px; }
 .manuscript::placeholder { color: var(--text-muted); }
+.rich-editor-shell { position: relative; flex: 1; min-height: 320px; display: flex; }
+.rich-editor-shell > div:not(.rich-editor-placeholder) { flex: 1; display: flex; min-width: 0; }
+.rich-editor-placeholder { position: absolute; top: 0; left: 0; right: 0; z-index: 1; pointer-events: none; color: var(--text-muted); font-family: var(--font-serif); font-size: 16px; line-height: 1.95; letter-spacing: .02em; }
+.rich-manuscript { min-height: 320px; white-space: pre-wrap; word-break: break-word; caret-color: var(--primary); }
+.rich-manuscript:focus { outline: none; }
+.rich-manuscript p { margin: 0 0 0.9em; }
+.rich-manuscript h1,
+.rich-manuscript h2,
+.rich-manuscript h3 { margin: 1.1em 0 0.55em; font-family: var(--font-serif); line-height: 1.45; letter-spacing: 0; }
+.rich-manuscript h1 { font-size: 1.55em; }
+.rich-manuscript h2 { font-size: 1.32em; }
+.rich-manuscript h3 { font-size: 1.16em; }
+.rich-manuscript blockquote { margin: 0.8em 0; padding-left: 14px; border-left: 3px solid var(--border-strong); color: var(--text-secondary); }
+.rich-manuscript ul,
+.rich-manuscript ol { margin: 0.7em 0 0.9em; padding-left: 1.35em; }
+.rich-manuscript li { margin: 0.25em 0; }
 .editor-empty { flex: 1; min-height: 420px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; color: var(--text-muted); text-align: center; }
 .editor-statusbar { display: flex; align-items: center; gap: 20px; padding: 11px 28px; border-top: 1px solid var(--border); background: var(--bg-panel); font-size: 12px; color: var(--text-secondary); }
 .editor-statusbar .grow { flex: 1; }

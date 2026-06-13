@@ -1,5 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { DragEvent as ReactDragEvent, KeyboardEvent as ReactKeyboardEvent } from "react";
+import { EditorContent, useEditor, type Editor } from "@tiptap/react";
+import StarterKit from "@tiptap/starter-kit";
+import { Markdown } from "tiptap-markdown";
 import {
   AlertCircle,
   ArrowUp,
@@ -10,6 +13,7 @@ import {
   ChevronRight,
   Check,
   FilePenLine,
+  Heading2,
   Italic,
   Lightbulb,
   List,
@@ -46,8 +50,6 @@ import { readWebPreferences } from "../app/preferences.js";
 import { ConfirmModal, InputModal } from "../app/Modals.js";
 import { CHAPTER_STATUS_VALUES, type ChapterStatus } from "@shulingge/shared";
 import {
-  applyInlineWrap,
-  applyLinePrefix,
   buildOutline,
   createSelectionLock,
   parseChapterRef,
@@ -80,6 +82,13 @@ type ConfirmRequest = {
   onConfirm(): void | Promise<void>;
 };
 type StoredChatMessage = ChatMessage extends infer Message ? Message extends { id: number } ? Omit<Message, "id"> : never : never;
+type MarkdownStorageEditor = Editor & {
+  storage: Editor["storage"] & {
+    markdown: {
+      getMarkdown(): string;
+    };
+  };
+};
 
 interface ChapterNode {
   id: string;
@@ -119,6 +128,7 @@ const TOOLS = [
   { sep: true as const },
   { kind: "bold" as const, Icon: Bold, label: "加粗" },
   { kind: "italic" as const, Icon: Italic, label: "斜体" },
+  { kind: "heading" as const, Icon: Heading2, label: "二级标题" },
   { kind: "quote" as const, Icon: Quote, label: "引用" },
   { kind: "list" as const, Icon: List, label: "列表" },
   { sep: true as const },
@@ -235,6 +245,10 @@ function hydrateChatMessages(messages: unknown[], nextId: () => number): ChatMes
 
 function serializeChatMessages(messages: ChatMessage[]): StoredChatMessage[] {
   return messages.map(({ id: _id, ...message }) => message);
+}
+
+function getEditorMarkdown(editor: Editor): string {
+  return (editor as MarkdownStorageEditor).storage.markdown.getMarkdown();
 }
 
 function firstText(...values: Array<string | undefined | null>): string {
@@ -402,12 +416,12 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const idRef = useRef(1);
   const chatEndRef = useRef<HTMLDivElement | null>(null);
-  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const createMenuRef = useRef<HTMLDivElement | null>(null);
   const treeContextMenuRef = useRef<HTMLDivElement | null>(null);
   const outlinePopoverRef = useRef<HTMLDivElement | null>(null);
   const outlineButtonRef = useRef<HTMLButtonElement | null>(null);
   const conversationSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const editorSyncingFromDraft = useRef(false);
   const nextId = () => idRef.current++;
 
   const locator = useMemo(() => parseChapterRef(activeId), [activeId]);
@@ -887,45 +901,17 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
     return () => window.clearInterval(timer);
   }, [polishing, polishStartedAt]);
 
-  const syncSelection = () => {
-    const node = textareaRef.current;
-    if (!node) {
-      return;
-    }
-    setSelectionRange({
-      start: node.selectionStart ?? 0,
-      end: node.selectionEnd ?? 0,
-    });
-  };
-
-  const restoreSelection = (start: number, end: number) => {
-    requestAnimationFrame(() => {
-      const node = textareaRef.current;
-      if (!node) {
-        return;
-      }
-      node.focus();
-      node.setSelectionRange(start, end);
-      setSelectionRange({ start, end });
-    });
-  };
-
   const jumpToOutlineItem = (line: number) => {
-    const node = textareaRef.current;
-    if (!node || !hasValidActiveChapter) {
+    if (!editor || !hasValidActiveChapter) {
       return;
     }
 
     const targetLine = Math.max(1, line);
-    const lines = draft.split("\n");
-    const offset = lines.slice(0, targetLine - 1).reduce((sum, item) => sum + item.length + 1, 0);
-    const safeOffset = Math.min(offset, draft.length);
-    node.focus();
-    node.setSelectionRange(safeOffset, safeOffset);
-    setSelectionRange({ start: safeOffset, end: safeOffset });
-
-    const lineHeight = Number.parseFloat(window.getComputedStyle(node).lineHeight) || 31;
-    node.scrollTop = Math.max(0, (targetLine - 1) * lineHeight - node.clientHeight * 0.25);
+    const markdownLine = draft.split("\n")[targetLine - 1]?.replace(/^#+\s*/, "").trim() ?? "";
+    const docText = editor.state.doc.textBetween(0, editor.state.doc.content.size, "\n", "\n");
+    const textOffset = markdownLine ? docText.indexOf(markdownLine) : -1;
+    const safePos = Math.max(1, Math.min(editor.state.doc.content.size, textOffset > -1 ? textOffset + 1 : 1));
+    editor.chain().focus().setTextSelection(safePos).run();
     setOutlinePopoverOpen(false);
   };
 
@@ -956,34 +942,76 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
     }
   };
 
+  const editor = useEditor({
+    immediatelyRender: false,
+    extensions: [
+      StarterKit,
+      Markdown.configure({
+        html: false,
+        tightLists: true,
+        bulletListMarker: "-",
+        breaks: false,
+        transformPastedText: true,
+        transformCopiedText: true,
+      }),
+    ],
+    content: draft,
+    editable: hasValidActiveChapter,
+    editorProps: {
+      attributes: {
+        class: "manuscript rich-manuscript",
+        "aria-label": "正文",
+      },
+    },
+    onUpdate: ({ editor: activeEditor }) => {
+      if (editorSyncingFromDraft.current) {
+        return;
+      }
+      const markdown = getEditorMarkdown(activeEditor);
+      onEdit(markdown);
+      const { from, to } = activeEditor.state.selection;
+      setSelectionRange({ start: from, end: to });
+    },
+    onSelectionUpdate: ({ editor: activeEditor }) => {
+      const { from, to } = activeEditor.state.selection;
+      setSelectionRange({ start: from, end: to });
+    },
+  }, [hasValidActiveChapter, vaultSelected, locator.chapterId, locator.novelId, locator.projectId]);
+
+  useEffect(() => {
+    if (!editor) {
+      return;
+    }
+    const currentMarkdown = getEditorMarkdown(editor);
+    if (currentMarkdown === draft) {
+      return;
+    }
+    editorSyncingFromDraft.current = true;
+    editor.commands.setContent(draft, { emitUpdate: false });
+    editorSyncingFromDraft.current = false;
+  }, [draft, editor]);
+
+  useEffect(() => {
+    editor?.setEditable(hasValidActiveChapter);
+  }, [editor, hasValidActiveChapter]);
+
   const pushHistory = (current: string) => {
     setHistory((items) => [...items.slice(-39), current]);
     setFuture([]);
   };
 
-  const applyTransform = (
-    transform: (content: string, start: number, end: number) => {
-      content: string;
-      selectionStart: number;
-      selectionEnd: number;
-    },
-  ) => {
-    const node = textareaRef.current;
-    if (!node) {
+  const runEditorCommand = (command: (activeEditor: Editor) => boolean) => {
+    if (!editor || !hasValidActiveChapter) {
       return;
     }
-
-    const { selectionStart, selectionEnd } = node;
-    const result = transform(draft, selectionStart, selectionEnd);
-    if (result.content === draft) {
-      return;
-    }
+    const before = getEditorMarkdown(editor);
     pushHistory(draft);
-    setDraft(result.content);
-    if (vaultSelected) {
-      scheduleSave(result.content);
+    const changed = command(editor);
+    const after = getEditorMarkdown(editor);
+    if (!changed || after === before) {
+      setHistory((items) => items.slice(0, -1));
+      setFuture([]);
     }
-    restoreSelection(result.selectionStart, result.selectionEnd);
   };
 
   const createChapterInNovel = async (targetNovelIdOverride?: string) => {
@@ -2064,14 +2092,19 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
                       className={`btn-icon ${
                         (tool.kind === "outline" && outlinePopoverOpen) ||
                         (tool.kind === "annotations" && inspectorTab === "annotations") ||
-                        (tool.kind === "locks" && inspectorTab === "locks")
+                        (tool.kind === "locks" && inspectorTab === "locks") ||
+                        (tool.kind === "bold" && editor?.isActive("bold")) ||
+                        (tool.kind === "italic" && editor?.isActive("italic")) ||
+                        (tool.kind === "heading" && editor?.isActive("heading", { level: 2 })) ||
+                        (tool.kind === "quote" && editor?.isActive("blockquote")) ||
+                        (tool.kind === "list" && editor?.isActive("bulletList"))
                           ? "toolbar-active"
                           : ""
                       }`}
                       ref={tool.kind === "outline" ? outlineButtonRef : undefined}
                       key={tool.kind}
                       title={tool.label}
-                      disabled={tool.kind === "outline" && !hasValidActiveChapter}
+                      disabled={!hasValidActiveChapter && tool.kind !== "undo" && tool.kind !== "redo"}
                       onClick={() => {
                         if (tool.kind === "undo") {
                           undo();
@@ -2082,19 +2115,23 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
                           return;
                         }
                         if (tool.kind === "bold") {
-                          applyTransform((content, start, end) => applyInlineWrap(content, start, end, "**"));
+                          runEditorCommand((activeEditor) => activeEditor.chain().focus().toggleBold().run());
                           return;
                         }
                         if (tool.kind === "italic") {
-                          applyTransform((content, start, end) => applyInlineWrap(content, start, end, "*"));
+                          runEditorCommand((activeEditor) => activeEditor.chain().focus().toggleItalic().run());
+                          return;
+                        }
+                        if (tool.kind === "heading") {
+                          runEditorCommand((activeEditor) => activeEditor.chain().focus().toggleHeading({ level: 2 }).run());
                           return;
                         }
                         if (tool.kind === "quote") {
-                          applyTransform((content, start, end) => applyLinePrefix(content, start, end, "> "));
+                          runEditorCommand((activeEditor) => activeEditor.chain().focus().toggleBlockquote().run());
                           return;
                         }
                         if (tool.kind === "list") {
-                          applyTransform((content, start, end) => applyLinePrefix(content, start, end, "- "));
+                          runEditorCommand((activeEditor) => activeEditor.chain().focus().toggleBulletList().run());
                           return;
                         }
                         if (tool.kind === "outline") {
@@ -2194,16 +2231,14 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
                       }}
                     />
                     <div className="title-rule" />
-                    <textarea
-                      ref={textareaRef}
-                      className="manuscript"
-                      value={draft}
-                      placeholder={vaultSelected ? "在此续写正文……" : "选择资料库后即可读写正文。"}
-                      onChange={(event) => onEdit(event.target.value)}
-                      onSelect={syncSelection}
-                      onKeyUp={syncSelection}
-                      onMouseUp={syncSelection}
-                    />
+                    <div className="rich-editor-shell">
+                      {editor && !draft.trim() ? (
+                        <div className="rich-editor-placeholder">
+                          {vaultSelected ? "在此续写正文……" : "选择资料库后即可读写正文。"}
+                        </div>
+                      ) : null}
+                      <EditorContent editor={editor} />
+                    </div>
                   </>
                 ) : (
                   <div className="editor-empty">
