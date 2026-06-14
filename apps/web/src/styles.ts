@@ -165,7 +165,9 @@ export const globalCss = `
   --shadow-paper: 0 1px 2px rgba(58,47,29,0.05), 0 24px 70px rgba(58,47,29,0.12), 0 0 0 1px rgba(255,255,255,0.50) inset;
 }
 
-* { box-sizing: border-box; }
+*,
+*::before,
+*::after { box-sizing: border-box; }
 html, body, #root { height: 100%; min-height: 100%; margin: 0; overflow: hidden; }
 #root { position: relative; z-index: 1; }
 body {
@@ -228,6 +230,16 @@ h1,h2,h3,h4 { margin: 0; font-weight: 600; text-wrap: balance; }
 ul { margin: 0; padding: 0; list-style: none; }
 button { font-family: inherit; cursor: pointer; color: inherit; }
 input, textarea { font-family: inherit; }
+img,
+picture,
+video,
+canvas,
+svg { max-width: 100%; }
+img,
+picture,
+video,
+canvas { display: block; }
+h1,h2,h3,h4,p,li,button,input,textarea,label,span { overflow-wrap: anywhere; }
 input[type="checkbox"],
 input[type="radio"] { width: 15px; height: 15px; margin: 0; accent-color: var(--primary); color-scheme: light; }
 :root[data-theme="dark"] input[type="checkbox"],
@@ -545,13 +557,13 @@ input[type="radio"] { width: 15px; height: 15px; margin: 0; accent-color: var(--
 .placeholder-view h2 { font-family: var(--font-serif); font-size: 24px; color: var(--text-primary); margin-bottom: 10px; }
 
 /* ===== 通用页面：页头 / 列表 / 详情 / 设置 ===== */
-.view { height: 100%; display: flex; flex-direction: column; background: transparent; min-width: 0; }
-.view-head { display: flex; align-items: flex-end; justify-content: space-between; padding: 42px 52px 24px; }
+.view { height: 100%; min-height: 0; display: flex; flex-direction: column; background: transparent; min-width: 0; overflow: hidden; }
+.view-head { display: flex; align-items: flex-end; justify-content: space-between; padding: clamp(24px, 4vw, 42px) clamp(20px, 4vw, 52px) clamp(16px, 2.4vw, 24px); flex: none; }
 .view-title { position: relative; display: inline-flex; align-items: center; gap: 14px; font-family: var(--font-serif); font-size: 34px; line-height: 1.16; font-weight: 600; letter-spacing: .065em; color: var(--primary-ink); }
 .view-title::after { content: ""; width: 42px; height: 2px; border-radius: 2px; background: linear-gradient(90deg, var(--accent-cinnabar), var(--primary)); opacity: .82; }
 .view-sub { font-size: 13px; color: var(--text-muted); margin-top: 10px; }
 .view-actions { display: flex; gap: 10px; }
-.view-body { flex: 1; overflow: auto; padding: 8px 52px 56px; }
+.view-body { flex: 1; min-height: 0; overflow: auto; padding: 8px clamp(20px, 4vw, 52px) clamp(28px, 5vw, 56px); }
 .toolbar-row { display: flex; align-items: center; gap: 12px; margin-bottom: 22px; }
 .toolbar-row .grow { flex: 1; }
 .search { display: flex; align-items: center; gap: 8px; height: 36px; padding: 0 12px; background: var(--bg-card); background-image: var(--surface-sheen); border: 1px solid var(--border); border-radius: var(--radius-sm); color: var(--text-muted); min-width: 220px; }
@@ -881,6 +893,9 @@ input[type="radio"] { width: 15px; height: 15px; margin: 0; accent-color: var(--
 
 @keyframes breathe { 0%,100% { opacity: 1; } 50% { opacity: .4; } }
 
+/* Responsive breakpoints:
+   >=1440px desktop canvas, 1024-1439px notebook, 768-1023px tablet,
+   <768px mobile shell. Keep page roots height-bound and let inner bodies scroll. */
 @media (max-width: 1600px) {
   .workspace { grid-template-columns: 264px minmax(0,1fr) clamp(320px, 26vw, 380px); }
   .editor-workbench { grid-template-columns: minmax(0,1fr); max-width: 860px; }
@@ -892,6 +907,35 @@ input[type="radio"] { width: 15px; height: 15px; margin: 0; accent-color: var(--
   .chat-pane { display: none; }
 }
 @media (max-width: 1024px) {
+  .view-head {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+  }
+  .view-title { font-size: 28px; letter-spacing: .045em; }
+  .view-actions { width: 100%; flex-wrap: wrap; }
+  .toolbar-row { flex-wrap: wrap; }
+  .search { min-width: 0; flex: 1 1 100%; }
+  .settings-layout { grid-template-columns: 1fr; gap: 16px; }
+  .settings-menu {
+    position: static;
+    flex-direction: row;
+    overflow-x: auto;
+    padding-bottom: 4px;
+  }
+  .settings-menu button { white-space: nowrap; flex: none; }
+  .split-layout > .list-card { overflow-x: auto; }
+  .split-layout > .list-card .list-row { min-width: 640px; }
+  .relations-grid { grid-template-columns: 1fr; }
+  .graph-stage { min-height: 360px; }
+  .graph-svg { height: 360px; }
+  .split-layout, .detail-grid, .form-grid-2, .form-grid-3 { grid-template-columns: 1fr; }
+  .hero-card, .editor-card-head { flex-direction: column; }
+  .project-inline-field { width: 100%; }
+  .project-inline-field .input { width: 100%; }
+}
+
+@media (max-width: 767px) {
   .app-shell { grid-template-columns: 1fr; }
   .rail { display: none; }
   .mobile-shell-header {
@@ -1028,37 +1072,12 @@ input[type="radio"] { width: 15px; height: 15px; margin: 0; accent-color: var(--
     bottom: 92px;
     width: auto;
     max-height: min(620px, calc(100vh - 120px));
+    max-height: min(620px, calc(100dvh - 120px));
   }
   .quick-lookup-detail { padding-left: 12px; }
-  .view-head {
-    padding: 18px 16px 14px;
-    flex-direction: column;
-    align-items: stretch;
-    gap: 12px;
-  }
-  .view-title { font-size: 28px; letter-spacing: .045em; }
-  .view-actions { width: 100%; flex-wrap: wrap; }
+  .view-head { padding: 18px 16px 14px; }
   .view-body { padding: 4px 16px 24px; }
-  .toolbar-row { flex-wrap: wrap; }
-  .search { min-width: 0; flex: 1 1 100%; }
-  .settings-layout { grid-template-columns: 1fr; gap: 16px; }
-  .settings-menu {
-    position: static;
-    flex-direction: row;
-    overflow-x: auto;
-    padding-bottom: 4px;
-  }
-  .settings-menu button { white-space: nowrap; flex: none; }
   .card-grid { grid-template-columns: 1fr; }
-  .split-layout > .list-card { overflow-x: auto; }
-  .split-layout > .list-card .list-row { min-width: 640px; }
-  .relations-grid { grid-template-columns: 1fr; }
-  .graph-stage { min-height: 360px; }
-  .graph-svg { height: 360px; }
-  .split-layout, .detail-grid, .form-grid-2, .form-grid-3 { grid-template-columns: 1fr; }
-  .hero-card, .editor-card-head { flex-direction: column; }
-  .project-inline-field { width: 100%; }
-  .project-inline-field .input { width: 100%; }
 }
 
 /* Theme surfaces: every theme uses one global image layer and translucent app surfaces. */
