@@ -2550,6 +2550,62 @@ body::after,
   height: 26px !important;
 }
 
+/* Focus mode must override both desktop and compact fallback rules. */
+.app-shell.app-focus-mode {
+  grid-template-columns: minmax(0, 1fr) !important;
+  grid-template-rows: minmax(0, 1fr) !important;
+}
+
+.app-shell.app-focus-mode .rail,
+.app-shell.app-focus-mode .mobile-shell-header,
+.app-shell.app-focus-mode .mobile-nav {
+  display: none !important;
+}
+
+.app-shell.app-focus-mode .main {
+  padding: 0 !important;
+  min-width: 0 !important;
+}
+
+.app-shell.app-focus-mode .workspace.focus-mode {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) !important;
+  height: 100% !important;
+  min-height: 0 !important;
+  overflow: hidden !important;
+}
+
+.app-shell.app-focus-mode .workspace.focus-mode > .tree-panel,
+.app-shell.app-focus-mode .workspace.focus-mode > .chat-pane,
+.app-shell.app-focus-mode .workspace.focus-mode > .workspace-mobile-header {
+  display: none !important;
+}
+
+.app-shell.app-focus-mode .workspace.focus-mode > .editor-pane {
+  display: flex !important;
+  height: 100% !important;
+  margin-top: 0 !important;
+  min-width: 0 !important;
+}
+
+.app-shell.app-focus-mode .workspace.focus-mode .editor-scroll {
+  justify-items: start !important;
+  padding: clamp(18px, 3.2vw, 46px) 24px clamp(34px, 6vw, 76px) clamp(24px, 5vw, 72px) !important;
+  overflow-x: hidden !important;
+}
+
+.app-shell.app-focus-mode .workspace.focus-mode .editor-workbench {
+  width: min(760px, calc(100vw - 120px)) !important;
+  max-width: min(760px, calc(100vw - 120px)) !important;
+  justify-self: start !important;
+}
+
+.app-shell.app-focus-mode .workspace.focus-mode .paper {
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+}
+
 @keyframes themeBackdropFade {
   from { opacity: 1; }
   to { opacity: 0; }
