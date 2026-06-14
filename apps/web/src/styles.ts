@@ -304,6 +304,14 @@ input[type="radio"] { width: 15px; height: 15px; margin: 0; accent-color: var(--
 .workspace.focus-mode { grid-template-columns: minmax(0,1fr); }
 .workspace.focus-mode .tree-panel,
 .workspace.focus-mode .chat-pane { display: none; }
+body.app-focus .rail,
+body.app-focus .mobile-nav,
+.workspace.focus-mode .workspace-mobile-header,
+.workspace.focus-mode .editor-statusbar,
+.workspace.focus-mode .editor-mode-switch,
+.workspace.focus-mode .paper-toolbar > .btn:not(:last-child) { display: none; }
+body.app-focus .app-shell { grid-template-columns: 1fr; }
+body.app-focus .main { padding-bottom: 0; }
 .main { min-width: 0; height: 100%; overflow: hidden; display: flex; flex-direction: column; }
 .main > .view,
 .main > .workspace { flex: 1; min-height: 0; }

@@ -139,6 +139,8 @@ const TOOLS = [
   { kind: "run" as const, Icon: Bot, label: "运行详情" },
 ];
 
+const FOCUS_TOOL_KINDS: readonly string[] = ["undo", "redo", "bold", "italic", "heading", "quote", "list"];
+
 const CHAPTER_STATUS_LABELS: Record<ChapterStatus, string> = {
   "not-started": "未开始",
   planning: "规划中",
@@ -1813,6 +1815,13 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
     });
   };
 
+  useEffect(() => {
+    document.body.classList.toggle("app-focus", focusMode);
+    return () => {
+      document.body.classList.remove("app-focus");
+    };
+  }, [focusMode]);
+
   return (
     <>
     <div className={`workspace mobile-panel-${mobilePanel}${focusMode ? " focus-mode" : ""}`}>
@@ -2140,8 +2149,14 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
           <div className={`editor-workbench${focusMode ? " focus-mode" : ""}`}>
             <div className="paper">
               <div className="paper-toolbar">
-                {TOOLS.map((tool, index) =>
-                  "sep" in tool ? (
+                {TOOLS.map((tool, index) => {
+                  if ("kind" in tool && focusMode && !FOCUS_TOOL_KINDS.includes(tool.kind ?? "")) {
+                    return null;
+                  }
+                  if ("sep" in tool && focusMode && index > 2) {
+                    return null;
+                  }
+                  return "sep" in tool ? (
                     <span className="sep" key={index} />
                   ) : (
                     <button
@@ -2210,8 +2225,8 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
                     >
                       <tool.Icon size={17} strokeWidth={1.75} />
                     </button>
-                  ),
-                )}
+                  );
+                })}
                 <div className="editor-mode-switch segmented" role="tablist" aria-label="编辑模式">
                   <button
                     type="button"
