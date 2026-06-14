@@ -2591,9 +2591,105 @@ body::after,
 }
 
 @media (min-width: 821px) and (max-width: 1180px) and (max-height: 720px) {
+  .app-shell.app-mobile-layout.app-compact-height {
+    display: grid !important;
+    grid-template-columns: 64px minmax(0, 1fr) !important;
+    grid-template-rows: minmax(0, 1fr) !important;
+  }
+
+  .app-shell.app-mobile-layout.app-compact-height .mobile-nav,
+  .app-shell.app-mobile-layout.app-compact-height .mobile-shell-header,
+  .app-shell.app-mobile-layout.app-compact-height .workspace-mobile-header {
+    display: none !important;
+  }
+
+  .app-shell.app-mobile-layout.app-compact-height .rail {
+    display: flex !important;
+  }
+
+  .app-shell.app-mobile-layout.app-compact-height .main {
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
+  }
+
+  .app-shell.app-mobile-layout.app-compact-height .workspace {
+    height: 100% !important;
+  }
+
+  .app-shell.app-mobile-layout.app-compact-height .workspace.mobile-panel-editor > .editor-pane,
+  .app-shell.app-mobile-layout.app-compact-height .workspace.mobile-panel-inspector > .editor-pane {
+    height: 100% !important;
+  }
+
+  .app-shell.app-mobile-layout.app-compact-height .workspace.mobile-panel-editor .editor-scroll,
+  .app-shell.app-mobile-layout.app-compact-height .workspace.mobile-panel-inspector .editor-scroll {
+    justify-content: flex-start !important;
+    padding: 18px 18px 24px 40px !important;
+  }
+
+  .app-shell.app-mobile-layout.app-compact-height .workspace.mobile-panel-editor .paper-toolbar,
+  .app-shell.app-mobile-layout.app-compact-height .workspace.mobile-panel-inspector .paper-toolbar {
+    flex-wrap: nowrap !important;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    scrollbar-width: thin;
+  }
+
+  .app-shell.app-mobile-layout.app-compact-height .workspace.mobile-panel-editor .paper-toolbar > *,
+  .app-shell.app-mobile-layout.app-compact-height .workspace.mobile-panel-inspector .paper-toolbar > * {
+    flex: 0 0 auto !important;
+  }
+
+  .app-shell.app-mobile-layout.app-compact-height .workspace.mobile-panel-editor .paper-toolbar .editor-mode-switch button,
+  .app-shell.app-mobile-layout.app-compact-height .workspace.mobile-panel-inspector .paper-toolbar .editor-mode-switch button {
+    width: 34px !important;
+    min-width: 34px !important;
+    padding: 0 !important;
+    overflow: hidden !important;
+    text-indent: -999px !important;
+    position: relative !important;
+  }
+
+  .app-shell.app-mobile-layout.app-compact-height .workspace.mobile-panel-editor .paper-toolbar .editor-mode-switch button::after,
+  .app-shell.app-mobile-layout.app-compact-height .workspace.mobile-panel-inspector .paper-toolbar .editor-mode-switch button::after {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    text-indent: 0;
+  }
+
+  .app-shell.app-mobile-layout.app-compact-height .workspace.mobile-panel-editor .paper-toolbar .editor-mode-switch button:first-child::after,
+  .app-shell.app-mobile-layout.app-compact-height .workspace.mobile-panel-inspector .paper-toolbar .editor-mode-switch button:first-child::after {
+    content: "普";
+  }
+
+  .app-shell.app-mobile-layout.app-compact-height .workspace.mobile-panel-editor .paper-toolbar .editor-mode-switch button:last-child::after,
+  .app-shell.app-mobile-layout.app-compact-height .workspace.mobile-panel-inspector .paper-toolbar .editor-mode-switch button:last-child::after {
+    content: "码";
+  }
+
+  .app-shell.app-mobile-layout.app-compact-height .workspace.mobile-panel-editor .paper-toolbar .toolbar-action-focus,
+  .app-shell.app-mobile-layout.app-compact-height .workspace.mobile-panel-inspector .paper-toolbar .toolbar-action-focus {
+    display: none !important;
+  }
+
+  .app-shell.app-mobile-layout.app-compact-height .workspace.mobile-panel-editor .paper-toolbar .toolbar-action-review,
+  .app-shell.app-mobile-layout.app-compact-height .workspace.mobile-panel-inspector .paper-toolbar .toolbar-action-review,
+  .app-shell.app-mobile-layout.app-compact-height .workspace.mobile-panel-editor .paper-toolbar .toolbar-action-polish,
+  .app-shell.app-mobile-layout.app-compact-height .workspace.mobile-panel-inspector .paper-toolbar .toolbar-action-polish {
+    display: none !important;
+  }
+
   .app-shell.app-mobile-layout.app-compact-height .workspace.mobile-panel-editor .editor-workbench,
-  .app-shell.app-mobile-layout.app-compact-height .workspace.mobile-panel-inspector .editor-workbench {
-    transform: translateX(-106px) !important;
+  .app-shell.app-mobile-layout.app-compact-height .workspace.mobile-panel-inspector .editor-workbench,
+  .app-shell.app-mobile-layout.app-compact-height .workspace.mobile-panel-editor .paper,
+  .app-shell.app-mobile-layout.app-compact-height .workspace.mobile-panel-inspector .paper {
+    width: min(680px, calc(100vw - 160px)) !important;
+    max-width: min(680px, calc(100vw - 160px)) !important;
+    flex-basis: min(680px, calc(100vw - 160px)) !important;
+    margin-left: 0 !important;
+    margin-right: auto !important;
   }
 }
 
