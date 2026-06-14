@@ -341,6 +341,31 @@ const QUICK_IMPORTANCE_LABELS: Record<string, string> = {
   minor: "次要",
 };
 
+function reviewReportHasIssues(reports: DirectorReviewReport[] | null): boolean {
+  return Boolean(formatReviewReportsForPolish(reports));
+}
+
+function formatReviewReportsForPolish(reports: DirectorReviewReport[] | null): string {
+  const issueReports = (reports ?? [])
+    .filter((report) => report.status === "success")
+    .map((report) => ({
+      agentName: report.agentName,
+      text: report.text.trim(),
+    }))
+    .filter((report) =>
+      report.text &&
+      !/未发现问题|没有发现问题|无问题|未发现明显问题/.test(report.text),
+    );
+
+  if (issueReports.length === 0) {
+    return "";
+  }
+
+  return issueReports
+    .map((report, index) => `${index + 1}. ${report.agentName}\n${report.text}`)
+    .join("\n\n");
+}
+
 interface WorkspaceViewProps {
   currentProjectId?: string | null;
   vaultPath?: string | null;
@@ -1654,6 +1679,45 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
     });
   };
 
+  const runReviewReportPolish = async () => {
+    closeConfirm();
+    if (polishing || executingTaskId !== null) {
+      return;
+    }
+    if (!polishAgent) {
+      pushText("ai", "未找到润色 Agent，请在 Agent 管理页确认。");
+      return;
+    }
+    const reportText = formatReviewReportsForPolish(reviewReports);
+    if (!reportText) {
+      pushText("ai", "当前质检报告没有可用于修正的问题。");
+      return;
+    }
+
+    setReviewReports(null);
+    setReviewError(null);
+    await executeAgentTask({
+      agentId: polishAgent.id,
+      agentName: polishAgent.name,
+      taskDescription: [
+        "请根据以下质检报告中发现的问题，针对性修正当前章节正文。",
+        "要求：只改有问题的地方，保持其余内容、原意、剧情走向和人物关系不变；不要额外解释，只返回修正后的完整正文。",
+        "",
+        "质检报告：",
+        reportText,
+      ].join("\n"),
+      loadingText: `【${polishAgent.name}】正在根据质检报告修正…`,
+      onBeforeExecute: () => {
+        setPolishing(true);
+        setPolishElapsedSeconds(0);
+        setPolishStartedAt(Date.now());
+      },
+      onFinally: () => {
+        setPolishing(false);
+        setPolishStartedAt(null);
+      },
+    });
+  };
   const openPolishConfirm = () => {
     if (!hasValidActiveChapter) {
       pushText("ai", "请先打开一个章节，再进行润色。");
@@ -1674,6 +1738,26 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
       confirmText: "开始润色",
       onConfirm: () => {
         void runPolish();
+      },
+    });
+  };
+
+  const openReviewReportPolishConfirm = () => {
+    if (!reviewReportHasIssues(reviewReports)) {
+      pushText("ai", "当前质检报告没有可用于修正的问题。");
+      return;
+    }
+    if (!polishAgent) {
+      pushText("ai", "未找到润色 Agent，请在 Agent 管理页确认。");
+      return;
+    }
+
+    openConfirm({
+      title: "根据质检报告修正",
+      message: `将根据质检报告，让「${polishAgent.name}」针对发现的问题修正当前章节正文，改动后可撤销。确认？`,
+      confirmText: "开始修正",
+      onConfirm: () => {
+        void runReviewReportPolish();
       },
     });
   };
@@ -2850,6 +2934,7 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
         elapsedSeconds={reviewElapsedSeconds}
         reports={reviewReports}
         error={reviewError}
+        onFixFromReport={openReviewReportPolishConfirm}
         onClose={() => {
           if (!reviewing) {
             setReviewReports(null);
@@ -2889,16 +2974,19 @@ function ReviewReportModal({
   elapsedSeconds,
   reports,
   error,
+  onFixFromReport,
   onClose,
 }: {
   reviewing: boolean;
   elapsedSeconds: number;
   reports: DirectorReviewReport[] | null;
   error: string | null;
+  onFixFromReport(): void;
   onClose(): void;
 }) {
   const successCount = reports?.filter((report) => report.status === "success").length ?? 0;
   const failedCount = reports?.filter((report) => report.status === "failed").length ?? 0;
+  const hasIssues = reviewReportHasIssues(reports);
 
   return (
     <div className="vault-modal-backdrop" onMouseDown={reviewing ? undefined : onClose}>
@@ -2950,6 +3038,11 @@ function ReviewReportModal({
         ) : null}
 
         <div className="vault-modal-actions">
+          {reports ? (
+            <button type="button" className="btn" onClick={onFixFromReport} disabled={reviewing || !hasIssues}>
+              根据报告修正正文
+            </button>
+          ) : null}
           <button type="button" className="btn btn-primary" onClick={onClose} disabled={reviewing}>
             关闭
           </button>
