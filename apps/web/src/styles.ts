@@ -2335,7 +2335,7 @@ body::after,
   }
 }
 
-@media (min-width: 1500px) {
+@media (min-width: 1900px) {
   .app-shell.app-desktop-layout:not(.app-focus-mode) .workspace {
     grid-template-columns: minmax(220px, 252px) minmax(0, 1fr) minmax(260px, 300px) !important;
   }
@@ -2421,18 +2421,18 @@ body::after,
   }
 }
 
-@media (min-width: 1181px) and (max-width: 1499px) {
+@media (min-width: 1181px) and (max-width: 1899px) {
   .app-shell.app-desktop-layout:not(.app-focus-mode) {
     grid-template-columns: 64px minmax(0, 1fr) !important;
   }
 
   .app-shell.app-desktop-layout:not(.app-focus-mode) .workspace {
-    grid-template-columns: minmax(152px, 180px) minmax(0, 1fr) !important;
+    grid-template-columns: minmax(232px, 252px) minmax(0, 1fr) !important;
   }
 
   .app-shell.app-desktop-layout:not(.app-focus-mode) .tree-head {
-    min-height: 82px !important;
-    padding: 22px 12px 10px !important;
+    min-height: 92px !important;
+    padding: 28px 16px 12px !important;
   }
 
   .app-shell.app-desktop-layout:not(.app-focus-mode) .tree-scroll {
