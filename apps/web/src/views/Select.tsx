@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent } from "react";
+import { createPortal } from "react-dom";
 import { Check, ChevronDown } from "lucide-react";
 
 export interface SelectOption {
@@ -30,8 +31,10 @@ export function Select({
 }: SelectProps) {
   const [open, setOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(-1);
+  const [menuStyle, setMenuStyle] = useState<CSSProperties | null>(null);
   const ref = useRef<HTMLDivElement | null>(null);
   const buttonRef = useRef<HTMLButtonElement | null>(null);
+  const menuRef = useRef<HTMLDivElement | null>(null);
   const selected = options.find((option) => option.value === value);
   const enabledIndexes = useMemo(
     () => options.map((option, index) => option.disabled ? -1 : index).filter((index) => index >= 0),
@@ -39,13 +42,41 @@ export function Select({
   );
   const isDisabled = disabled || options.length === 0;
 
+  const updateMenuPosition = () => {
+    const button = buttonRef.current;
+    if (!button) {
+      return;
+    }
+    const rect = button.getBoundingClientRect();
+    const viewportGap = 8;
+    const width = Math.max(rect.width, 220);
+    const availableBelow = window.innerHeight - rect.bottom - viewportGap * 2;
+    const availableAbove = rect.top - viewportGap * 2;
+    const openUpward = availableBelow < 180 && availableAbove > availableBelow;
+    const maxHeight = Math.min(280, Math.max(160, openUpward ? availableAbove : availableBelow));
+    const left = Math.min(Math.max(viewportGap, rect.left), Math.max(viewportGap, window.innerWidth - width - viewportGap));
+    setMenuStyle({
+      position: "fixed",
+      top: openUpward ? Math.max(viewportGap, rect.top - maxHeight - viewportGap) : rect.bottom + viewportGap,
+      left,
+      width,
+      maxHeight,
+      zIndex: 1000,
+    });
+  };
+
   useEffect(() => {
     if (!open) {
       return;
     }
 
+    updateMenuPosition();
     const onPointerDown = (event: PointerEvent) => {
-      if (ref.current && !ref.current.contains(event.target as Node)) {
+      const target = event.target as Node;
+      if (
+        ref.current && !ref.current.contains(target) &&
+        menuRef.current && !menuRef.current.contains(target)
+      ) {
         setOpen(false);
       }
     };
@@ -55,11 +86,18 @@ export function Select({
         buttonRef.current?.focus();
       }
     };
+    const onViewportChange = () => {
+      updateMenuPosition();
+    };
     window.addEventListener("pointerdown", onPointerDown);
     window.addEventListener("keydown", onKeyDown);
+    window.addEventListener("resize", onViewportChange);
+    window.addEventListener("scroll", onViewportChange, true);
     return () => {
       window.removeEventListener("pointerdown", onPointerDown);
       window.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("resize", onViewportChange);
+      window.removeEventListener("scroll", onViewportChange, true);
     };
   }, [open]);
 
@@ -114,6 +152,57 @@ export function Select({
   };
 
   let lastGroup: string | undefined;
+  const menu = open && typeof document !== "undefined" ? createPortal(
+    <div
+      ref={menuRef}
+      className="custom-select-menu custom-select-menu-portal"
+      role="listbox"
+      aria-label={ariaLabel}
+      style={menuStyle ?? undefined}
+    >
+      {options.map((option, index) => {
+        const showGroup = option.group && option.group !== lastGroup;
+        lastGroup = option.group;
+
+        return (
+          <div key={`${option.group ?? "default"}:${option.value}:${index}`}>
+            {showGroup ? <div className="custom-select-group">{option.group}</div> : null}
+            <button
+              type="button"
+              role="option"
+              aria-selected={option.value === value}
+              className={[
+                "custom-select-option",
+                option.value === value ? "selected" : "",
+                index === activeIndex ? "active" : "",
+              ].filter(Boolean).join(" ")}
+              disabled={option.disabled}
+              onMouseEnter={() => {
+                if (!option.disabled) {
+                  setActiveIndex(index);
+                }
+              }}
+              onClick={() => {
+                if (option.disabled) {
+                  return;
+                }
+                onChange(option.value);
+                setOpen(false);
+                buttonRef.current?.focus();
+              }}
+            >
+              <span>
+                <strong>{option.label}</strong>
+                {option.hint ? <small>{option.hint}</small> : null}
+              </span>
+              {option.value === value ? <Check size={14} strokeWidth={1.8} /> : null}
+            </button>
+          </div>
+        );
+      })}
+    </div>,
+    document.body,
+  ) : null;
 
   return (
     <div className={`custom-select${className ? ` ${className}` : ""}`} ref={ref}>
@@ -132,50 +221,7 @@ export function Select({
         <ChevronDown size={15} strokeWidth={1.8} />
       </button>
 
-      {open ? (
-        <div className="custom-select-menu" role="listbox" aria-label={ariaLabel}>
-          {options.map((option, index) => {
-            const showGroup = option.group && option.group !== lastGroup;
-            lastGroup = option.group;
-
-            return (
-              <div key={`${option.group ?? "default"}:${option.value}:${index}`}>
-                {showGroup ? <div className="custom-select-group">{option.group}</div> : null}
-                <button
-                  type="button"
-                  role="option"
-                  aria-selected={option.value === value}
-                  className={[
-                    "custom-select-option",
-                    option.value === value ? "selected" : "",
-                    index === activeIndex ? "active" : "",
-                  ].filter(Boolean).join(" ")}
-                  disabled={option.disabled}
-                  onMouseEnter={() => {
-                    if (!option.disabled) {
-                      setActiveIndex(index);
-                    }
-                  }}
-                  onClick={() => {
-                    if (option.disabled) {
-                      return;
-                    }
-                    onChange(option.value);
-                    setOpen(false);
-                    buttonRef.current?.focus();
-                  }}
-                >
-                  <span>
-                    <strong>{option.label}</strong>
-                    {option.hint ? <small>{option.hint}</small> : null}
-                  </span>
-                  {option.value === value ? <Check size={14} strokeWidth={1.8} /> : null}
-                </button>
-              </div>
-            );
-          })}
-        </div>
-      ) : null}
+      {menu}
     </div>
   );
 }

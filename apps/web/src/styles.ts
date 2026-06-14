@@ -284,7 +284,8 @@ input[type="radio"] { width: 15px; height: 15px; margin: 0; accent-color: var(--
 .custom-select-trigger[aria-expanded="true"] svg { color: var(--primary); transform: rotate(180deg); }
 .custom-select-trigger.placeholder { color: var(--text-muted); }
 .custom-select-trigger:disabled { opacity: .55; cursor: not-allowed; transform: none; }
-.custom-select-menu { position: absolute; top: calc(100% + 8px); left: 0; z-index: 80; width: max(100%, 220px); max-height: 280px; overflow: auto; padding: 6px; border: 1px solid var(--border); border-radius: var(--radius-sm); background-color: var(--bg-card); background-image: none; backdrop-filter: none; box-shadow: var(--shadow-popover); }
+.custom-select-menu { position: fixed; z-index: 1000; width: max(100%, 220px); max-height: 280px; overflow: auto; padding: 6px; border: 1px solid var(--border); border-radius: var(--radius-sm); background-color: var(--bg-card); background-image: none; backdrop-filter: none; box-shadow: var(--shadow-popover); }
+.custom-select-menu-portal { min-width: 220px; }
 .custom-select-group { padding: 7px 10px 5px; color: var(--text-muted); font-size: 11px; letter-spacing: .04em; }
 .custom-select-option { width: 100%; min-height: 34px; display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 7px 10px; border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--text-secondary); text-align: left; cursor: pointer; transition: background .16s ease, color .16s ease, box-shadow .16s ease; }
 .custom-select-option span { min-width: 0; display: grid; gap: 2px; }
