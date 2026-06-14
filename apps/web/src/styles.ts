@@ -2116,7 +2116,7 @@ body::after,
 }
 
 .app-shell.app-mobile-layout.app-compact-height .main {
-  padding-top: 34px !important;
+  padding-top: 52px !important;
   padding-bottom: 0 !important;
 }
 
@@ -2127,25 +2127,31 @@ body::after,
 .app-shell.app-mobile-layout.app-compact-height .mobile-nav {
   top: 0 !important;
   bottom: auto !important;
-  min-height: 34px !important;
-  height: 34px !important;
-  padding: 3px 8px !important;
+  min-height: 52px !important;
+  height: 52px !important;
+  padding: 5px 8px !important;
   align-items: center !important;
 }
 
 .app-shell.app-mobile-layout.app-compact-height .mobile-nav-item {
-  min-width: 38px !important;
-  height: 28px !important;
+  min-width: 54px !important;
+  height: 42px !important;
   padding: 0 6px !important;
+  gap: 2px !important;
+  font-size: 10px !important;
 }
 
 .app-shell.app-mobile-layout.app-compact-height .mobile-nav-item span {
-  display: none !important;
+  display: block !important;
+  max-width: 44px !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
 }
 
 .app-shell.app-mobile-layout.app-compact-height .workspace-mobile-header {
   position: absolute !important;
-  top: 38px !important;
+  top: 56px !important;
   right: 8px !important;
   z-index: 42 !important;
   display: block !important;
@@ -2189,16 +2195,32 @@ body::after,
 .app-shell.app-mobile-layout.app-compact-height .workspace.mobile-panel-editor .paper-body {
   padding-top: 18px !important;
   padding-bottom: 26px !important;
+  align-items: center !important;
 }
 
 .app-shell.app-mobile-layout.app-compact-height .workspace.mobile-panel-editor .chapter-title {
+  width: min(700px, 100%) !important;
+  max-width: min(700px, 100%) !important;
   font-size: clamp(24px, 4.2vw, 30px) !important;
   line-height: 1.16 !important;
+  text-align: center !important;
 }
 
 .app-shell.app-mobile-layout.app-compact-height .workspace.mobile-panel-editor .title-rule {
   margin-top: 8px !important;
   margin-bottom: 16px !important;
+  margin-left: auto !important;
+  margin-right: auto !important;
+  align-self: center !important;
+}
+
+.app-shell.app-mobile-layout.app-compact-height .workspace.mobile-panel-editor .manuscript,
+.app-shell.app-mobile-layout.app-compact-height .workspace.mobile-panel-editor .rich-editor-shell,
+.app-shell.app-mobile-layout.app-compact-height .workspace.mobile-panel-editor .source-manuscript {
+  width: min(700px, 100%) !important;
+  max-width: min(700px, 100%) !important;
+  margin-left: auto !important;
+  margin-right: auto !important;
 }
 
 .app-shell.app-desktop-layout:not(.app-focus-mode) {
