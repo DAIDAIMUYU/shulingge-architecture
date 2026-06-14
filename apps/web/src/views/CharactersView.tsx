@@ -780,6 +780,87 @@ function CharacterAssistModal({
   );
 }
 
+function CharacterResearchModal({
+  loading,
+  error,
+  initialCharacterName,
+  initialSourceWork,
+  onCancel,
+  onSubmit,
+}: {
+  loading: boolean;
+  error: string | null;
+  initialCharacterName: string;
+  initialSourceWork: string;
+  onCancel(): void;
+  onSubmit(input: { characterName: string; sourceWork?: string }): void;
+}) {
+  const [characterName, setCharacterName] = useState(initialCharacterName);
+  const [sourceWork, setSourceWork] = useState(initialSourceWork);
+  const elapsedSeconds = useElapsedSeconds(loading);
+
+  const submit = (event: FormEvent) => {
+    event.preventDefault();
+    const name = characterName.trim();
+    if (loading || !name) {
+      return;
+    }
+    onSubmit({
+      characterName: name,
+      sourceWork: sourceWork.trim(),
+    });
+  };
+
+  return (
+    <div
+      className="vault-modal-backdrop"
+      onMouseDown={(event) => {
+        event.stopPropagation();
+        if (!loading) {
+          onCancel();
+        }
+      }}
+    >
+      <form className="vault-modal character-assist-modal" onSubmit={submit} onMouseDown={(event) => event.stopPropagation()}>
+        <div className="character-modal-head compact">
+          <div>
+            <h2>联网查资料</h2>
+            <p>从中文维基百科检索真实资料，再交给模型整理成当前角色档案字段。</p>
+          </div>
+          <button type="button" className="btn-icon" onClick={onCancel} disabled={loading} aria-label="关闭">
+            <X size={16} />
+          </button>
+        </div>
+
+        <div className="form-grid form-grid-2 character-assist-fanfic-grid">
+          <label className="form-block">
+            <span>角色名</span>
+            <input className="input" value={characterName} placeholder="例如：胡蝶忍" onChange={(event) => setCharacterName(event.target.value)} disabled={loading} />
+          </label>
+          <label className="form-block">
+            <span>来源作品</span>
+            <input className="input" value={sourceWork} placeholder="可选，例如：鬼灭之刃" onChange={(event) => setSourceWork(event.target.value)} disabled={loading} />
+          </label>
+        </div>
+
+        <div className="character-assist-note">本功能只使用维基百科检索到的资料整理字段；维基未提到或不确定的信息会尽量留空，请保存前自行核对。</div>
+        {loading ? <div className="character-assist-note">正在查询并整理…（已用 {elapsedSeconds} 秒）</div> : null}
+        {error ? <div className="err-card">{error}</div> : null}
+
+        <div className="vault-modal-actions">
+          <button type="button" className="btn btn-ghost" onClick={onCancel} disabled={loading}>
+            取消
+          </button>
+          <button type="submit" className="btn btn-primary" disabled={loading || !characterName.trim()}>
+            <Sparkles size={15} className={loading ? "spin-icon" : undefined} />
+            {loading ? `查询中...${elapsedSeconds}s` : "联网查资料"}
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
 function CharacterAiCreateModal({
   projectId,
   loading,
@@ -955,11 +1036,17 @@ function CharacterEditor({
   const profile = normalizeProfile(value.profile);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [assistOpen, setAssistOpen] = useState(false);
+  const [researchOpen, setResearchOpen] = useState(false);
   const [assistLoading, setAssistLoading] = useState(false);
+  const [researchLoading, setResearchLoading] = useState(false);
   const [assistError, setAssistError] = useState<string | null>(null);
+  const [researchError, setResearchError] = useState<string | null>(null);
   const [assistNotice, setAssistNotice] = useState<string | null>(null);
+  const [researchSource, setResearchSource] = useState<{ title: string; url: string } | null>(null);
   const [fieldAssistLoading, setFieldAssistLoading] = useState<string | null>(null);
   const isDetailed = profile.template === "detailed";
+  const initialResearchName = (value.name || profile.basic?.fullName || "").trim();
+  const initialResearchSourceWork = (profile.background?.sourceWork ?? "").trim();
 
   const updateProfile = (nextProfile: CharacterProfile) => {
     onChange({ ...value, profile: nextProfile });
@@ -1012,6 +1099,7 @@ function CharacterEditor({
     setFieldAssistLoading(`${group.id}.${field.key}`);
     setAssistError(null);
     setAssistNotice(null);
+    setResearchSource(null);
     try {
       const response = await api.assistCharacter({
         mode: modeValue,
@@ -1134,6 +1222,7 @@ function CharacterEditor({
     setAssistLoading(true);
     setAssistError(null);
     setAssistNotice(null);
+    setResearchSource(null);
     try {
       const response = await api.assistCharacter({
         mode: input.mode,
@@ -1160,6 +1249,35 @@ function CharacterEditor({
       setAssistLoading(false);
     }
   };
+  const runResearch = async (input: { characterName: string; sourceWork?: string }) => {
+    const fields = collectAssistFields(profile);
+    if (!fields.length) {
+      setResearchError("当前没有可填充的字段。");
+      return;
+    }
+
+    setResearchLoading(true);
+    setResearchError(null);
+    setAssistNotice(null);
+    setResearchSource(null);
+    try {
+      const response = await api.researchCharacter({
+        characterName: input.characterName,
+        sourceWork: input.sourceWork,
+        projectId,
+        fields: fields.map(({ group, key, label }) => ({ group, key, label })),
+      });
+      const nextProfile = mergeAssistFields(profile, fields, response.fields);
+      onChange({ ...value, name: value.name || input.characterName, profile: nextProfile });
+      setResearchOpen(false);
+      setResearchSource(response.source);
+      setAssistNotice(`已根据维基百科「${response.source.title}」填入可用空字段，请核对后保存。`);
+    } catch (researchErrorValue) {
+      setResearchError(researchErrorValue instanceof ApiError ? researchErrorValue.message : "联网查资料失败");
+    } finally {
+      setResearchLoading(false);
+    }
+  };
 
   return (
     <div className="vault-modal-backdrop character-modal-backdrop" onMouseDown={onCancel}>
@@ -1176,6 +1294,14 @@ function CharacterEditor({
         <div className="character-modal-body">
           {error ? <div className="err-card">保存失败：{error}</div> : null}
           {assistNotice ? <div className="character-assist-success">{assistNotice}</div> : null}
+          {researchSource ? (
+            <div className="character-assist-success">
+              资料来源：
+              <a href={researchSource.url} target="_blank" rel="noreferrer">
+                {researchSource.title}
+              </a>
+            </div>
+          ) : null}
           <section className="character-editor-top">
             <div className="character-avatar-uploader">
               {isLikelyImagePath(profile.avatarPath) ? <img src={profile.avatarPath} alt="" /> : <Image size={28} />}
@@ -1239,6 +1365,18 @@ function CharacterEditor({
             <Sparkles size={15} />
             AI 辅助填充
           </button>
+          <button
+            type="button"
+            className="btn"
+            onClick={() => {
+              setResearchOpen(true);
+              setResearchError(null);
+            }}
+            disabled={assistLoading || researchLoading}
+          >
+            <Sparkles size={15} />
+            联网查资料(维基百科)
+          </button>
           <span className="grow" />
           <button type="button" className="btn btn-ghost" onClick={onCancel}>
             取消
@@ -1261,6 +1399,23 @@ function CharacterEditor({
           }}
           onSubmit={(input) => {
             void runAssist(input);
+          }}
+        />
+      ) : null}
+      {researchOpen ? (
+        <CharacterResearchModal
+          loading={researchLoading}
+          error={researchError}
+          initialCharacterName={initialResearchName}
+          initialSourceWork={initialResearchSourceWork}
+          onCancel={() => {
+            if (!researchLoading) {
+              setResearchOpen(false);
+              setResearchError(null);
+            }
+          }}
+          onSubmit={(input) => {
+            void runResearch(input);
           }}
         />
       ) : null}

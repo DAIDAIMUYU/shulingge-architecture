@@ -283,6 +283,20 @@ export interface AssistCharacterResponse {
   modelId: string;
   fields: Record<string, string>;
 }
+export interface ResearchCharacterPayload {
+  characterName: string;
+  sourceWork?: string;
+  projectId?: string;
+  fields?: AssistCharacterField[];
+}
+export interface ResearchCharacterResponse {
+  modelId: string;
+  fields: Record<string, string>;
+  source: {
+    title: string;
+    url: string;
+  };
+}
 export interface AssistWorldbookField {
   group: string;
   key: string;
@@ -842,6 +856,8 @@ export const api = {
     }),
   assistCharacter: async (payload: AssistCharacterPayload): Promise<AssistCharacterResponse> =>
     post<AssistCharacterResponse>("/assist/character", payload),
+  researchCharacter: async (payload: ResearchCharacterPayload): Promise<ResearchCharacterResponse> =>
+    post<ResearchCharacterResponse>("/assist/character/research", payload),
   assistWorldbook: async (payload: AssistWorldbookPayload): Promise<AssistWorldbookResponse> =>
     post<AssistWorldbookResponse>("/assist/worldbook", payload),
   assistTimeline: async (payload: AssistTimelinePayload): Promise<AssistTimelineResponse> =>
