@@ -337,6 +337,7 @@ body.app-focus .main { padding-bottom: 0; }
 .tree-panel { background: var(--bg-panel); background-image: none; border-right: 1px solid var(--border); display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
 .tree-head { display: flex; align-items: center; justify-content: space-between; padding: 22px 20px 14px; flex: none; }
 .tree-head h2 { font-family: var(--font-serif); font-size: 17px; font-weight: 600; letter-spacing: .03em; }
+.tree-current-project { max-width: 168px; margin-top: 6px; padding: 3px 7px; border: 1px solid color-mix(in srgb, var(--primary) 18%, var(--border)); border-radius: var(--radius-sm); background: color-mix(in srgb, var(--primary-light) 44%, transparent); color: var(--primary); font-size: 11px; line-height: 1.35; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tree-total-words { margin-top: 4px; font-size: 12px; color: var(--text-muted); }
 .tree-head-actions { display: flex; align-items: center; gap: 4px; }
 .tree-search-box { padding: 0 12px 10px; flex: none; }

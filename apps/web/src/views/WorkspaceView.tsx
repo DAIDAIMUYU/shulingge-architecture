@@ -474,6 +474,7 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
   const hasValidActiveChapter = Boolean(activeId && chapter && allChapters.some((chapterItem) => chapterItem.id === activeId));
   const totalWordCount = allChapters.reduce((sum, chapterItem) => sum + chapterItem.wordCount, 0);
   const lookupProjectId = locator.projectId || projectTree?.projectId || currentProjectId || "";
+  const currentProjectName = projectTree?.title || projectTree?.projectId || currentProjectId || "暂无项目";
   const quickLookupQueryText = quickLookupQuery.trim().toLowerCase();
   const filteredQuickLookupCharacters = useMemo(
     () => quickLookupCharacters.filter((item) =>
@@ -1644,7 +1645,7 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
 
     openConfirm({
       title: "一键质检",
-      message: `将依次运行：${reviewAgents.map((agent) => agent.name).join("、")}，对当前章节进行检查。确认开始？`,
+      message: `将基于「${currentProjectName}」的角色/世界观设定，依次运行：${reviewAgents.map((agent) => agent.name).join("、")}，对当前章节进行检查。确认开始？`,
       confirmText: "开始质检",
       onConfirm: () => {
         void runChapterReview();
@@ -1734,7 +1735,7 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
 
     openConfirm({
       title: "一键润色",
-      message: `将调用「${polishAgent.name}」对当前章节正文进行润色，改动后可撤销。确认？`,
+      message: `将基于「${currentProjectName}」的角色/世界观设定，调用「${polishAgent.name}」对当前章节正文进行润色，改动后可撤销。确认？`,
       confirmText: "开始润色",
       onConfirm: () => {
         void runPolish();
@@ -1754,7 +1755,7 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
 
     openConfirm({
       title: "根据质检报告修正",
-      message: `将根据质检报告，让「${polishAgent.name}」针对发现的问题修正当前章节正文，改动后可撤销。确认？`,
+      message: `将基于「${currentProjectName}」的角色/世界观设定和当前质检报告，让「${polishAgent.name}」针对发现的问题修正当前章节正文，改动后可撤销。确认？`,
       confirmText: "开始修正",
       onConfirm: () => {
         void runReviewReportPolish();
@@ -1943,6 +1944,9 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
         <div className="tree-head">
           <div>
             <h2>章节与资料</h2>
+            <div className="tree-current-project" title={currentProjectName}>
+              当前项目：{currentProjectName}
+            </div>
             <div className="tree-total-words">{formatWordCount(totalWordCount)}</div>
           </div>
           <div className="tree-head-actions">
