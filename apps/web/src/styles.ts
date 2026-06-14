@@ -2629,15 +2629,29 @@ body::after,
 
   .app-shell.app-mobile-layout.app-compact-height .workspace.mobile-panel-editor .paper-toolbar,
   .app-shell.app-mobile-layout.app-compact-height .workspace.mobile-panel-inspector .paper-toolbar {
-    flex-wrap: nowrap !important;
-    overflow-x: auto !important;
-    overflow-y: hidden !important;
-    scrollbar-width: thin;
+    flex-wrap: wrap !important;
+    overflow-x: hidden !important;
+    overflow-y: visible !important;
+    align-content: flex-start !important;
+    row-gap: 4px !important;
+    height: auto !important;
+    min-height: 64px !important;
+    max-height: none !important;
   }
 
   .app-shell.app-mobile-layout.app-compact-height .workspace.mobile-panel-editor .paper-toolbar > *,
   .app-shell.app-mobile-layout.app-compact-height .workspace.mobile-panel-inspector .paper-toolbar > * {
     flex: 0 0 auto !important;
+  }
+
+  .app-shell.app-mobile-layout.app-compact-height .workspace.mobile-panel-editor .paper-toolbar .grow,
+  .app-shell.app-mobile-layout.app-compact-height .workspace.mobile-panel-inspector .paper-toolbar .grow {
+    display: block !important;
+    flex: 0 0 100% !important;
+    width: 100% !important;
+    height: 0 !important;
+    min-width: 0 !important;
+    margin: 0 !important;
   }
 
   .app-shell.app-mobile-layout.app-compact-height .workspace.mobile-panel-editor .paper-toolbar .editor-mode-switch button,
@@ -2669,25 +2683,13 @@ body::after,
     content: "码";
   }
 
-  .app-shell.app-mobile-layout.app-compact-height .workspace.mobile-panel-editor .paper-toolbar .toolbar-action-focus,
-  .app-shell.app-mobile-layout.app-compact-height .workspace.mobile-panel-inspector .paper-toolbar .toolbar-action-focus {
-    display: none !important;
-  }
-
-  .app-shell.app-mobile-layout.app-compact-height .workspace.mobile-panel-editor .paper-toolbar .toolbar-action-review,
-  .app-shell.app-mobile-layout.app-compact-height .workspace.mobile-panel-inspector .paper-toolbar .toolbar-action-review,
-  .app-shell.app-mobile-layout.app-compact-height .workspace.mobile-panel-editor .paper-toolbar .toolbar-action-polish,
-  .app-shell.app-mobile-layout.app-compact-height .workspace.mobile-panel-inspector .paper-toolbar .toolbar-action-polish {
-    display: none !important;
-  }
-
   .app-shell.app-mobile-layout.app-compact-height .workspace.mobile-panel-editor .editor-workbench,
   .app-shell.app-mobile-layout.app-compact-height .workspace.mobile-panel-inspector .editor-workbench,
   .app-shell.app-mobile-layout.app-compact-height .workspace.mobile-panel-editor .paper,
   .app-shell.app-mobile-layout.app-compact-height .workspace.mobile-panel-inspector .paper {
-    width: min(620px, calc(100vw - 220px)) !important;
-    max-width: min(620px, calc(100vw - 220px)) !important;
-    flex-basis: min(620px, calc(100vw - 220px)) !important;
+    width: min(700px, calc(100vw - 150px)) !important;
+    max-width: min(700px, calc(100vw - 150px)) !important;
+    flex-basis: min(700px, calc(100vw - 150px)) !important;
     margin-left: 0 !important;
     margin-right: auto !important;
   }
