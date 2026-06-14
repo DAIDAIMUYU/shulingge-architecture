@@ -21,6 +21,28 @@ export interface ResearchCharacterInput {
   sourceConfig?: Record<string, unknown>;
 }
 
+export interface ResearchWorldbookInput {
+  entryName?: string;
+  sourceWork?: string;
+  projectId?: string;
+  template?: string;
+  category?: string;
+  fields?: ResearchCharacterField[];
+  source?: string;
+  sourceConfig?: Record<string, unknown>;
+}
+
+export interface ResearchTimelineInput {
+  eventName?: string;
+  sourceWork?: string;
+  projectId?: string;
+  template?: string;
+  line?: string;
+  fields?: ResearchCharacterField[];
+  source?: string;
+  sourceConfig?: Record<string, unknown>;
+}
+
 export interface ResearchCharacterResponse {
   modelId: string;
   fields: Record<string, string>;
@@ -186,6 +208,37 @@ const FALLBACK_FIELDS: ResearchCharacterField[] = [
   { group: "背景", key: "specialPower", label: "是否拥有该世界观特殊能力" },
   { group: "背景", key: "canonRole", label: "职责/身份/阵营" },
 ];
+const FALLBACK_WORLDBOOK_FIELDS: ResearchCharacterField[] = [
+  { group: "核心信息", key: "title", label: "名称" },
+  { group: "核心信息", key: "category", label: "类型" },
+  { group: "核心信息", key: "summary", label: "一句话简介" },
+  { group: "核心信息", key: "description", label: "详细描述" },
+  { group: "核心信息", key: "keywords", label: "关键词" },
+  { group: "设定内容", key: "appearance", label: "外观/样貌" },
+  { group: "设定内容", key: "function", label: "功能/作用" },
+  { group: "设定内容", key: "history", label: "历史/起源" },
+  { group: "设定内容", key: "currentState", label: "现状" },
+  { group: "设定内容", key: "mechanism", label: "运作规则/机制" },
+  { group: "设定内容", key: "traits", label: "特性/特点" },
+  { group: "关联", key: "canonRelation", label: "与原作的关系" },
+  { group: "写作参考", key: "canonSource", label: "原作出处" },
+];
+const FALLBACK_TIMELINE_FIELDS: ResearchCharacterField[] = [
+  { group: "核心信息", key: "title", label: "事件标题" },
+  { group: "核心信息", key: "line", label: "线类型" },
+  { group: "核心信息", key: "eventDate", label: "发生时间" },
+  { group: "核心信息", key: "location", label: "地点" },
+  { group: "核心信息", key: "summary", label: "一句话简介" },
+  { group: "核心信息", key: "description", label: "详细描述" },
+  { group: "事件内容", key: "cause", label: "起因/背景" },
+  { group: "事件内容", key: "development", label: "经过/发展" },
+  { group: "事件内容", key: "result", label: "结果/影响" },
+  { group: "事件内容", key: "turningPoint", label: "关键转折" },
+  { group: "事件内容", key: "conflict", label: "涉及的冲突" },
+  { group: "关联", key: "previousEvents", label: "前置事件" },
+  { group: "关联", key: "nextEvents", label: "后续事件" },
+  { group: "写作参考", key: "canonSource", label: "原作出处" },
+];
 
 export function listSearchSources(): { sources: SearchSourceInfo[] } {
   return {
@@ -265,9 +318,9 @@ async function resolveResearchModel(
   };
 }
 
-function normalizeFields(input: unknown): ResearchCharacterField[] {
+function normalizeFields(input: unknown, fallback: ResearchCharacterField[] = FALLBACK_FIELDS): ResearchCharacterField[] {
   if (!Array.isArray(input)) {
-    return FALLBACK_FIELDS;
+    return fallback;
   }
 
   const fields: ResearchCharacterField[] = [];
@@ -288,7 +341,7 @@ function normalizeFields(input: unknown): ResearchCharacterField[] {
       });
   }
 
-  return fields.length ? fields : FALLBACK_FIELDS;
+  return fields.length ? fields : fallback;
 }
 
 function cleanHtmlSnippet(value: string): string {
@@ -845,33 +898,44 @@ async function fetchMediaWikiSource(input: {
   const searchItemsByTitle = new Map<string, WikipediaSearchItem>();
   try {
     for (const query of queries) {
-      const searchUrl = buildMediaWikiUrl(input.source, {
-        action: "query",
-        list: "search",
-        srsearch: query,
-        srlimit: "8",
-      });
-      const searchData = await fetchJsonWithTimeout<{
-        query?: { search?: Array<{ title?: string; snippet?: string }> };
-      }>(input.fetchImpl, searchUrl);
-      const queryItems = (searchData.query?.search ?? [])
-        .map((item) => ({
-          title: typeof item.title === "string" ? item.title.trim() : "",
-          snippet: typeof item.snippet === "string" ? item.snippet : "",
-        }))
-        .filter((item) => item.title);
-      for (const item of queryItems) {
-        const current = searchItemsByTitle.get(item.title);
-        searchItemsByTitle.set(item.title, {
-          title: item.title,
-          snippet: [current?.snippet, item.snippet].filter(Boolean).join(" "),
+      try {
+        const searchUrl = buildMediaWikiUrl(input.source, {
+          action: "query",
+          list: "search",
+          srsearch: query,
+          srlimit: "8",
         });
+        const searchData = await fetchJsonWithTimeout<{
+          query?: { search?: Array<{ title?: string; snippet?: string }> };
+        }>(input.fetchImpl, searchUrl);
+        const queryItems = (searchData.query?.search ?? [])
+          .map((item) => ({
+            title: typeof item.title === "string" ? item.title.trim() : "",
+            snippet: typeof item.snippet === "string" ? item.snippet : "",
+          }))
+          .filter((item) => item.title);
+        for (const item of queryItems) {
+          const current = searchItemsByTitle.get(item.title);
+          searchItemsByTitle.set(item.title, {
+            title: item.title,
+            snippet: [current?.snippet, item.snippet].filter(Boolean).join(" "),
+          });
+        }
+        researchLog(`${input.source.name}搜索结果`, {
+          query,
+          found: queryItems.length,
+          titles: queryItems.map((item) => item.title),
+        });
+      } catch (error) {
+        researchLog(`${input.source.name}单次搜索失败，尝试使用已有候选继续`, {
+          query,
+          existingCandidates: searchItemsByTitle.size,
+          error: error instanceof Error ? error.message : String(error),
+        });
+        if (!searchItemsByTitle.size) {
+          throw error;
+        }
       }
-      researchLog(`${input.source.name}搜索结果`, {
-        query,
-        found: queryItems.length,
-        titles: queryItems.map((item) => item.title),
-      });
     }
     const searchItems = [...searchItemsByTitle.values()];
     researchLog(`${input.source.name}搜索结果`, {
@@ -1110,9 +1174,13 @@ async function fetchMediaWikiSource(input: {
 }
 
 function buildMessages(input: {
-  characterName: string;
+  subjectType: "character" | "worldbook" | "timeline";
+  subjectName: string;
   sourceWork: string;
   projectId?: string;
+  template?: string;
+  category?: string;
+  line?: string;
   fields: ResearchCharacterField[];
   source: ResearchSource;
   attempt: number;
@@ -1133,28 +1201,52 @@ function buildMessages(input: {
     "搜索结果摘要：",
     input.source.searchContext,
   ].join("\n").slice(0, MAX_WIKI_CONTEXT_CHARS);
+  const subjectLabel = input.subjectType === "character" ? "角色" : input.subjectType === "worldbook" ? "世界大纲设定条目" : "时间线事件";
+  const systemIntro =
+    input.subjectType === "character"
+      ? "你在帮助用户把联网百科资料整理成小说写作工具里的角色档案字段。"
+      : input.subjectType === "worldbook"
+        ? "你在帮助用户把联网百科资料整理成小说写作工具里的【世界大纲】字段。"
+        : "你在帮助用户把联网百科资料整理成小说写作工具里的【时间线事件】字段。";
+  const domainRules =
+    input.subjectType === "character"
+      ? [
+          "信息框资料里的明确属性优先填入对应字段，例如发色、瞳色/眼睛颜色、身高、体重、年龄、生日、声优、萌点/标签、所属团体等。",
+          "正文后段明确提到的经历、最终走向、死亡/幸存/结局等，请整理到背景、重要事件或最终走向相关字段。",
+        ]
+      : input.subjectType === "worldbook"
+        ? [
+            "优先整理条目的类型、简介、详细描述、外观/构成、功能/作用、历史/起源、现状、机制、特点、与原作的关系和原作出处。",
+            "如果资料来自信息框或分类标签，请把明确的所属、类型、状态、组织、地点、能力体系、关键词等整理到对应字段。",
+          ]
+        : [
+            "优先整理事件标题、发生时间、地点、一句话简介、详细描述、起因、经过、结果、关键转折、冲突、前置/后续事件和原作出处。",
+            "如果资料只覆盖大段剧情，请只摘取与查询事件直接相关的信息，不要把整部作品剧情泛泛塞入字段。",
+          ];
 
   return [
     {
       role: "system",
       content: [
-        "你在帮助用户把联网百科资料整理成小说写作工具里的角色档案字段。",
+        systemIntro,
         "你必须只根据用户提供的联网百科资料和搜索摘要整理，不要凭空补写资料中没有的信息。",
         "资料不确定、没有明确提到、或无法从资料推出的字段请留空，不要编造。",
-        "信息框资料里的明确属性优先填入对应字段，例如发色、瞳色/眼睛颜色、身高、体重、年龄、生日、声优、萌点/标签、所属团体等。",
-        "正文后段明确提到的经历、最终走向、死亡/幸存/结局等，请整理到背景、重要事件或最终走向相关字段。",
+        ...domainRules,
         "只生成字段清单中存在的字段，不要新增字段。",
         "输出必须是严格 JSON，不要 Markdown，不要代码块，不要解释。",
         'JSON 结构必须是：{ "fields": { "<字段 key 或 label>": "<整理后的内容>" } }',
-        "字段内容使用简体中文，保持简洁、可直接放进角色档案。",
+        "字段内容使用简体中文，保持简洁、可直接放进当前编辑器。",
       ].join("\n"),
     },
     {
       role: "user",
       content: [
         `项目：${input.projectId || "未指定"}`,
-        `要查询的角色：${input.characterName}`,
+        `要查询的${subjectLabel}：${input.subjectName}`,
         input.sourceWork ? `来源作品：${input.sourceWork}` : "来源作品：未指定",
+        input.template ? `模板：${input.template}` : "",
+        input.category ? `设定类型：${input.category}` : "",
+        input.line ? `线类型：${input.line}` : "",
         input.attempt > 1 ? `这是第 ${input.attempt} 次请求。上一次输出不是可解析 JSON，请只输出纯 JSON。` : "",
         "",
         "可填写字段清单：",
@@ -1321,9 +1413,13 @@ function fillFieldsFromInfobox(
 async function generateFieldsFromSource(input: {
   registry: ProviderRegistry;
   modelId: string;
-  characterName: string;
+  subjectType: "character" | "worldbook" | "timeline";
+  subjectName: string;
   sourceWork: string;
   projectId?: string;
+  template?: string;
+  category?: string;
+  line?: string;
   fields: ResearchCharacterField[];
   source: ResearchSource;
 }): Promise<Record<string, string>> {
@@ -1382,8 +1478,103 @@ export async function researchCharacter(
     throw createHttpError(400, "RESEARCH_CHARACTER_NAME_REQUIRED", "请先填写要查询的角色名");
   }
 
+  return await researchStructuredEntry(
+    vaultRoot,
+    {
+      subjectType: "character",
+      subjectName: characterName,
+      sourceWork,
+      projectId: input.projectId,
+      fields: input.fields,
+      source: input.source,
+      fallbackFields: FALLBACK_FIELDS,
+      failureCode: "RESEARCH_CHARACTER_FAILED",
+      failurePrefix: "角色联网查资料失败",
+    },
+    options,
+  );
+}
+
+export async function researchWorldbook(
+  vaultRoot: string,
+  input: ResearchWorldbookInput,
+  options: ResearchCharacterOptions,
+): Promise<ResearchCharacterResponse> {
+  const entryName = typeof input.entryName === "string" ? input.entryName.trim() : "";
+  const sourceWork = typeof input.sourceWork === "string" ? input.sourceWork.trim() : "";
+  if (!entryName) {
+    throw createHttpError(400, "RESEARCH_WORLDBOOK_NAME_REQUIRED", "请先填写要查询的设定条目名");
+  }
+
+  return await researchStructuredEntry(
+    vaultRoot,
+    {
+      subjectType: "worldbook",
+      subjectName: entryName,
+      sourceWork,
+      projectId: input.projectId,
+      template: typeof input.template === "string" ? input.template.trim() : "",
+      category: typeof input.category === "string" ? input.category.trim() : "",
+      fields: input.fields,
+      source: input.source,
+      fallbackFields: FALLBACK_WORLDBOOK_FIELDS,
+      failureCode: "RESEARCH_WORLDBOOK_FAILED",
+      failurePrefix: "世界大纲联网查资料失败",
+    },
+    options,
+  );
+}
+
+export async function researchTimeline(
+  vaultRoot: string,
+  input: ResearchTimelineInput,
+  options: ResearchCharacterOptions,
+): Promise<ResearchCharacterResponse> {
+  const eventName = typeof input.eventName === "string" ? input.eventName.trim() : "";
+  const sourceWork = typeof input.sourceWork === "string" ? input.sourceWork.trim() : "";
+  if (!eventName) {
+    throw createHttpError(400, "RESEARCH_TIMELINE_NAME_REQUIRED", "请先填写要查询的事件名");
+  }
+
+  return await researchStructuredEntry(
+    vaultRoot,
+    {
+      subjectType: "timeline",
+      subjectName: eventName,
+      sourceWork,
+      projectId: input.projectId,
+      template: typeof input.template === "string" ? input.template.trim() : "",
+      line: typeof input.line === "string" ? input.line.trim() : "",
+      fields: input.fields,
+      source: input.source,
+      fallbackFields: FALLBACK_TIMELINE_FIELDS,
+      failureCode: "RESEARCH_TIMELINE_FAILED",
+      failurePrefix: "时间线联网查资料失败",
+    },
+    options,
+  );
+}
+
+async function researchStructuredEntry(
+  vaultRoot: string,
+  input: {
+    subjectType: "character" | "worldbook" | "timeline";
+    subjectName: string;
+    sourceWork: string;
+    projectId?: string;
+    template?: string;
+    category?: string;
+    line?: string;
+    fields?: ResearchCharacterField[];
+    source?: string;
+    fallbackFields: ResearchCharacterField[];
+    failureCode: string;
+    failurePrefix: string;
+  },
+  options: ResearchCharacterOptions,
+): Promise<ResearchCharacterResponse> {
   const fetchImpl = options.fetchImpl ?? fetch;
-  const fields = normalizeFields(input.fields);
+  const fields = normalizeFields(input.fields, input.fallbackFields);
   const settings = await getResearchSettings(vaultRoot);
   const requestedSourceId = typeof input.source === "string" && input.source.trim() ? input.source.trim() : settings.defaultSource;
   const sourceConfig = MEDIAWIKI_SOURCES[requestedSourceId];
@@ -1394,16 +1585,20 @@ export async function researchCharacter(
     }
     throw createHttpError(400, "RESEARCH_SOURCE_NOT_IMPLEMENTED", `${sourceInfo?.name ?? requestedSourceId} 暂未启用`);
   }
-  const source = await fetchMediaWikiSource({ fetchImpl, source: sourceConfig, characterName, sourceWork });
+  const source = await fetchMediaWikiSource({ fetchImpl, source: sourceConfig, characterName: input.subjectName, sourceWork: input.sourceWork });
   const { modelId, registry } = await resolveResearchModel(vaultRoot, options);
 
   try {
     const generatedFields = await generateFieldsFromSource({
       registry,
       modelId,
-      characterName,
-      sourceWork,
+      subjectType: input.subjectType,
+      subjectName: input.subjectName,
+      sourceWork: input.sourceWork,
       projectId: input.projectId,
+      template: input.template,
+      category: input.category,
+      line: input.line,
       fields,
       source,
     });
@@ -1424,8 +1619,8 @@ export async function researchCharacter(
     }
     throw createHttpError(
       502,
-      "RESEARCH_CHARACTER_FAILED",
-      `角色联网查资料失败：${error instanceof Error ? error.message : String(error)}`,
+      input.failureCode,
+      `${input.failurePrefix}：${error instanceof Error ? error.message : String(error)}`,
     );
   }
 }

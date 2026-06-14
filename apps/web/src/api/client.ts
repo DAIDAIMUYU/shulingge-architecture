@@ -301,6 +301,26 @@ export interface ResearchCharacterResponse {
     sourceName?: string;
   };
 }
+export interface ResearchWorldbookPayload {
+  entryName: string;
+  sourceWork?: string;
+  projectId?: string;
+  template?: string;
+  category?: string;
+  fields?: AssistWorldbookField[];
+  source?: string;
+  sourceConfig?: Record<string, unknown>;
+}
+export interface ResearchTimelinePayload {
+  eventName: string;
+  sourceWork?: string;
+  projectId?: string;
+  template?: string;
+  line?: string;
+  fields?: AssistTimelineField[];
+  source?: string;
+  sourceConfig?: Record<string, unknown>;
+}
 export interface SearchSourceInfo {
   id: string;
   name: string;
@@ -885,8 +905,12 @@ export const api = {
     post<ResearchCharacterResponse>("/assist/character/research", payload),
   assistWorldbook: async (payload: AssistWorldbookPayload): Promise<AssistWorldbookResponse> =>
     post<AssistWorldbookResponse>("/assist/worldbook", payload),
+  researchWorldbook: async (payload: ResearchWorldbookPayload): Promise<ResearchCharacterResponse> =>
+    post<ResearchCharacterResponse>("/assist/worldbook/research", payload),
   assistTimeline: async (payload: AssistTimelinePayload): Promise<AssistTimelineResponse> =>
     post<AssistTimelineResponse>("/assist/timeline", payload),
+  researchTimeline: async (payload: ResearchTimelinePayload): Promise<ResearchCharacterResponse> =>
+    post<ResearchCharacterResponse>("/assist/timeline/research", payload),
 
   listProjects: async (): Promise<ProjectSummary[]> =>
     unwrapList<ProjectSummary>(await get("/projects"), "projects"),

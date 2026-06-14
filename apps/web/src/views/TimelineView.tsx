@@ -7,6 +7,7 @@ import {
   type AssistTimelineField,
   type Character,
   type ProjectSummary,
+  type SearchSourceInfo,
   type TimelineCustomField,
   type TimelineEvent,
   type TimelineEventInput,
@@ -655,6 +656,109 @@ function TimelineAssistModal({
   );
 }
 
+function TimelineResearchModal({
+  loading,
+  error,
+  initialEventName,
+  initialSourceWork,
+  sources,
+  defaultSource,
+  onCancel,
+  onSubmit,
+}: {
+  loading: boolean;
+  error: string | null;
+  initialEventName: string;
+  initialSourceWork: string;
+  sources: SearchSourceInfo[];
+  defaultSource: string;
+  onCancel(): void;
+  onSubmit(input: { eventName: string; sourceWork?: string; source?: string }): void;
+}) {
+  const [eventName, setEventName] = useState(initialEventName);
+  const [sourceWork, setSourceWork] = useState(initialSourceWork);
+  const [source, setSource] = useState(defaultSource || "wikipedia");
+  const elapsedSeconds = useElapsedSeconds(loading);
+  const selectedSource = sources.find((item) => item.id === source);
+
+  const submit = (event: FormEvent) => {
+    event.preventDefault();
+    const name = eventName.trim();
+    if (loading || !name) {
+      return;
+    }
+    onSubmit({
+      eventName: name,
+      sourceWork: sourceWork.trim(),
+      source,
+    });
+  };
+
+  return (
+    <div className="vault-modal-backdrop" onMouseDown={(event) => {
+      event.stopPropagation();
+      if (!loading) {
+        onCancel();
+      }
+    }}>
+      <form className="vault-modal character-assist-modal" onSubmit={submit} onMouseDown={(event) => event.stopPropagation()}>
+        <div className="character-modal-head compact">
+          <div>
+            <h2>联网查资料</h2>
+            <p>从所选百科源检索事件资料，再交给模型整理成当前时间线字段。</p>
+          </div>
+          <button type="button" className="btn-icon" onClick={onCancel} disabled={loading} aria-label="关闭">
+            <X size={16} />
+          </button>
+        </div>
+
+        <div className="form-grid form-grid-2 character-assist-fanfic-grid">
+          <label className="form-block">
+            <span>事件名</span>
+            <input className="input" value={eventName} placeholder="例如：无限列车篇 / 那田蜘蛛山事件" onChange={(event) => setEventName(event.target.value)} disabled={loading} />
+          </label>
+          <label className="form-block">
+            <span>来源作品</span>
+            <input className="input" value={sourceWork} placeholder="可选，例如：鬼灭之刃" onChange={(event) => setSourceWork(event.target.value)} disabled={loading} />
+          </label>
+        </div>
+
+        <div className="form-grid form-grid-2 character-assist-fanfic-grid">
+          <label className="form-block">
+            <span>搜索源</span>
+            <Select
+              value={source}
+              onChange={setSource}
+              disabled={loading}
+              options={sources.map((item) => ({
+                value: item.id,
+                label: item.name,
+                hint: `${item.implemented ? "已接入" : "占位"} · ${item.free ? "免费" : "付费/限额"}${item.requiresKey ? " · 需 key" : ""} · ${item.networkNote}`,
+                disabled: !item.implemented,
+              }))}
+              placeholder="选择搜索源"
+              ariaLabel="联网查资料搜索源"
+            />
+          </label>
+          <div className="character-assist-note">{selectedSource?.networkNote ?? "默认使用维基百科；可在设置页修改全局默认源。"}</div>
+        </div>
+
+        <div className="character-assist-note">本功能只使用所选搜索源检索到的资料整理字段；资料源未提到或不确定的信息会尽量留空，请保存前自行核对。</div>
+        {loading ? <div className="character-assist-note">正在查询并整理…（已用 {elapsedSeconds} 秒）</div> : null}
+        {error ? <div className="err-card">{error}</div> : null}
+
+        <div className="vault-modal-actions">
+          <button type="button" className="btn btn-ghost" onClick={onCancel} disabled={loading}>取消</button>
+          <button type="submit" className="btn btn-primary" disabled={loading || !eventName.trim()}>
+            <Sparkles size={15} className={loading ? "spin-icon" : undefined} />
+            {loading ? `查询中...${elapsedSeconds}s` : "联网查资料"}
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
 function TimelineAiCreateModal({
   projectId,
   loading,
@@ -817,6 +921,7 @@ function TimelineAiCreateModal({
 function TimelineEditor({
   mode,
   value,
+  projectId,
   characters,
   worldbookEntries,
   saving,
@@ -824,9 +929,12 @@ function TimelineEditor({
   onChange,
   onCancel,
   onSubmit,
+  searchSources,
+  defaultResearchSource,
 }: {
   mode: EditorMode;
   value: TimelineEventInput;
+  projectId: string;
   characters: Character[];
   worldbookEntries: WorldbookEntry[];
   saving: boolean;
@@ -834,6 +942,8 @@ function TimelineEditor({
   onChange(next: TimelineEventInput): void;
   onCancel(): void;
   onSubmit(): void;
+  searchSources: SearchSourceInfo[];
+  defaultResearchSource: string;
 }) {
   const profile = value.profile ?? createEmptyProfile(value.template ?? "simple");
   const isDetailed = (value.template ?? profile.template ?? "simple") === "detailed";
@@ -841,6 +951,10 @@ function TimelineEditor({
   const [assistLoading, setAssistLoading] = useState(false);
   const [assistError, setAssistError] = useState<string | null>(null);
   const [assistNotice, setAssistNotice] = useState<string | null>(null);
+  const [researchOpen, setResearchOpen] = useState(false);
+  const [researchLoading, setResearchLoading] = useState(false);
+  const [researchError, setResearchError] = useState<string | null>(null);
+  const [researchSource, setResearchSource] = useState<{ title: string; url: string; sourceName?: string } | null>(null);
   const [expanded, setExpanded] = useState<Record<TimelineProfileGroup, boolean>>(() =>
     GROUPS.reduce((result, group) => ({ ...result, [group.id]: group.defaultOpen }), {} as Record<TimelineProfileGroup, boolean>),
   );
@@ -932,6 +1046,40 @@ function TimelineEditor({
     }
   };
 
+  const runResearch = async (input: { eventName: string; sourceWork?: string; source?: string }) => {
+    const normalizedProfile = normalizeProfile(profile, value.template ?? "simple");
+    const fields = collectAssistFields(normalizedProfile, value);
+    if (!fields.length) {
+      setResearchError("当前没有可填充的字段。");
+      return;
+    }
+
+    setResearchLoading(true);
+    setResearchError(null);
+    setAssistNotice(null);
+    setResearchSource(null);
+    try {
+      const response = await api.researchTimeline({
+        eventName: input.eventName,
+        sourceWork: input.sourceWork,
+        source: input.source,
+        projectId,
+        template: value.template ?? normalizedProfile.template,
+        line: lineLabel(value.line),
+        fields: fields.map(({ group, key, label }) => ({ group, key, label })),
+      });
+      const nextDraft = mergeAssistFields({ ...value, profile: normalizedProfile }, fields, response.fields);
+      onChange({ ...nextDraft, title: nextDraft.title || input.eventName });
+      setResearchOpen(false);
+      setResearchSource(response.source);
+      setAssistNotice(`已根据${response.source.sourceName ?? "联网资料"}「${response.source.title}」填入可用空字段，请核对后保存。`);
+    } catch (researchErrorValue) {
+      setResearchError(researchErrorValue instanceof ApiError ? researchErrorValue.message : "联网查资料失败");
+    } finally {
+      setResearchLoading(false);
+    }
+  };
+
   return (
     <div className="vault-modal-backdrop character-modal-backdrop" onMouseDown={onCancel}>
       <div className="vault-modal character-modal timeline-modal" onMouseDown={(event) => event.stopPropagation()}>
@@ -947,6 +1095,14 @@ function TimelineEditor({
         <div className="character-modal-body">
           {error ? <div className="err-card">保存失败：{error}</div> : null}
           {assistNotice ? <div className="character-assist-success">{assistNotice}</div> : null}
+          {researchSource ? (
+            <div className="character-assist-success">
+              资料来源：
+              <a href={researchSource.url} target="_blank" rel="noreferrer">
+                {researchSource.title}
+              </a>
+            </div>
+          ) : null}
           <section className="agent-editor-section">
             <div className="model-editor-section-title">核心信息</div>
             <div className="form-grid form-grid-3">
@@ -1062,6 +1218,18 @@ function TimelineEditor({
             <Sparkles size={15} />
             AI 辅助填充
           </button>
+          <button
+            type="button"
+            className="btn"
+            onClick={() => {
+              setResearchOpen(true);
+              setResearchError(null);
+            }}
+            disabled={assistLoading || researchLoading}
+          >
+            <Sparkles size={15} />
+            联网查资料
+          </button>
           <span className="grow" />
           {assistOpen ? (
             <TimelineAssistModal
@@ -1075,6 +1243,25 @@ function TimelineEditor({
               }}
               onSubmit={(input) => {
                 void runAssist(input);
+              }}
+            />
+          ) : null}
+          {researchOpen ? (
+            <TimelineResearchModal
+              loading={researchLoading}
+              error={researchError}
+              initialEventName={value.title.trim()}
+              initialSourceWork={value.profile?.writing?.canonSource?.trim() ?? ""}
+              sources={searchSources}
+              defaultSource={defaultResearchSource}
+              onCancel={() => {
+                if (!researchLoading) {
+                  setResearchOpen(false);
+                  setResearchError(null);
+                }
+              }}
+              onSubmit={(input) => {
+                void runResearch(input);
               }}
             />
           ) : null}
@@ -1110,6 +1297,8 @@ export function TimelineView() {
   const [saveError, setSaveError] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<TimelineEvent | null>(null);
   const [feedback, setFeedback] = useState<{ kind: "success" | "error"; text: string } | null>(null);
+  const [searchSources, setSearchSources] = useState<SearchSourceInfo[]>([]);
+  const [defaultResearchSource, setDefaultResearchSource] = useState("wikipedia");
 
   const loadData = async (targetProjectId = projectId) => {
     setLoading(true);
@@ -1134,6 +1323,10 @@ export function TimelineView() {
         setProjectId(resolvedProjectId);
         writeStoredProjectId(resolvedProjectId);
       }
+      const [sourceList, researchSettings] = await Promise.all([
+        api.listSearchSources().catch(() => []),
+        api.getResearchSettings().catch(() => ({ defaultSource: "wikipedia" })),
+      ]);
       const [nextEvents, nextCharacters, nextWorldbook] = resolvedProjectId
         ? await Promise.all([
           api.listTimelineByProject(resolvedProjectId),
@@ -1145,6 +1338,10 @@ export function TimelineView() {
       setEvents(sortEvents(nextEvents));
       setCharacters(nextCharacters);
       setWorldbookEntries(nextWorldbook);
+      setSearchSources(sourceList.length ? sourceList : [
+        { id: "wikipedia", name: "维基百科", kind: "mediawiki", free: true, requiresKey: false, implemented: true, networkNote: "免费，需国际网络。" },
+      ]);
+      setDefaultResearchSource(researchSettings.defaultSource || "wikipedia");
     } catch (loadError) {
       setError(loadError instanceof ApiError ? loadError.message : "加载时间线失败");
     } finally {
@@ -1421,6 +1618,7 @@ export function TimelineView() {
         <TimelineEditor
           mode={editorMode}
           value={draft}
+          projectId={projectId}
           characters={characters}
           worldbookEntries={worldbookEntries}
           saving={saving}
@@ -1434,6 +1632,8 @@ export function TimelineView() {
           onSubmit={() => {
             void persist();
           }}
+          searchSources={searchSources}
+          defaultResearchSource={defaultResearchSource}
         />
       ) : null}
 

@@ -113,7 +113,7 @@ import { invokePluginHook, listPlugins, registerPlugin, updatePluginState } from
 import { createCollaborationSession, listCollaborationSessions, updateCollaborationSession } from "./collaboration.js";
 import { buildRelationReplay } from "./graph-replay.js";
 import { assistCharacter } from "./assist-character.js";
-import { getResearchSettings, listSearchSources, researchCharacter, updateResearchSettings } from "./assist-character-research.js";
+import { getResearchSettings, listSearchSources, researchCharacter, researchTimeline, researchWorldbook, updateResearchSettings } from "./assist-character-research.js";
 import { assistWorldbook } from "./assist-worldbook.js";
 import { assistTimeline } from "./assist-timeline.js";
 import { loadDirectorConversation, saveDirectorConversation } from "./director-conversations.js";
@@ -500,10 +500,34 @@ export const routeDefinitions: RouteDefinition[] = [
   },
   {
     method: "POST",
+    path: "/api/v1/assist/worldbook/research",
+    async handler(request, context) {
+      const vaultRoot = requireVaultRoot(context);
+      return await researchWorldbook(
+        vaultRoot,
+        (request.body as Record<string, unknown> | undefined) ?? {},
+        getModelOptions(context),
+      );
+    },
+  },
+  {
+    method: "POST",
     path: "/api/v1/assist/timeline",
     async handler(request, context) {
       const vaultRoot = requireVaultRoot(context);
       return await assistTimeline(
+        vaultRoot,
+        (request.body as Record<string, unknown> | undefined) ?? {},
+        getModelOptions(context),
+      );
+    },
+  },
+  {
+    method: "POST",
+    path: "/api/v1/assist/timeline/research",
+    async handler(request, context) {
+      const vaultRoot = requireVaultRoot(context);
+      return await researchTimeline(
         vaultRoot,
         (request.body as Record<string, unknown> | undefined) ?? {},
         getModelOptions(context),

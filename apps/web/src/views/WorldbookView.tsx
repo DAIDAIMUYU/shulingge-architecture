@@ -7,6 +7,7 @@ import {
   type AssistWorldbookField,
   type Character,
   type ProjectSummary,
+  type SearchSourceInfo,
   type WorldbookCategory,
   type WorldbookCustomField,
   type WorldbookEntry,
@@ -690,6 +691,109 @@ function WorldbookAssistModal({
   );
 }
 
+function WorldbookResearchModal({
+  loading,
+  error,
+  initialEntryName,
+  initialSourceWork,
+  sources,
+  defaultSource,
+  onCancel,
+  onSubmit,
+}: {
+  loading: boolean;
+  error: string | null;
+  initialEntryName: string;
+  initialSourceWork: string;
+  sources: SearchSourceInfo[];
+  defaultSource: string;
+  onCancel(): void;
+  onSubmit(input: { entryName: string; sourceWork?: string; source?: string }): void;
+}) {
+  const [entryName, setEntryName] = useState(initialEntryName);
+  const [sourceWork, setSourceWork] = useState(initialSourceWork);
+  const [source, setSource] = useState(defaultSource || "wikipedia");
+  const elapsedSeconds = useElapsedSeconds(loading);
+  const selectedSource = sources.find((item) => item.id === source);
+
+  const submit = (event: FormEvent) => {
+    event.preventDefault();
+    const name = entryName.trim();
+    if (loading || !name) {
+      return;
+    }
+    onSubmit({
+      entryName: name,
+      sourceWork: sourceWork.trim(),
+      source,
+    });
+  };
+
+  return (
+    <div className="vault-modal-backdrop" onMouseDown={(event) => {
+      event.stopPropagation();
+      if (!loading) {
+        onCancel();
+      }
+    }}>
+      <form className="vault-modal character-assist-modal" onSubmit={submit} onMouseDown={(event) => event.stopPropagation()}>
+        <div className="character-modal-head compact">
+          <div>
+            <h2>联网查资料</h2>
+            <p>从所选百科源检索设定资料，再交给模型整理成当前世界大纲字段。</p>
+          </div>
+          <button type="button" className="btn-icon" onClick={onCancel} disabled={loading} aria-label="关闭">
+            <X size={16} />
+          </button>
+        </div>
+
+        <div className="form-grid form-grid-2 character-assist-fanfic-grid">
+          <label className="form-block">
+            <span>设定条目名</span>
+            <input className="input" value={entryName} placeholder="例如：鬼杀队 / 无限城 / 蝶屋" onChange={(event) => setEntryName(event.target.value)} disabled={loading} />
+          </label>
+          <label className="form-block">
+            <span>来源作品</span>
+            <input className="input" value={sourceWork} placeholder="可选，例如：鬼灭之刃" onChange={(event) => setSourceWork(event.target.value)} disabled={loading} />
+          </label>
+        </div>
+
+        <div className="form-grid form-grid-2 character-assist-fanfic-grid">
+          <label className="form-block">
+            <span>搜索源</span>
+            <Select
+              value={source}
+              onChange={setSource}
+              disabled={loading}
+              options={sources.map((item) => ({
+                value: item.id,
+                label: item.name,
+                hint: `${item.implemented ? "已接入" : "占位"} · ${item.free ? "免费" : "付费/限额"}${item.requiresKey ? " · 需 key" : ""} · ${item.networkNote}`,
+                disabled: !item.implemented,
+              }))}
+              placeholder="选择搜索源"
+              ariaLabel="联网查资料搜索源"
+            />
+          </label>
+          <div className="character-assist-note">{selectedSource?.networkNote ?? "默认使用维基百科；可在设置页修改全局默认源。"}</div>
+        </div>
+
+        <div className="character-assist-note">本功能只使用所选搜索源检索到的资料整理字段；资料源未提到或不确定的信息会尽量留空，请保存前自行核对。</div>
+        {loading ? <div className="character-assist-note">正在查询并整理…（已用 {elapsedSeconds} 秒）</div> : null}
+        {error ? <div className="err-card">{error}</div> : null}
+
+        <div className="vault-modal-actions">
+          <button type="button" className="btn btn-ghost" onClick={onCancel} disabled={loading}>取消</button>
+          <button type="submit" className="btn btn-primary" disabled={loading || !entryName.trim()}>
+            <Sparkles size={15} className={loading ? "spin-icon" : undefined} />
+            {loading ? `查询中...${elapsedSeconds}s` : "联网查资料"}
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
 function WorldbookAiCreateModal({
   projectId,
   loading,
@@ -852,21 +956,27 @@ function WorldbookAiCreateModal({
 function WorldbookEditor({
   mode,
   value,
+  projectId,
   characters,
   saving,
   error,
   onChange,
   onCancel,
   onSubmit,
+  searchSources,
+  defaultResearchSource,
 }: {
   mode: EditorMode;
   value: WorldbookEntryInput;
+  projectId: string;
   characters: Character[];
   saving: boolean;
   error: string | null;
   onChange(next: WorldbookEntryInput): void;
   onCancel(): void;
   onSubmit(): void;
+  searchSources: SearchSourceInfo[];
+  defaultResearchSource: string;
 }) {
   const profile = value.profile ?? createEmptyProfile(value.template ?? "simple");
   const isDetailed = (value.template ?? profile.template ?? "simple") === "detailed";
@@ -874,6 +984,10 @@ function WorldbookEditor({
   const [assistLoading, setAssistLoading] = useState(false);
   const [assistError, setAssistError] = useState<string | null>(null);
   const [assistNotice, setAssistNotice] = useState<string | null>(null);
+  const [researchOpen, setResearchOpen] = useState(false);
+  const [researchLoading, setResearchLoading] = useState(false);
+  const [researchError, setResearchError] = useState<string | null>(null);
+  const [researchSource, setResearchSource] = useState<{ title: string; url: string; sourceName?: string } | null>(null);
   const [expanded, setExpanded] = useState<Record<WorldbookProfileGroup, boolean>>(() =>
     GROUPS.reduce((result, group) => ({ ...result, [group.id]: group.defaultOpen }), {} as Record<WorldbookProfileGroup, boolean>),
   );
@@ -964,6 +1078,41 @@ function WorldbookEditor({
     }
   };
 
+  const runResearch = async (input: { entryName: string; sourceWork?: string; source?: string }) => {
+    const normalizedProfile = normalizeProfile(profile, value.template ?? "simple");
+    const fields = collectAssistFields(normalizedProfile, value);
+    if (!fields.length) {
+      setResearchError("当前没有可填充的字段。");
+      return;
+    }
+
+    setResearchLoading(true);
+    setResearchError(null);
+    setAssistNotice(null);
+    setResearchSource(null);
+    try {
+      const response = await api.researchWorldbook({
+        entryName: input.entryName,
+        sourceWork: input.sourceWork,
+        source: input.source,
+        projectId,
+        template: value.template ?? normalizedProfile.template,
+        category: categoryLabel(value.category),
+        fields: fields.map(({ group, key, label }) => ({ group, key, label })),
+      });
+      const nextDraft = mergeAssistFields({ ...value, profile: normalizedProfile }, fields, response.fields);
+      const title = nextDraft.title || input.entryName;
+      onChange({ ...nextDraft, title, name: nextDraft.name || title });
+      setResearchOpen(false);
+      setResearchSource(response.source);
+      setAssistNotice(`已根据${response.source.sourceName ?? "联网资料"}「${response.source.title}」填入可用空字段，请核对后保存。`);
+    } catch (researchErrorValue) {
+      setResearchError(researchErrorValue instanceof ApiError ? researchErrorValue.message : "联网查资料失败");
+    } finally {
+      setResearchLoading(false);
+    }
+  };
+
   return (
     <div className="vault-modal-backdrop character-modal-backdrop" onMouseDown={onCancel}>
       <div className="vault-modal character-modal worldbook-modal" onMouseDown={(event) => event.stopPropagation()}>
@@ -979,6 +1128,14 @@ function WorldbookEditor({
         <div className="character-modal-body">
           {error ? <div className="err-card">保存失败：{error}</div> : null}
           {assistNotice ? <div className="character-assist-success">{assistNotice}</div> : null}
+          {researchSource ? (
+            <div className="character-assist-success">
+              资料来源：
+              <a href={researchSource.url} target="_blank" rel="noreferrer">
+                {researchSource.title}
+              </a>
+            </div>
+          ) : null}
           <section className="agent-editor-section">
             <div className="model-editor-section-title">核心信息</div>
             <div className="form-grid form-grid-3">
@@ -1083,6 +1240,18 @@ function WorldbookEditor({
             <Sparkles size={15} />
             AI 辅助填充
           </button>
+          <button
+            type="button"
+            className="btn"
+            onClick={() => {
+              setResearchOpen(true);
+              setResearchError(null);
+            }}
+            disabled={assistLoading || researchLoading}
+          >
+            <Sparkles size={15} />
+            联网查资料
+          </button>
           <span className="grow" />
           {assistOpen ? (
             <WorldbookAssistModal
@@ -1096,6 +1265,25 @@ function WorldbookEditor({
               }}
               onSubmit={(input) => {
                 void runAssist(input);
+              }}
+            />
+          ) : null}
+          {researchOpen ? (
+            <WorldbookResearchModal
+              loading={researchLoading}
+              error={researchError}
+              initialEntryName={(value.title || value.name || "").trim()}
+              initialSourceWork={value.profile?.writing?.canonSource?.trim() ?? ""}
+              sources={searchSources}
+              defaultSource={defaultResearchSource}
+              onCancel={() => {
+                if (!researchLoading) {
+                  setResearchOpen(false);
+                  setResearchError(null);
+                }
+              }}
+              onSubmit={(input) => {
+                void runResearch(input);
               }}
             />
           ) : null}
@@ -1130,6 +1318,8 @@ export function WorldbookView() {
   const [saveError, setSaveError] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<WorldbookEntry | null>(null);
   const [feedback, setFeedback] = useState<{ kind: "success" | "error"; text: string } | null>(null);
+  const [searchSources, setSearchSources] = useState<SearchSourceInfo[]>([]);
+  const [defaultResearchSource, setDefaultResearchSource] = useState("wikipedia");
 
   const loadData = async (targetProjectId = projectId) => {
     setLoading(true);
@@ -1153,12 +1343,20 @@ export function WorldbookView() {
         setProjectId(resolvedProjectId);
         writeStoredProjectId(resolvedProjectId);
       }
+      const [sourceList, researchSettings] = await Promise.all([
+        api.listSearchSources().catch(() => []),
+        api.getResearchSettings().catch(() => ({ defaultSource: "wikipedia" })),
+      ]);
       const [nextEntries, nextCharacters] = resolvedProjectId
         ? await Promise.all([api.listWorldbookByProject(resolvedProjectId), api.listCharactersByProject(resolvedProjectId)])
         : [[], []];
       setProjects(nextProjects);
       setEntries(nextEntries);
       setCharacters(nextCharacters);
+      setSearchSources(sourceList.length ? sourceList : [
+        { id: "wikipedia", name: "维基百科", kind: "mediawiki", free: true, requiresKey: false, implemented: true, networkNote: "免费，需国际网络。" },
+      ]);
+      setDefaultResearchSource(researchSettings.defaultSource || "wikipedia");
     } catch (loadError) {
       setError(loadError instanceof ApiError ? loadError.message : "加载世界大纲失败");
     } finally {
@@ -1435,6 +1633,7 @@ export function WorldbookView() {
         <WorldbookEditor
           mode={editorMode}
           value={draft}
+          projectId={projectId}
           characters={characters}
           saving={saving}
           error={saveError}
@@ -1447,6 +1646,8 @@ export function WorldbookView() {
           onSubmit={() => {
             void persist();
           }}
+          searchSources={searchSources}
+          defaultResearchSource={defaultResearchSource}
         />
       ) : null}
 
