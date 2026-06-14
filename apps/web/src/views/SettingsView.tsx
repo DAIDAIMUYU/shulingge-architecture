@@ -38,7 +38,7 @@ import { ConfirmModal } from "../app/Modals.js";
 import { Select } from "./Select.js";
 import { ViewShell } from "./common.js";
 
-const SECTIONS = ["外观", "模型与 API", "远程访问", "通用", "智能体", "快捷键", "关于"] as const;
+const SECTIONS = ["外观", "模型与 API", "联网查资料", "远程访问", "通用", "智能体", "快捷键", "关于"] as const;
 type Section = (typeof SECTIONS)[number];
 
 const THEME_OPTIONS: Array<{ value: WebThemeMode; label: string; description: string }> = [
@@ -976,7 +976,7 @@ export function SettingsView({ vaultPath, onSetVault, onClearVault }: SettingsVi
   }
 
   return (
-    <ViewShell title="设置" subtitle="外观、模型、远程访问、通用偏好、智能体与快捷键">
+    <ViewShell title="设置" subtitle="外观、模型、联网查资料、远程访问、通用偏好、智能体与快捷键">
       <div className="settings-layout">
         <div className="settings-menu">
           {SECTIONS.map((section) => (
@@ -1267,7 +1267,7 @@ export function SettingsView({ vaultPath, onSetVault, onClearVault }: SettingsVi
             />
           ) : null}
 
-          {sec === "通用" ? (
+          {sec === "联网查资料" ? (
             <section className="info-card">
               <h3>联网查资料</h3>
               <div className="form-row">
