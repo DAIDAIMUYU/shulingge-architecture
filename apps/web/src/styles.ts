@@ -2685,9 +2685,9 @@ body::after,
   .app-shell.app-mobile-layout.app-compact-height .workspace.mobile-panel-inspector .editor-workbench,
   .app-shell.app-mobile-layout.app-compact-height .workspace.mobile-panel-editor .paper,
   .app-shell.app-mobile-layout.app-compact-height .workspace.mobile-panel-inspector .paper {
-    width: min(680px, calc(100vw - 160px)) !important;
-    max-width: min(680px, calc(100vw - 160px)) !important;
-    flex-basis: min(680px, calc(100vw - 160px)) !important;
+    width: min(620px, calc(100vw - 220px)) !important;
+    max-width: min(620px, calc(100vw - 220px)) !important;
+    flex-basis: min(620px, calc(100vw - 220px)) !important;
     margin-left: 0 !important;
     margin-right: auto !important;
   }
