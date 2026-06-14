@@ -800,6 +800,7 @@ export function SettingsView({ vaultPath, onSetVault, onClearVault }: SettingsVi
   const [bingHasKey, setBingHasKey] = useState(false);
   const [researchConfigSource, setResearchConfigSource] = useState<ResearchConfigSource>("google");
   const [savingResearchSettings, setSavingResearchSettings] = useState(false);
+  const [testingResearchSource, setTestingResearchSource] = useState<ResearchConfigSource | null>(null);
   const [researchSettingsFeedback, setResearchSettingsFeedback] = useState<string | null>(null);
 
   const selectedModel = useMemo(
@@ -962,6 +963,39 @@ export function SettingsView({ vaultPath, onSetVault, onClearVault }: SettingsVi
     }
     if (defaultResearchSource === `custom:${id}`) {
       setDefaultResearchSource("wikipedia");
+    }
+  }
+
+  async function testCurrentResearchSource(): Promise<void> {
+    setTestingResearchSource(researchConfigSource);
+    setResearchSettingsFeedback(null);
+    try {
+      const result = await api.testSearchSource({
+        source: researchConfigSource,
+        customSource: researchConfigSource === "custom"
+          ? {
+            id: customSourceDraft.id,
+            name: customSourceDraft.name.trim(),
+            baseUrl: customSourceDraft.baseUrl.trim(),
+          }
+          : undefined,
+        google: researchConfigSource === "google"
+          ? {
+            cx: googleCx.trim() || undefined,
+            apiKey: googleApiKey.trim() || undefined,
+          }
+          : undefined,
+        bing: researchConfigSource === "bing"
+          ? {
+            apiKey: bingApiKey.trim() || undefined,
+          }
+          : undefined,
+      });
+      setResearchSettingsFeedback(result.message);
+    } catch (error) {
+      setResearchSettingsFeedback(error instanceof ApiError ? error.message : "测试连接失败");
+    } finally {
+      setTestingResearchSource(null);
     }
   }
 
@@ -1404,6 +1438,11 @@ export function SettingsView({ vaultPath, onSetVault, onClearVault }: SettingsVi
                       </label>
                     </div>
                     <div className="fr-desc">Google Custom Search JSON API 每天免费 100 次，超出可能收费。API key 只写入本机凭据存储，Vault 只保存 keyRef。</div>
+                    <div className="model-actions-row">
+                      <button type="button" className="btn" onClick={() => void testCurrentResearchSource()} disabled={testingResearchSource === "google"}>
+                        {testingResearchSource === "google" ? "测试中..." : "测试连接"}
+                      </button>
+                    </div>
                   </div>
                 ) : null}
 
@@ -1421,6 +1460,11 @@ export function SettingsView({ vaultPath, onSetVault, onClearVault }: SettingsVi
                       />
                     </label>
                     <div className="fr-desc">使用 Bing Web Search API 的 Ocp-Apim-Subscription-Key。微软接口可能随账号和区域调整，有可用旧 key 时可继续使用。</div>
+                    <div className="model-actions-row">
+                      <button type="button" className="btn" onClick={() => void testCurrentResearchSource()} disabled={testingResearchSource === "bing"}>
+                        {testingResearchSource === "bing" ? "测试中..." : "测试连接"}
+                      </button>
+                    </div>
                   </div>
                 ) : null}
 
@@ -1488,6 +1532,11 @@ export function SettingsView({ vaultPath, onSetVault, onClearVault }: SettingsVi
                       </div>
                     </div>
                     <div className="fr-desc">自定义源按 MediaWiki 处理，复用维基/萌娘的 search、extracts 和信息框抓取逻辑；公开 MediaWiki 接口一般无需 key。</div>
+                    <div className="model-actions-row">
+                      <button type="button" className="btn" onClick={() => void testCurrentResearchSource()} disabled={testingResearchSource === "custom"}>
+                        {testingResearchSource === "custom" ? "测试中..." : "测试连接"}
+                      </button>
+                    </div>
                   </div>
                 ) : null}
 

@@ -89,6 +89,29 @@ export interface ResearchSettings {
   };
 }
 
+export interface SearchSourceTestInput {
+  source?: string;
+  customSource?: {
+    id?: string;
+    name?: string;
+    baseUrl?: string;
+  };
+  google?: {
+    cx?: string;
+    apiKey?: string;
+  };
+  bing?: {
+    apiKey?: string;
+  };
+}
+
+export interface SearchSourceTestResult {
+  ok: boolean;
+  message: string;
+  count?: number;
+  sourceName?: string;
+}
+
 export interface ResearchCharacterOptions {
   credentialService: CredentialService;
   fetchImpl?: typeof fetch;
@@ -406,6 +429,157 @@ export async function listSearchSources(vaultRoot?: string, credentialService?: 
 
 function isKnownSourceId(value: unknown): value is string {
   return typeof value === "string" && SEARCH_SOURCES.some((source) => source.id === value && source.id !== "custom");
+}
+
+async function testMediaWikiConnection(input: {
+  fetchImpl: typeof fetch;
+  source: MediaWikiSourceConfig;
+  query?: string;
+}): Promise<SearchSourceTestResult> {
+  const searchUrl = buildMediaWikiUrl(input.source, {
+    action: "query",
+    list: "search",
+    srsearch: input.query || "测试",
+    srlimit: "3",
+  });
+  const data = await fetchJsonWithTimeout<{
+    query?: { search?: Array<{ title?: string }> };
+  }>(input.fetchImpl, searchUrl);
+  const count = data.query?.search?.length ?? 0;
+  return {
+    ok: true,
+    sourceName: input.source.name,
+    count,
+    message: count > 0 ? `连接成功，找到 ${count} 条结果` : "连接成功，但测试词没有找到结果",
+  };
+}
+
+async function testGoogleConnection(input: {
+  fetchImpl: typeof fetch;
+  apiKey: string;
+  cx: string;
+}): Promise<SearchSourceTestResult> {
+  const url = new URL("https://www.googleapis.com/customsearch/v1");
+  url.searchParams.set("key", input.apiKey);
+  url.searchParams.set("cx", input.cx);
+  url.searchParams.set("q", "测试");
+  url.searchParams.set("num", "1");
+  const data = await fetchJsonWithTimeout<{
+    searchInformation?: { totalResults?: string };
+    items?: Array<unknown>;
+  }>(input.fetchImpl, url.toString());
+  const count = data.items?.length ?? 0;
+  return {
+    ok: true,
+    sourceName: "谷歌搜索",
+    count,
+    message: count > 0 ? `连接成功，找到 ${count} 条结果` : "连接成功，但测试词没有找到结果",
+  };
+}
+
+async function testBingConnection(input: {
+  fetchImpl: typeof fetch;
+  apiKey: string;
+}): Promise<SearchSourceTestResult> {
+  const url = new URL("https://api.bing.microsoft.com/v7.0/search");
+  url.searchParams.set("q", "测试");
+  url.searchParams.set("mkt", "zh-CN");
+  url.searchParams.set("count", "1");
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  try {
+    const response = await input.fetchImpl(url.toString(), {
+      signal: controller.signal,
+      headers: {
+        "user-agent": "Shulingge/1.0 character-research",
+        "Ocp-Apim-Subscription-Key": input.apiKey,
+      },
+    });
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+    const data = await response.json() as {
+      webPages?: { value?: Array<unknown> };
+    };
+    const count = data.webPages?.value?.length ?? 0;
+    return {
+      ok: true,
+      sourceName: "必应搜索",
+      count,
+      message: count > 0 ? `连接成功，找到 ${count} 条结果` : "连接成功，但测试词没有找到结果",
+    };
+  } catch (error) {
+    if (error instanceof Error && error.name === "AbortError") {
+      throw createHttpError(504, "RESEARCH_SOURCE_TIMEOUT", "访问 Bing 超时，请稍后重试");
+    }
+    throw error;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+export async function testSearchSource(
+  vaultRoot: string,
+  input: unknown,
+  options: { credentialService: CredentialService; fetchImpl?: typeof fetch },
+): Promise<SearchSourceTestResult> {
+  const record = input && typeof input === "object" ? input as Record<string, unknown> : {};
+  const source = cleanOptionalString(record.source);
+  const fetchImpl = options.fetchImpl ?? fetch;
+  const settings = await withCredentialStatus(await getResearchSettings(vaultRoot), options.credentialService);
+
+  try {
+    if (source === "custom") {
+      const customInput = record.customSource && typeof record.customSource === "object" ? record.customSource as Record<string, unknown> : {};
+      const baseUrl = cleanOptionalString(customInput.baseUrl);
+      const name = cleanOptionalString(customInput.name) || "自定义源";
+      if (!baseUrl) {
+        throw createHttpError(400, "RESEARCH_SOURCE_NOT_CONFIGURED", "请先填写自定义源 api.php base url");
+      }
+      return await testMediaWikiConnection({
+        fetchImpl,
+        source: {
+          ...SEARCH_SOURCES.find((item) => item.id === "custom")!,
+          id: "custom:test",
+          name,
+          kind: "mediawiki",
+          baseUrl,
+          articleBaseUrl: articleBaseUrlFromApi(baseUrl),
+        },
+      });
+    }
+
+    if (source === "google") {
+      const googleInput = record.google && typeof record.google === "object" ? record.google as Record<string, unknown> : {};
+      const cx = cleanOptionalString(googleInput.cx) || settings.google?.cx;
+      const inputKey = cleanOptionalString(googleInput.apiKey);
+      const storedKey = !inputKey && settings.google?.keyRef ? await options.credentialService.getApiKey(settings.google.keyRef) : undefined;
+      const apiKey = inputKey || storedKey;
+      if (!cx || !apiKey) {
+        throw createHttpError(400, "RESEARCH_SOURCE_NOT_CONFIGURED", "请先填写 Google API key 和 cx");
+      }
+      return await testGoogleConnection({ fetchImpl, apiKey, cx });
+    }
+
+    if (source === "bing") {
+      const bingInput = record.bing && typeof record.bing === "object" ? record.bing as Record<string, unknown> : {};
+      const inputKey = cleanOptionalString(bingInput.apiKey);
+      const storedKey = !inputKey && settings.bing?.keyRef ? await options.credentialService.getApiKey(settings.bing.keyRef) : undefined;
+      const apiKey = inputKey || storedKey;
+      if (!apiKey) {
+        throw createHttpError(400, "RESEARCH_SOURCE_NOT_CONFIGURED", "请先填写 Bing API key");
+      }
+      return await testBingConnection({ fetchImpl, apiKey });
+    }
+
+    throw createHttpError(400, "RESEARCH_SOURCE_NOT_IMPLEMENTED", "请选择要测试的搜索源");
+  } catch (error) {
+    if (error && typeof error === "object" && "status" in error) {
+      throw error;
+    }
+    const message = error instanceof Error ? error.message : String(error);
+    throw createHttpError(400, "RESEARCH_SOURCE_TEST_FAILED", `测试连接失败：${message}`);
+  }
 }
 
 export async function getResearchSettings(vaultRoot: string): Promise<ResearchSettings> {

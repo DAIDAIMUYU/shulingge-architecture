@@ -352,6 +352,27 @@ export interface ResearchSettings {
     hasKey?: boolean;
   };
 }
+export interface SearchSourceTestPayload {
+  source: "custom" | "google" | "bing";
+  customSource?: {
+    id?: string;
+    name?: string;
+    baseUrl?: string;
+  };
+  google?: {
+    cx?: string;
+    apiKey?: string;
+  };
+  bing?: {
+    apiKey?: string;
+  };
+}
+export interface SearchSourceTestResult {
+  ok: boolean;
+  message: string;
+  count?: number;
+  sourceName?: string;
+}
 export interface AssistWorldbookField {
   group: string;
   key: string;
@@ -913,6 +934,8 @@ export const api = {
     post<AssistCharacterResponse>("/assist/character", payload),
   listSearchSources: async (): Promise<SearchSourceInfo[]> =>
     unwrapList<SearchSourceInfo>(await get("/assist/search-sources"), "sources"),
+  testSearchSource: async (payload: SearchSourceTestPayload): Promise<SearchSourceTestResult> =>
+    post<SearchSourceTestResult>("/assist/search-sources/test", payload),
   getResearchSettings: async (): Promise<ResearchSettings> =>
     get<ResearchSettings>("/assist/research-settings"),
   updateResearchSettings: async (payload: ResearchSettings): Promise<ResearchSettings> =>
