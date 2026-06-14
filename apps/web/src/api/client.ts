@@ -288,6 +288,8 @@ export interface ResearchCharacterPayload {
   sourceWork?: string;
   projectId?: string;
   fields?: AssistCharacterField[];
+  source?: string;
+  sourceConfig?: Record<string, unknown>;
 }
 export interface ResearchCharacterResponse {
   modelId: string;
@@ -295,7 +297,21 @@ export interface ResearchCharacterResponse {
   source: {
     title: string;
     url: string;
+    sourceId?: string;
+    sourceName?: string;
   };
+}
+export interface SearchSourceInfo {
+  id: string;
+  name: string;
+  kind: "mediawiki" | "search-api" | "custom";
+  free: boolean;
+  requiresKey: boolean;
+  implemented: boolean;
+  networkNote: string;
+}
+export interface ResearchSettings {
+  defaultSource: string;
 }
 export interface AssistWorldbookField {
   group: string;
@@ -856,6 +872,15 @@ export const api = {
     }),
   assistCharacter: async (payload: AssistCharacterPayload): Promise<AssistCharacterResponse> =>
     post<AssistCharacterResponse>("/assist/character", payload),
+  listSearchSources: async (): Promise<SearchSourceInfo[]> =>
+    unwrapList<SearchSourceInfo>(await get("/assist/search-sources"), "sources"),
+  getResearchSettings: async (): Promise<ResearchSettings> =>
+    get<ResearchSettings>("/assist/research-settings"),
+  updateResearchSettings: async (payload: ResearchSettings): Promise<ResearchSettings> =>
+    request<ResearchSettings>("/assist/research-settings", {
+      method: "PUT",
+      body: JSON.stringify(payload),
+    }),
   researchCharacter: async (payload: ResearchCharacterPayload): Promise<ResearchCharacterResponse> =>
     post<ResearchCharacterResponse>("/assist/character/research", payload),
   assistWorldbook: async (payload: AssistWorldbookPayload): Promise<AssistWorldbookResponse> =>

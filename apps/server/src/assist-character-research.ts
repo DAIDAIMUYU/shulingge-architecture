@@ -1,7 +1,7 @@
 import { ProviderRegistry, type ChatMessage, type ProviderEndpointConfig } from "@shulingge/provider-adapters";
 import { CredentialService } from "@shulingge/security";
 import type { ModelConfig } from "@shulingge/shared";
-import { readJsonFile } from "@shulingge/vault-core";
+import { readJsonFile, writeJsonFile } from "@shulingge/vault-core";
 
 import { createHttpError } from "./errors.js";
 import { listModels } from "./models.js";
@@ -17,6 +17,8 @@ export interface ResearchCharacterInput {
   sourceWork?: string;
   projectId?: string;
   fields?: ResearchCharacterField[];
+  source?: string;
+  sourceConfig?: Record<string, unknown>;
 }
 
 export interface ResearchCharacterResponse {
@@ -25,7 +27,23 @@ export interface ResearchCharacterResponse {
   source: {
     title: string;
     url: string;
+    sourceId?: string;
+    sourceName?: string;
   };
+}
+
+export interface SearchSourceInfo {
+  id: string;
+  name: string;
+  kind: "mediawiki" | "search-api" | "custom";
+  free: boolean;
+  requiresKey: boolean;
+  implemented: boolean;
+  networkNote: string;
+}
+
+export interface ResearchSettings {
+  defaultSource: string;
 }
 
 export interface ResearchCharacterOptions {
@@ -44,12 +62,21 @@ interface WikipediaSearchItem {
   snippet?: string;
 }
 
-interface WikipediaSource {
+interface MediaWikiSourceConfig extends SearchSourceInfo {
+  kind: "mediawiki";
+  baseUrl: string;
+  articleBaseUrl: string;
+  directTitleFallback?: boolean;
+}
+
+interface ResearchSource {
   title: string;
   url: string;
   extract: string;
   searchContext: string;
   usedFullExtract: boolean;
+  sourceId: string;
+  sourceName: string;
 }
 
 class ResearchJsonParseError extends Error {
@@ -59,7 +86,8 @@ class ResearchJsonParseError extends Error {
   }
 }
 
-const WIKIPEDIA_API = "https://zh.wikipedia.org/w/api.php";
+const RESEARCH_SETTINGS_PATH = "settings/research.json";
+const DEFAULT_RESEARCH_SOURCE = "wikipedia";
 const REQUEST_TIMEOUT_MS = 10_000;
 const MAX_GENERATION_ATTEMPTS = 3;
 const MAX_WIKI_CONTEXT_CHARS = 10_000;
@@ -68,6 +96,68 @@ const MAX_FULL_EXTRACT_CHARS = 50_000;
 const MAX_RELEVANT_EXTRACT_CHARS = 7_000;
 const MAX_CANDIDATE_FETCH_COUNT = 3;
 const HIGH_CONFIDENCE_SOURCE_SCORE = 600;
+const SEARCH_SOURCES: SearchSourceInfo[] = [
+  {
+    id: "wikipedia",
+    name: "维基百科",
+    kind: "mediawiki",
+    free: true,
+    requiresKey: false,
+    implemented: true,
+    networkNote: "免费，需国际网络；适合真实人物、作品和通用资料。",
+  },
+  {
+    id: "moegirl",
+    name: "萌娘百科",
+    kind: "mediawiki",
+    free: true,
+    requiresKey: false,
+    implemented: true,
+    networkNote: "免费，需国际网络；ACG/同人角色资料更丰富，搜索 API 可能受限，会自动按词条名直取。",
+  },
+  {
+    id: "bing",
+    name: "必应搜索",
+    kind: "search-api",
+    free: false,
+    requiresKey: true,
+    implemented: false,
+    networkNote: "需配置 Bing Search API key，本轮仅占位。",
+  },
+  {
+    id: "google",
+    name: "谷歌搜索",
+    kind: "search-api",
+    free: false,
+    requiresKey: true,
+    implemented: false,
+    networkNote: "需配置 Google Custom Search API key，本轮仅占位。",
+  },
+  {
+    id: "custom",
+    name: "自定义源",
+    kind: "custom",
+    free: true,
+    requiresKey: false,
+    implemented: false,
+    networkNote: "可预留自定义搜索/百科 API 配置，本轮仅占位。",
+  },
+];
+const MEDIAWIKI_SOURCES: Record<string, MediaWikiSourceConfig> = {
+  wikipedia: {
+    ...SEARCH_SOURCES[0],
+    kind: "mediawiki",
+    baseUrl: "https://zh.wikipedia.org/w/api.php",
+    articleBaseUrl: "https://zh.wikipedia.org/wiki",
+  },
+  moegirl: {
+    ...SEARCH_SOURCES[1],
+    kind: "mediawiki",
+    baseUrl: "https://zh.moegirl.org.cn/api.php",
+    articleBaseUrl: "https://zh.moegirl.org.cn",
+    directTitleFallback: true,
+  },
+};
 const FALLBACK_FIELDS: ResearchCharacterField[] = [
   { group: "基础", key: "fullName", label: "角色全名" },
   { group: "基础", key: "oneLine", label: "一句话介绍" },
@@ -84,6 +174,31 @@ const FALLBACK_FIELDS: ResearchCharacterField[] = [
   { group: "背景", key: "specialPower", label: "是否拥有该世界观特殊能力" },
   { group: "背景", key: "canonRole", label: "职责/身份/阵营" },
 ];
+
+export function listSearchSources(): { sources: SearchSourceInfo[] } {
+  return {
+    sources: SEARCH_SOURCES.map((source) => ({ ...source })),
+  };
+}
+
+function isKnownSourceId(value: unknown): value is string {
+  return typeof value === "string" && SEARCH_SOURCES.some((source) => source.id === value);
+}
+
+export async function getResearchSettings(vaultRoot: string): Promise<ResearchSettings> {
+  const stored: Partial<ResearchSettings> = await readJsonFile<Partial<ResearchSettings>>(vaultRoot, RESEARCH_SETTINGS_PATH).catch(() => ({}));
+  return {
+    defaultSource: isKnownSourceId(stored.defaultSource) ? stored.defaultSource : DEFAULT_RESEARCH_SOURCE,
+  };
+}
+
+export async function updateResearchSettings(vaultRoot: string, input: unknown): Promise<ResearchSettings> {
+  const record = input && typeof input === "object" ? input as Record<string, unknown> : {};
+  const defaultSource = isKnownSourceId(record.defaultSource) ? record.defaultSource : DEFAULT_RESEARCH_SOURCE;
+  const next: ResearchSettings = { defaultSource };
+  await writeJsonFile(vaultRoot, RESEARCH_SETTINGS_PATH, next);
+  return next;
+}
 
 function isAsyncIterable(value: unknown): value is AsyncIterable<unknown> {
   return Boolean(value) && typeof (value as AsyncIterable<unknown>)[Symbol.asyncIterator] === "function";
@@ -284,14 +399,18 @@ async function fetchJsonWithTimeout<T>(fetchImpl: typeof fetch, url: string): Pr
     });
     if (!response.ok) {
       if (response.status === 429) {
-        throw createHttpError(429, "WIKIPEDIA_RATE_LIMITED", "维基百科请求过于频繁，请稍后再试");
+        throw createHttpError(429, "RESEARCH_SOURCE_RATE_LIMITED", "搜索源请求过于频繁，请稍后再试");
       }
       throw new Error(`HTTP ${response.status}`);
     }
-    return (await response.json()) as T;
+    const data = (await response.json()) as T & { error?: { code?: string; info?: string } };
+    if (data && typeof data === "object" && data.error) {
+      throw new Error(`${data.error.code ?? "api-error"}: ${data.error.info ?? "搜索源 API 返回错误"}`);
+    }
+    return data as T;
   } catch (error) {
     if (error instanceof Error && error.name === "AbortError") {
-      throw createHttpError(504, "WIKIPEDIA_TIMEOUT", "访问维基百科超时，请稍后重试");
+      throw createHttpError(504, "RESEARCH_SOURCE_TIMEOUT", "访问搜索源超时，请稍后重试");
     }
     throw error;
   } finally {
@@ -319,26 +438,27 @@ function stripWikitext(value: string): string {
     .trim();
 }
 
-function buildWikipediaUrl(params: Record<string, string>): string {
+function buildMediaWikiUrl(source: MediaWikiSourceConfig, params: Record<string, string>): string {
   const searchParams = new URLSearchParams({
     origin: "*",
     format: "json",
     utf8: "1",
     ...params,
   });
-  return `${WIKIPEDIA_API}?${searchParams.toString()}`;
+  return `${source.baseUrl}?${searchParams.toString()}`;
 }
 
-function wikiArticleUrl(title: string): string {
-  return `https://zh.wikipedia.org/wiki/${encodeURIComponent(title.replace(/ /g, "_"))}`;
+function mediaWikiArticleUrl(source: MediaWikiSourceConfig, title: string): string {
+  return `${source.articleBaseUrl}/${encodeURIComponent(title.replace(/ /g, "_"))}`;
 }
 
-async function fetchWikipediaExtract(input: {
+async function fetchMediaWikiExtract(input: {
   fetchImpl: typeof fetch;
+  source: MediaWikiSourceConfig;
   title: string;
   introOnly: boolean;
 }): Promise<{ title: string; extract: string }> {
-  const extractUrl = buildWikipediaUrl({
+  const extractUrl = buildMediaWikiUrl(input.source, {
     action: "query",
     prop: "extracts",
     ...(input.introOnly ? { exintro: "1" } : { exchars: String(MAX_FULL_EXTRACT_CHARS) }),
@@ -357,11 +477,12 @@ async function fetchWikipediaExtract(input: {
   };
 }
 
-async function fetchWikipediaWikitext(input: {
+async function fetchMediaWikiWikitext(input: {
   fetchImpl: typeof fetch;
+  source: MediaWikiSourceConfig;
   title: string;
 }): Promise<{ title: string; content: string }> {
-  const revisionsUrl = buildWikipediaUrl({
+  const revisionsUrl = buildMediaWikiUrl(input.source, {
     action: "query",
     prop: "revisions",
     rvprop: "content",
@@ -584,16 +705,17 @@ function extractRelevantWikitext(input: {
   };
 }
 
-async function fetchWikipediaSource(input: {
+async function fetchMediaWikiSource(input: {
   fetchImpl: typeof fetch;
+  source: MediaWikiSourceConfig;
   characterName: string;
   sourceWork: string;
-}): Promise<WikipediaSource> {
+}): Promise<ResearchSource> {
   const queries = buildSearchQueries(input.characterName, input.sourceWork);
   const searchItemsByTitle = new Map<string, WikipediaSearchItem>();
   try {
     for (const query of queries) {
-      const searchUrl = buildWikipediaUrl({
+      const searchUrl = buildMediaWikiUrl(input.source, {
         action: "query",
         list: "search",
         srsearch: query,
@@ -615,14 +737,14 @@ async function fetchWikipediaSource(input: {
           snippet: [current?.snippet, item.snippet].filter(Boolean).join(" "),
         });
       }
-      researchLog("维基百科搜索结果", {
+      researchLog(`${input.source.name}搜索结果`, {
         query,
         found: queryItems.length,
         titles: queryItems.map((item) => item.title),
       });
     }
     const searchItems = [...searchItemsByTitle.values()];
-    researchLog("维基百科搜索结果", {
+    researchLog(`${input.source.name}搜索结果`, {
       query: queries.join(" | "),
       found: searchItems.length,
       titles: searchItems.map((item) => item.title),
@@ -631,20 +753,36 @@ async function fetchWikipediaSource(input: {
     if (error instanceof Error && "statusCode" in error) {
       throw error;
     }
-    throw createHttpError(
-      502,
-      "WIKIPEDIA_SEARCH_FAILED",
-      `访问维基百科失败：${error instanceof Error ? error.message : String(error)}`,
-    );
+    if (input.source.directTitleFallback) {
+      researchLog(`${input.source.name}搜索失败，改用标题直取`, {
+        error: error instanceof Error ? error.message : String(error),
+        titles: buildCharacterNameVariants(input.characterName),
+      });
+      for (const title of buildCharacterNameVariants(input.characterName)) {
+        searchItemsByTitle.set(title, { title, snippet: `${input.source.name}标题直取：${title}` });
+      }
+    } else {
+      throw createHttpError(
+        502,
+        "RESEARCH_SOURCE_SEARCH_FAILED",
+        `访问${input.source.name}失败：${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
   }
 
   const searchItems = [...searchItemsByTitle.values()];
   if (!searchItems.length) {
-    researchLog("维基百科搜索结果为空", { queries });
-    throw createHttpError(404, "WIKIPEDIA_CHARACTER_NOT_FOUND", "未在维基百科找到该角色");
+    researchLog(`${input.source.name}搜索结果为空`, { queries });
+    if (input.source.directTitleFallback) {
+      for (const title of buildCharacterNameVariants(input.characterName)) {
+        searchItemsByTitle.set(title, { title, snippet: `${input.source.name}标题直取：${title}` });
+      }
+    } else {
+      throw createHttpError(404, "RESEARCH_CHARACTER_NOT_FOUND", `未在${input.source.name}找到该角色`);
+    }
   }
 
-  const rankedItems = [...searchItems].sort(
+  const rankedItems = [...searchItemsByTitle.values()].sort(
     (left, right) =>
       scoreSearchItem(right, input.characterName, input.sourceWork) -
       scoreSearchItem(left, input.characterName, input.sourceWork),
@@ -670,8 +808,9 @@ async function fetchWikipediaSource(input: {
     .join("\n");
 
   for (const item of rankedItems.slice(0, MAX_CANDIDATE_FETCH_COUNT)) {
-    const introResult = await fetchWikipediaExtract({
+    const introResult = await fetchMediaWikiExtract({
       fetchImpl: input.fetchImpl,
+      source: input.source,
       title: item.title,
       introOnly: true,
     });
@@ -690,32 +829,42 @@ async function fetchWikipediaSource(input: {
       containsAny([item.title, item.snippet ?? ""].join("\n"), buildCharacterNameVariants(input.characterName)) ||
       /角色列表|登場人物|人物列表|胡蝶/.test(item.title);
     if (shouldFetchWikitext) {
-      const wikitext = await fetchWikipediaWikitext({
-        fetchImpl: input.fetchImpl,
-        title: item.title,
-      });
-      fullTitle = wikitext.title || fullTitle;
-      wikitextRelevant = extractRelevantWikitext({
-        title: fullTitle,
-        content: wikitext.content,
-        characterName: input.characterName,
-        sourceWork: input.sourceWork,
-      });
-      researchLog("词条 wikitext 相关片段", {
-        title: fullTitle,
-        sourceLength: wikitext.content.length,
-        matches: wikitextRelevant.matches,
-        selectedLength: wikitextRelevant.text.length,
-        selectedPreview: wikitextRelevant.text.slice(0, 260),
-      });
-      if (wikitextRelevant.text) {
-        fullText = wikitextRelevant.text;
+      try {
+        const wikitext = await fetchMediaWikiWikitext({
+          fetchImpl: input.fetchImpl,
+          source: input.source,
+          title: item.title,
+        });
+        fullTitle = wikitext.title || fullTitle;
+        wikitextRelevant = extractRelevantWikitext({
+          title: fullTitle,
+          content: wikitext.content,
+          characterName: input.characterName,
+          sourceWork: input.sourceWork,
+        });
+        researchLog("词条 wikitext 相关片段", {
+          title: fullTitle,
+          sourceLength: wikitext.content.length,
+          matches: wikitextRelevant.matches,
+          selectedLength: wikitextRelevant.text.length,
+          selectedPreview: wikitextRelevant.text.slice(0, 260),
+        });
+        if (wikitextRelevant.text) {
+          fullText = wikitextRelevant.text;
+        }
+      } catch (error) {
+        researchLog("词条 wikitext 获取失败，降级使用 extracts", {
+          title: item.title,
+          source: input.source.id,
+          error: error instanceof Error ? error.message : String(error),
+        });
       }
     }
 
     if (!wikitextRelevant.text && introExtract.length < MIN_USEFUL_EXTRACT_CHARS) {
-      const fullExtract = await fetchWikipediaExtract({
+      const fullExtract = await fetchMediaWikiExtract({
         fetchImpl: input.fetchImpl,
+        source: input.source,
         title: item.title,
         introOnly: false,
       });
@@ -744,7 +893,7 @@ async function fetchWikipediaSource(input: {
       (/消歧義|可以指/.test(candidateExtract.slice(0, 300)) && candidateExtract.length < 600 ? 180 : 0);
     candidates.push({
       title: fullTitle || introTitle,
-      url: wikiArticleUrl(fullTitle || introTitle),
+      url: mediaWikiArticleUrl(input.source, fullTitle || introTitle),
       extract: candidateExtract,
       searchContext: snippets,
       usedFullExtract,
@@ -772,7 +921,7 @@ async function fetchWikipediaSource(input: {
 
   const best = candidates.sort((left, right) => right.score - left.score)[0];
   if (best?.extract || best?.searchContext) {
-    researchLog("最终采用维基百科资料", {
+    researchLog(`最终采用${input.source.name}资料`, {
       title: best.title,
       score: best.score,
       matches: best.matches,
@@ -787,10 +936,12 @@ async function fetchWikipediaSource(input: {
       extract: best.extract,
       searchContext: best.searchContext,
       usedFullExtract: best.usedFullExtract,
+      sourceId: input.source.id,
+      sourceName: input.source.name,
     }
   }
 
-  throw createHttpError(404, "WIKIPEDIA_CHARACTER_NOT_FOUND", "未在维基百科找到该角色");
+  throw createHttpError(404, "RESEARCH_CHARACTER_NOT_FOUND", `未在${input.source.name}找到该角色`);
 }
 
 function buildMessages(input: {
@@ -798,7 +949,7 @@ function buildMessages(input: {
   sourceWork: string;
   projectId?: string;
   fields: ResearchCharacterField[];
-  source: WikipediaSource;
+  source: ResearchSource;
   attempt: number;
 }): ChatMessage[] {
   const fieldText = input.fields
@@ -819,8 +970,8 @@ function buildMessages(input: {
     {
       role: "system",
       content: [
-        "你在帮助用户把维基百科资料整理成小说写作工具里的角色档案字段。",
-        "你必须只根据用户提供的维基百科资料和搜索摘要整理，不要凭空补写资料中没有的信息。",
+        "你在帮助用户把联网百科资料整理成小说写作工具里的角色档案字段。",
+        "你必须只根据用户提供的联网百科资料和搜索摘要整理，不要凭空补写资料中没有的信息。",
         "资料不确定、没有明确提到、或无法从资料推出的字段请留空，不要编造。",
         "只生成字段清单中存在的字段，不要新增字段。",
         "输出必须是严格 JSON，不要 Markdown，不要代码块，不要解释。",
@@ -839,7 +990,7 @@ function buildMessages(input: {
         "可填写字段清单：",
         fieldText,
         "",
-        "维基百科资料：",
+        `${input.source.sourceName}资料：`,
         wikiText,
       ].join("\n"),
     },
@@ -916,7 +1067,7 @@ async function generateFieldsFromSource(input: {
   sourceWork: string;
   projectId?: string;
   fields: ResearchCharacterField[];
-  source: WikipediaSource;
+  source: ResearchSource;
 }): Promise<Record<string, string>> {
   let lastError: unknown = null;
   for (let attempt = 1; attempt <= MAX_GENERATION_ATTEMPTS; attempt += 1) {
@@ -971,7 +1122,17 @@ export async function researchCharacter(
 
   const fetchImpl = options.fetchImpl ?? fetch;
   const fields = normalizeFields(input.fields);
-  const source = await fetchWikipediaSource({ fetchImpl, characterName, sourceWork });
+  const settings = await getResearchSettings(vaultRoot);
+  const requestedSourceId = typeof input.source === "string" && input.source.trim() ? input.source.trim() : settings.defaultSource;
+  const sourceConfig = MEDIAWIKI_SOURCES[requestedSourceId];
+  if (!sourceConfig) {
+    const sourceInfo = SEARCH_SOURCES.find((source) => source.id === requestedSourceId);
+    if (sourceInfo?.requiresKey) {
+      throw createHttpError(400, "RESEARCH_SOURCE_REQUIRES_KEY", `${sourceInfo.name} 需要配置 API key，本轮暂未启用`);
+    }
+    throw createHttpError(400, "RESEARCH_SOURCE_NOT_IMPLEMENTED", `${sourceInfo?.name ?? requestedSourceId} 暂未启用`);
+  }
+  const source = await fetchMediaWikiSource({ fetchImpl, source: sourceConfig, characterName, sourceWork });
   const { modelId, registry } = await resolveResearchModel(vaultRoot, options);
 
   try {
@@ -991,6 +1152,8 @@ export async function researchCharacter(
       source: {
         title: source.title,
         url: source.url,
+        sourceId: source.sourceId,
+        sourceName: source.sourceName,
       },
     };
   } catch (error) {

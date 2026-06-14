@@ -11,10 +11,12 @@ import {
   type CharacterProfileGroup,
   type CharacterProfileTemplate,
   type ProjectSummary,
+  type SearchSourceInfo,
 } from "../api/client.js";
 import { ConfirmModal } from "../app/Modals.js";
 import { CenterState, ViewShell } from "./common.js";
 import { ProjectSelector } from "./ProjectSelector.js";
+import { Select } from "./Select.js";
 
 type CharacterViewMode = "card" | "list";
 type EditorMode = "create" | "edit";
@@ -785,6 +787,8 @@ function CharacterResearchModal({
   error,
   initialCharacterName,
   initialSourceWork,
+  sources,
+  defaultSource,
   onCancel,
   onSubmit,
 }: {
@@ -792,12 +796,16 @@ function CharacterResearchModal({
   error: string | null;
   initialCharacterName: string;
   initialSourceWork: string;
+  sources: SearchSourceInfo[];
+  defaultSource: string;
   onCancel(): void;
-  onSubmit(input: { characterName: string; sourceWork?: string }): void;
+  onSubmit(input: { characterName: string; sourceWork?: string; source?: string }): void;
 }) {
   const [characterName, setCharacterName] = useState(initialCharacterName);
   const [sourceWork, setSourceWork] = useState(initialSourceWork);
+  const [source, setSource] = useState(defaultSource || "wikipedia");
   const elapsedSeconds = useElapsedSeconds(loading);
+  const selectedSource = sources.find((item) => item.id === source);
 
   const submit = (event: FormEvent) => {
     event.preventDefault();
@@ -808,6 +816,7 @@ function CharacterResearchModal({
     onSubmit({
       characterName: name,
       sourceWork: sourceWork.trim(),
+      source,
     });
   };
 
@@ -843,7 +852,27 @@ function CharacterResearchModal({
           </label>
         </div>
 
-        <div className="character-assist-note">本功能只使用维基百科检索到的资料整理字段；维基未提到或不确定的信息会尽量留空，请保存前自行核对。</div>
+        <div className="form-grid form-grid-2 character-assist-fanfic-grid">
+          <label className="form-block">
+            <span>搜索源</span>
+            <Select
+              value={source}
+              onChange={setSource}
+              disabled={loading}
+              options={sources.map((item) => ({
+                value: item.id,
+                label: item.name,
+                hint: `${item.implemented ? "已接入" : "占位"} · ${item.free ? "免费" : "付费/限额"}${item.requiresKey ? " · 需 key" : ""} · ${item.networkNote}`,
+                disabled: !item.implemented,
+              }))}
+              placeholder="选择搜索源"
+              ariaLabel="联网查资料搜索源"
+            />
+          </label>
+          <div className="character-assist-note">{selectedSource?.networkNote ?? "默认使用维基百科；可在设置页修改全局默认源。"}</div>
+        </div>
+
+        <div className="character-assist-note">本功能只使用所选搜索源检索到的资料整理字段；资料源未提到或不确定的信息会尽量留空，请保存前自行核对。</div>
         {loading ? <div className="character-assist-note">正在查询并整理…（已用 {elapsedSeconds} 秒）</div> : null}
         {error ? <div className="err-card">{error}</div> : null}
 
@@ -1020,6 +1049,8 @@ function CharacterEditor({
   value,
   saving,
   error,
+  searchSources,
+  defaultResearchSource,
   onChange,
   onCancel,
   onSubmit,
@@ -1029,6 +1060,8 @@ function CharacterEditor({
   value: CharacterInput;
   saving: boolean;
   error: string | null;
+  searchSources: SearchSourceInfo[];
+  defaultResearchSource: string;
   onChange(next: CharacterInput): void;
   onCancel(): void;
   onSubmit(): void;
@@ -1249,7 +1282,7 @@ function CharacterEditor({
       setAssistLoading(false);
     }
   };
-  const runResearch = async (input: { characterName: string; sourceWork?: string }) => {
+  const runResearch = async (input: { characterName: string; sourceWork?: string; source?: string }) => {
     const fields = collectAssistFields(profile);
     if (!fields.length) {
       setResearchError("当前没有可填充的字段。");
@@ -1264,6 +1297,7 @@ function CharacterEditor({
       const response = await api.researchCharacter({
         characterName: input.characterName,
         sourceWork: input.sourceWork,
+        source: input.source,
         projectId,
         fields: fields.map(({ group, key, label }) => ({ group, key, label })),
       });
@@ -1271,7 +1305,7 @@ function CharacterEditor({
       onChange({ ...value, name: value.name || input.characterName, profile: nextProfile });
       setResearchOpen(false);
       setResearchSource(response.source);
-      setAssistNotice(`已根据维基百科「${response.source.title}」填入可用空字段，请核对后保存。`);
+      setAssistNotice(`已根据${response.source.sourceName ?? "联网资料"}「${response.source.title}」填入可用空字段，请核对后保存。`);
     } catch (researchErrorValue) {
       setResearchError(researchErrorValue instanceof ApiError ? researchErrorValue.message : "联网查资料失败");
     } finally {
@@ -1375,7 +1409,7 @@ function CharacterEditor({
             disabled={assistLoading || researchLoading}
           >
             <Sparkles size={15} />
-            联网查资料(维基百科)
+            联网查资料
           </button>
           <span className="grow" />
           <button type="button" className="btn btn-ghost" onClick={onCancel}>
@@ -1408,6 +1442,8 @@ function CharacterEditor({
           error={researchError}
           initialCharacterName={initialResearchName}
           initialSourceWork={initialResearchSourceWork}
+          sources={searchSources}
+          defaultSource={defaultResearchSource}
           onCancel={() => {
             if (!researchLoading) {
               setResearchOpen(false);
@@ -1442,6 +1478,8 @@ export function CharactersView() {
   const [saveError, setSaveError] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Character | null>(null);
   const [feedback, setFeedback] = useState<{ kind: "success" | "error"; text: string } | null>(null);
+  const [searchSources, setSearchSources] = useState<SearchSourceInfo[]>([]);
+  const [defaultResearchSource, setDefaultResearchSource] = useState("wikipedia");
 
   const loadData = async (targetProjectId = projectId) => {
     setLoading(true);
@@ -1457,6 +1495,10 @@ export function CharactersView() {
         return;
       }
       const nextProjects = await api.listProjects();
+      const [sourceList, researchSettings] = await Promise.all([
+        api.listSearchSources().catch(() => []),
+        api.getResearchSettings().catch(() => ({ defaultSource: "wikipedia" })),
+      ]);
       const resolvedProjectId = nextProjects.some((project) => project.projectId === targetProjectId)
         ? targetProjectId
         : nextProjects[0]?.projectId ?? targetProjectId;
@@ -1467,6 +1509,10 @@ export function CharactersView() {
       const nextCharacters = resolvedProjectId ? await api.listCharactersByProject(resolvedProjectId) : [];
       setProjects(nextProjects);
       setCharacters(nextCharacters);
+      setSearchSources(sourceList.length ? sourceList : [
+        { id: "wikipedia", name: "维基百科", kind: "mediawiki", free: true, requiresKey: false, implemented: true, networkNote: "免费，需国际网络。" },
+      ]);
+      setDefaultResearchSource(researchSettings.defaultSource || "wikipedia");
     } catch (loadError) {
       setError(loadError instanceof ApiError ? loadError.message : "加载角色失败");
     } finally {
@@ -1799,6 +1845,8 @@ export function CharactersView() {
           value={draft}
           saving={saving}
           error={saveError}
+          searchSources={searchSources}
+          defaultResearchSource={defaultResearchSource}
           onChange={setDraft}
           onCancel={() => {
             setEditorMode(null);

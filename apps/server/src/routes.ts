@@ -113,7 +113,7 @@ import { invokePluginHook, listPlugins, registerPlugin, updatePluginState } from
 import { createCollaborationSession, listCollaborationSessions, updateCollaborationSession } from "./collaboration.js";
 import { buildRelationReplay } from "./graph-replay.js";
 import { assistCharacter } from "./assist-character.js";
-import { researchCharacter } from "./assist-character-research.js";
+import { getResearchSettings, listSearchSources, researchCharacter, updateResearchSettings } from "./assist-character-research.js";
 import { assistWorldbook } from "./assist-worldbook.js";
 import { assistTimeline } from "./assist-timeline.js";
 import { loadDirectorConversation, saveDirectorConversation } from "./director-conversations.js";
@@ -449,6 +449,29 @@ export const routeDefinitions: RouteDefinition[] = [
         (request.body as Record<string, unknown> | undefined) ?? {},
         getModelOptions(context),
       );
+    },
+  },
+  {
+    method: "GET",
+    path: "/api/v1/assist/search-sources",
+    async handler() {
+      return listSearchSources();
+    },
+  },
+  {
+    method: "GET",
+    path: "/api/v1/assist/research-settings",
+    async handler(request, context) {
+      const vaultRoot = requireVaultRoot(context);
+      return await getResearchSettings(vaultRoot);
+    },
+  },
+  {
+    method: "PUT",
+    path: "/api/v1/assist/research-settings",
+    async handler(request, context) {
+      const vaultRoot = requireVaultRoot(context);
+      return await updateResearchSettings(vaultRoot, request.body);
     },
   },
   {

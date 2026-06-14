@@ -32,6 +32,7 @@ import {
   type ModelConfig,
   type ModelConfigInput,
   type RemoteGatewayStatus,
+  type SearchSourceInfo,
 } from "../api/client.js";
 import { ConfirmModal } from "../app/Modals.js";
 import { Select } from "./Select.js";
@@ -767,6 +768,9 @@ export function SettingsView({ vaultPath, onSetVault, onClearVault }: SettingsVi
   const [remoteAutoStart, setRemoteAutoStart] = useState(false);
   const [remoteLoading, setRemoteLoading] = useState(false);
   const [remoteFeedback, setRemoteFeedback] = useState<string | null>(null);
+  const [searchSources, setSearchSources] = useState<SearchSourceInfo[]>([]);
+  const [defaultResearchSource, setDefaultResearchSource] = useState("wikipedia");
+  const [researchSettingsFeedback, setResearchSettingsFeedback] = useState<string | null>(null);
 
   const selectedModel = useMemo(
     () => models.find((model) => model.id === selectedModelId) ?? null,
@@ -809,11 +813,37 @@ export function SettingsView({ vaultPath, onSetVault, onClearVault }: SettingsVi
     }
   }
 
+  async function loadResearchSettings() {
+    try {
+      const [sources, settings] = await Promise.all([
+        api.listSearchSources(),
+        api.getResearchSettings(),
+      ]);
+      setSearchSources(sources);
+      setDefaultResearchSource(settings.defaultSource || "wikipedia");
+    } catch (error) {
+      setResearchSettingsFeedback(error instanceof ApiError ? error.message : "联网查资料设置加载失败");
+    }
+  }
+
   useEffect(() => {
     void loadModels();
     void loadAgents();
     void loadRemoteStatus();
+    void loadResearchSettings();
   }, []);
+
+  async function saveResearchDefaultSource(nextSource: string): Promise<void> {
+    setDefaultResearchSource(nextSource);
+    setResearchSettingsFeedback(null);
+    try {
+      const saved = await api.updateResearchSettings({ defaultSource: nextSource });
+      setDefaultResearchSource(saved.defaultSource || nextSource);
+      setResearchSettingsFeedback("联网查资料默认源已保存");
+    } catch (error) {
+      setResearchSettingsFeedback(error instanceof ApiError ? error.message : "联网查资料默认源保存失败");
+    }
+  }
 
   useEffect(() => {
     if (typeof document !== "undefined") {
@@ -1187,6 +1217,31 @@ export function SettingsView({ vaultPath, onSetVault, onClearVault }: SettingsVi
               feedback={preferencesFeedback}
               setFeedback={setPreferencesFeedback}
             />
+          ) : null}
+
+          {sec === "通用" ? (
+            <section className="info-card">
+              <h3>联网查资料</h3>
+              <div className="form-row">
+                <div>
+                  <div className="fr-label">默认搜索源</div>
+                  <div className="fr-desc">角色页联网查资料默认使用的资料源；角色弹窗里仍可临时切换。</div>
+                </div>
+                <Select
+                  value={defaultResearchSource}
+                  onChange={(value) => void saveResearchDefaultSource(value)}
+                  options={searchSources.map((source) => ({
+                    value: source.id,
+                    label: source.name,
+                    hint: `${source.implemented ? "已接入" : "占位"} · ${source.free ? "免费" : "付费/限额"}${source.requiresKey ? " · 需 key" : ""} · ${source.networkNote}`,
+                    disabled: !source.implemented,
+                  }))}
+                  placeholder="选择默认源"
+                  ariaLabel="联网查资料默认搜索源"
+                />
+              </div>
+              {researchSettingsFeedback ? <div className="inspector-feedback">{researchSettingsFeedback}</div> : null}
+            </section>
           ) : null}
 
           {sec === "智能体" ? (
