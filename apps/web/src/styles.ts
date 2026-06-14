@@ -1351,7 +1351,7 @@ input[type="radio"] { width: 15px; height: 15px; margin: 0; accent-color: var(--
   .paper-body { padding-left: clamp(34px, 5.2vw, 68px); padding-right: clamp(34px, 5.2vw, 68px); }
 }
 
-@media (max-width: 820px) {
+@media (max-width: 1180px) {
   .workspace { grid-template-columns: clamp(176px, 19vw, 204px) minmax(0,1fr); }
   .workspace > .chat-pane { display: none; }
   .tree-head { min-height: 92px; padding: 20px 14px 10px; gap: 8px; flex-direction: column; align-items: stretch; }
@@ -2118,6 +2118,7 @@ body::after,
 .app-shell.app-mobile-layout.app-compact-height .main {
   padding-top: 52px !important;
   padding-bottom: 0 !important;
+  overflow-x: hidden !important;
 }
 
 .app-shell.app-mobile-layout.app-compact-height .mobile-shell-header {
@@ -2160,6 +2161,13 @@ body::after,
   border: 0 !important;
   background: transparent !important;
   backdrop-filter: none !important;
+}
+
+.app-shell.app-mobile-layout.app-compact-height,
+.app-shell.app-mobile-layout.app-compact-height .workspace,
+.app-shell.app-mobile-layout.app-compact-height .editor-pane {
+  max-width: 100vw !important;
+  overflow-x: hidden !important;
 }
 
 .app-shell.app-mobile-layout.app-compact-height .workspace-mobile-summary {
@@ -2371,7 +2379,7 @@ body::after,
   }
 }
 
-@media (max-width: 1180px) {
+@media (max-width: 820px) {
   .app-shell.app-desktop-layout:not(.app-focus-mode) {
     grid-template-columns: 1fr !important;
     grid-template-rows: minmax(0, 1fr) !important;
@@ -2513,28 +2521,38 @@ body::after,
 .app-shell.app-mobile-layout.app-compact-height .workspace.mobile-panel-editor .paper-toolbar,
 .app-shell.app-mobile-layout.app-compact-height .workspace.mobile-panel-inspector .paper-toolbar {
   flex-wrap: wrap !important;
-  overflow-x: visible !important;
-  overflow-y: visible !important;
+  overflow-x: hidden !important;
+  overflow-y: hidden !important;
   gap: 2px !important;
   row-gap: 3px !important;
   min-height: 0 !important;
   padding: 4px 6px !important;
+  max-width: 100% !important;
 }
 
 .app-shell.app-mobile-layout.app-compact-height .workspace.mobile-panel-editor .editor-scroll,
 .app-shell.app-mobile-layout.app-compact-height .workspace.mobile-panel-inspector .editor-scroll {
-  padding-left: 6px !important;
-  padding-right: 6px !important;
+  padding-left: 16px !important;
+  padding-right: 16px !important;
+  display: flex !important;
+  justify-content: center !important;
+  align-items: flex-start !important;
+  justify-items: center !important;
+  max-width: 100vw !important;
+  overflow-x: hidden !important;
 }
 
 .app-shell.app-mobile-layout.app-compact-height .workspace.mobile-panel-editor .editor-workbench,
 .app-shell.app-mobile-layout.app-compact-height .workspace.mobile-panel-inspector .editor-workbench,
 .app-shell.app-mobile-layout.app-compact-height .workspace.mobile-panel-editor .paper,
 .app-shell.app-mobile-layout.app-compact-height .workspace.mobile-panel-inspector .paper {
-  width: calc(100% - 2px) !important;
-  max-width: calc(100% - 2px) !important;
+  width: min(620px, calc(100vw - 96px)) !important;
+  max-width: min(620px, calc(100vw - 96px)) !important;
+  min-width: 0 !important;
   margin-left: auto !important;
   margin-right: auto !important;
+  justify-self: center !important;
+  flex: 0 1 min(620px, calc(100vw - 96px)) !important;
 }
 
 .app-shell.app-mobile-layout.app-compact-height .paper-toolbar .sep,
@@ -2570,6 +2588,13 @@ body::after,
   width: 32px !important;
   min-width: 32px !important;
   height: 26px !important;
+}
+
+@media (min-width: 821px) and (max-width: 1180px) and (max-height: 720px) {
+  .app-shell.app-mobile-layout.app-compact-height .workspace.mobile-panel-editor .editor-workbench,
+  .app-shell.app-mobile-layout.app-compact-height .workspace.mobile-panel-inspector .editor-workbench {
+    transform: translateX(-106px) !important;
+  }
 }
 
 /* Focus mode must override both desktop and compact fallback rules. */

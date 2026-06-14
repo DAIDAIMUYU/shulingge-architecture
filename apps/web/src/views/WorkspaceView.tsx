@@ -439,6 +439,7 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate, onFocus
   const chatEndRef = useRef<HTMLDivElement | null>(null);
   const sourceTextareaRef = useRef<HTMLTextAreaElement | null>(null);
   const editorScrollRef = useRef<HTMLDivElement | null>(null);
+  const paperToolbarRef = useRef<HTMLDivElement | null>(null);
   const createMenuRef = useRef<HTMLDivElement | null>(null);
   const treeContextMenuRef = useRef<HTMLDivElement | null>(null);
   const outlinePopoverRef = useRef<HTMLDivElement | null>(null);
@@ -627,9 +628,13 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate, onFocus
       if (editorScrollRef.current) {
         editorScrollRef.current.scrollLeft = 0;
       }
+      if (paperToolbarRef.current) {
+        paperToolbarRef.current.scrollLeft = 0;
+      }
     };
 
     resetEditorHorizontalScroll();
+    window.requestAnimationFrame(resetEditorHorizontalScroll);
     window.addEventListener("resize", resetEditorHorizontalScroll);
     window.visualViewport?.addEventListener("resize", resetEditorHorizontalScroll);
     return () => {
@@ -2247,7 +2252,7 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate, onFocus
         <div className="editor-scroll" ref={editorScrollRef}>
           <div className={`editor-workbench${focusMode ? " focus-mode" : ""}`}>
             <div className="paper">
-              <div className="paper-toolbar">
+              <div className="paper-toolbar" ref={paperToolbarRef}>
                 {TOOLS.map((tool, index) =>
                   "sep" in tool ? (
                     <span className="sep" key={index} />
