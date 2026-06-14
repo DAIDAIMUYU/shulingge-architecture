@@ -284,7 +284,7 @@ input[type="radio"] { width: 15px; height: 15px; margin: 0; accent-color: var(--
 .custom-select-trigger[aria-expanded="true"] svg { color: var(--primary); transform: rotate(180deg); }
 .custom-select-trigger.placeholder { color: var(--text-muted); }
 .custom-select-trigger:disabled { opacity: .55; cursor: not-allowed; transform: none; }
-.custom-select-menu { position: absolute; top: calc(100% + 8px); left: 0; z-index: 80; width: max(100%, 220px); max-height: 280px; overflow: auto; padding: 6px; border: 1px solid var(--border); border-radius: var(--radius-sm); background-color: var(--surface-card-glass); background-image: none; backdrop-filter: var(--surface-blur); box-shadow: var(--shadow-popover); }
+.custom-select-menu { position: absolute; top: calc(100% + 8px); left: 0; z-index: 80; width: max(100%, 220px); max-height: 280px; overflow: auto; padding: 6px; border: 1px solid var(--border); border-radius: var(--radius-sm); background-color: var(--bg-card); background-image: none; backdrop-filter: none; box-shadow: var(--shadow-popover); }
 .custom-select-group { padding: 7px 10px 5px; color: var(--text-muted); font-size: 11px; letter-spacing: .04em; }
 .custom-select-option { width: 100%; min-height: 34px; display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 7px 10px; border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--text-secondary); text-align: left; cursor: pointer; transition: background .16s ease, color .16s ease, box-shadow .16s ease; }
 .custom-select-option span { min-width: 0; display: grid; gap: 2px; }
@@ -1144,7 +1144,6 @@ body.app-focus .main { padding-bottom: 0; }
 .vault-modal,
 .quick-lookup-panel,
 .outline-popover,
-.custom-select-menu,
 .graph-stage,
 .graph-canvas,
 .review-report-card,
@@ -1283,6 +1282,11 @@ body::after,
 .quick-lookup-item.expanded,
 .search-result-item {
   transition: background-color .32s ease, border-color .32s ease, color .32s ease, box-shadow .32s ease, opacity .32s ease, filter .32s ease;
+}
+.custom-select-menu {
+  background-color: var(--bg-card);
+  background-image: none;
+  backdrop-filter: none;
 }
 @keyframes themeBackdropFade {
   from { opacity: 1; }
