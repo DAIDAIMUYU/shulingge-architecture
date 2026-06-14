@@ -875,7 +875,7 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
   }, [run]);
 
   useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    chatEndRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
   }, [messages, run]);
 
   useEffect(() => {
