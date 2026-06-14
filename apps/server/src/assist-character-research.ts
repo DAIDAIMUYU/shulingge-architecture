@@ -73,6 +73,7 @@ interface ResearchSource {
   title: string;
   url: string;
   extract: string;
+  infoboxText: string;
   searchContext: string;
   usedFullExtract: boolean;
   sourceId: string;
@@ -91,6 +92,8 @@ const DEFAULT_RESEARCH_SOURCE = "wikipedia";
 const REQUEST_TIMEOUT_MS = 10_000;
 const MAX_GENERATION_ATTEMPTS = 3;
 const MAX_WIKI_CONTEXT_CHARS = 10_000;
+const MAX_EXTRACT_CONTEXT_CHARS = 8_000;
+const MAX_INFOBOX_CONTEXT_CHARS = 3_000;
 const MIN_USEFUL_EXTRACT_CHARS = 180;
 const MAX_FULL_EXTRACT_CHARS = 50_000;
 const MAX_RELEVANT_EXTRACT_CHARS = 7_000;
@@ -161,14 +164,23 @@ const MEDIAWIKI_SOURCES: Record<string, MediaWikiSourceConfig> = {
 const FALLBACK_FIELDS: ResearchCharacterField[] = [
   { group: "基础", key: "fullName", label: "角色全名" },
   { group: "基础", key: "oneLine", label: "一句话介绍" },
+  { group: "基础", key: "nickname", label: "昵称/外号" },
+  { group: "基础", key: "age", label: "年龄" },
+  { group: "基础", key: "birthday", label: "生日" },
   { group: "基础", key: "occupation", label: "职业/身份" },
   { group: "基础", key: "appearanceImpression", label: "整体外貌印象" },
   { group: "基础", key: "personalityImpression", label: "整体性格印象" },
+  { group: "外貌", key: "height", label: "身高" },
+  { group: "外貌", key: "weight", label: "体重" },
+  { group: "外貌", key: "hairColor", label: "发色" },
+  { group: "外貌", key: "eyeColor", label: "眼睛颜色" },
+  { group: "外貌", key: "currentState", label: "当前状态" },
   { group: "性格", key: "corePersonality", label: "核心性格" },
   { group: "性格", key: "speechStyle", label: "说话方式" },
   { group: "关系", key: "organization", label: "所属组织/阵营" },
   { group: "背景", key: "importantPastEvent", label: "过去的重要事件" },
   { group: "背景", key: "pastEventEffect", label: "这件事如何影响现在" },
+  { group: "背景", key: "finalDirection", label: "最终会走向哪里" },
   { group: "背景", key: "sourceWork", label: "角色是否属于某个已有作品" },
   { group: "背景", key: "sourceWorldRelation", label: "和原作世界什么关系" },
   { group: "背景", key: "specialPower", label: "是否拥有该世界观特殊能力" },
@@ -418,6 +430,30 @@ async function fetchJsonWithTimeout<T>(fetchImpl: typeof fetch, url: string): Pr
   }
 }
 
+async function fetchTextWithTimeout(fetchImpl: typeof fetch, url: string): Promise<string> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  try {
+    const response = await fetchImpl(url, {
+      signal: controller.signal,
+      headers: {
+        "user-agent": "Shulingge/1.0 character-research",
+      },
+    });
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+    return await response.text();
+  } catch (error) {
+    if (error instanceof Error && error.name === "AbortError") {
+      throw createHttpError(504, "RESEARCH_SOURCE_TIMEOUT", "访问搜索源超时，请稍后重试");
+    }
+    throw error;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 function stripWikitext(value: string): string {
   return value
     .replace(/-\{[^{}]*?zh-hans:([^;{}]+)[^{}]*\}-/g, "$1")
@@ -436,6 +472,91 @@ function stripWikitext(value: string): string {
     .replace(/^[*#:;]+/gm, "")
     .replace(/\n{3,}/g, "\n\n")
     .trim();
+}
+
+function decodeHtmlEntities(value: string): string {
+  return value
+    .replace(/&#x([0-9a-f]+);/gi, (_, hex: string) => String.fromCodePoint(Number.parseInt(hex, 16)))
+    .replace(/&#(\d+);/g, (_, code: string) => String.fromCodePoint(Number.parseInt(code, 10)))
+    .replace(/&nbsp;/g, " ")
+    .replace(/&quot;/g, "\"")
+    .replace(/&#039;/g, "'")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">");
+}
+
+function htmlToText(value: string): string {
+  return decodeHtmlEntities(value)
+    .replace(/<script[\s\S]*?<\/script>/gi, "")
+    .replace(/<style[\s\S]*?<\/style>/gi, "")
+    .replace(/<sup[\s\S]*?<\/sup>/gi, "")
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/(?:div|p|li|tr|td|th|span)>/gi, "\n")
+    .replace(/<[^>]+>/g, "")
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .replace(/[ \t]{2,}/g, " ")
+    .trim();
+}
+
+function extractBalancedDiv(html: string, startIndex: number): string {
+  const firstOpen = html.lastIndexOf("<div", startIndex);
+  if (firstOpen < 0) {
+    return "";
+  }
+  const tagPattern = /<\/?div\b[^>]*>/gi;
+  tagPattern.lastIndex = firstOpen;
+  let depth = 0;
+  let match: RegExpExecArray | null;
+  while ((match = tagPattern.exec(html))) {
+    if (match[0].startsWith("</")) {
+      depth -= 1;
+      if (depth === 0) {
+        return html.slice(firstOpen, tagPattern.lastIndex);
+      }
+    } else {
+      depth += 1;
+    }
+  }
+  return html.slice(firstOpen, Math.min(html.length, firstOpen + 25_000));
+}
+
+function extractPageCategoriesFromHtml(html: string): string[] {
+  const match = html.match(/"wgCategories":(\[[\s\S]*?\])/);
+  if (!match) {
+    return [];
+  }
+  try {
+    const parsed = JSON.parse(match[1]) as unknown;
+    return Array.isArray(parsed) ? parsed.map((item) => String(item).trim()).filter(Boolean) : [];
+  } catch {
+    return [];
+  }
+}
+
+function extractInfoboxFromHtml(html: string): string {
+  const markerIndex = html.indexOf("moe-infobox");
+  const boxHtml = markerIndex >= 0 ? extractBalancedDiv(html, markerIndex) : "";
+  const fields: Array<[string, string]> = [];
+  if (boxHtml) {
+    const rowPattern = /<div[^>]*display:\s*flex[^>]*>\s*<div[\s\S]*?<span>([\s\S]*?)<\/span><\/div>\s*<div[^>]*padding:[^>]*>([\s\S]*?)(?=<\/div><\/div>)/gi;
+    let row: RegExpExecArray | null;
+    while ((row = rowPattern.exec(boxHtml))) {
+      const key = htmlToText(row[1]).replace(/\s+/g, "");
+      const value = htmlToText(row[2]).replace(/\n{2,}/g, "\n").trim();
+      if (key && value && !/^(基本资料|相关人士|萌属性)$/i.test(key)) {
+        fields.push([key, value]);
+      }
+    }
+  }
+
+  const categories = extractPageCategoriesFromHtml(html);
+  const categoryText = categories.length ? `分类/标签=${categories.slice(0, 80).join("、")}` : "";
+  const fieldText = fields
+    .map(([key, value]) => `${key}=${value}`)
+    .join("\n");
+  return [fieldText, categoryText].filter(Boolean).join("\n").slice(0, MAX_INFOBOX_CONTEXT_CHARS);
 }
 
 function buildMediaWikiUrl(source: MediaWikiSourceConfig, params: Record<string, string>): string {
@@ -506,6 +627,15 @@ async function fetchMediaWikiWikitext(input: {
     title: page?.title?.trim() || input.title,
     content: revision?.slots?.main?.content ?? revision?.content ?? "",
   };
+}
+
+async function fetchMediaWikiHtmlInfobox(input: {
+  fetchImpl: typeof fetch;
+  source: MediaWikiSourceConfig;
+  title: string;
+}): Promise<string> {
+  const html = await fetchTextWithTimeout(input.fetchImpl, mediaWikiArticleUrl(input.source, input.title));
+  return extractInfoboxFromHtml(html);
 }
 
 function scoreSearchItem(item: WikipediaSearchItem, characterName: string, sourceWork: string): number {
@@ -797,6 +927,7 @@ async function fetchMediaWikiSource(input: {
     title: string;
     url: string;
     extract: string;
+    infoboxText: string;
     searchContext: string;
     usedFullExtract: boolean;
     score: number;
@@ -824,7 +955,27 @@ async function fetchMediaWikiSource(input: {
 
     let fullTitle = introTitle;
     let fullText = introExtract;
+    let infoboxText = "";
     let wikitextRelevant = { text: "", score: 0, matches: 0 };
+    try {
+      infoboxText = await fetchMediaWikiHtmlInfobox({
+        fetchImpl: input.fetchImpl,
+        source: input.source,
+        title: item.title,
+      });
+      researchLog("词条信息框资料", {
+        title: item.title,
+        source: input.source.id,
+        length: infoboxText.length,
+        preview: infoboxText.slice(0, 500),
+      });
+    } catch (error) {
+      researchLog("词条信息框获取失败，继续使用正文", {
+        title: item.title,
+        source: input.source.id,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
     const shouldFetchWikitext =
       containsAny([item.title, item.snippet ?? ""].join("\n"), buildCharacterNameVariants(input.characterName)) ||
       /角色列表|登場人物|人物列表|胡蝶/.test(item.title);
@@ -861,19 +1012,29 @@ async function fetchMediaWikiSource(input: {
       }
     }
 
-    if (!wikitextRelevant.text && introExtract.length < MIN_USEFUL_EXTRACT_CHARS) {
+    if (!wikitextRelevant.text || introExtract.length < MIN_USEFUL_EXTRACT_CHARS) {
       const fullExtract = await fetchMediaWikiExtract({
         fetchImpl: input.fetchImpl,
         source: input.source,
         title: item.title,
         introOnly: false,
       });
+      const fullExtractRelevant = extractRelevantCharacterText({
+        title: fullTitle,
+        extract: fullExtract.extract,
+        searchContext: [item.snippet, snippets].filter(Boolean).join("\n"),
+        characterName: input.characterName,
+        sourceWork: input.sourceWork,
+      });
       fullTitle = fullExtract.title || fullTitle;
-      fullText = fullExtract.extract || fullText;
+      if (!wikitextRelevant.text || fullExtractRelevant.text.length > fullText.length) {
+        fullText = fullExtractRelevant.text || fullExtract.extract || fullText;
+      }
       researchLog("词条完整正文 extract", {
         title: fullTitle,
-        length: fullText.length,
-        preview: fullText.slice(0, 200),
+        length: fullExtract.extract.length,
+        selectedLength: fullText.length,
+        preview: fullExtract.extract.slice(0, 200),
       });
     }
 
@@ -895,6 +1056,7 @@ async function fetchMediaWikiSource(input: {
       title: fullTitle || introTitle,
       url: mediaWikiArticleUrl(input.source, fullTitle || introTitle),
       extract: candidateExtract,
+      infoboxText,
       searchContext: snippets,
       usedFullExtract,
       score: finalScore,
@@ -925,6 +1087,8 @@ async function fetchMediaWikiSource(input: {
       title: best.title,
       score: best.score,
       matches: best.matches,
+      infoboxLength: best.infoboxText.length,
+      infoboxPreview: best.infoboxText.slice(0, 260),
       extractLength: best.extract.length,
       extractPreview: best.extract.slice(0, 260),
       usedFullExtract: best.usedFullExtract,
@@ -934,6 +1098,7 @@ async function fetchMediaWikiSource(input: {
       title: best.title,
       url: best.url,
       extract: best.extract,
+      infoboxText: best.infoboxText,
       searchContext: best.searchContext,
       usedFullExtract: best.usedFullExtract,
       sourceId: input.source.id,
@@ -959,6 +1124,9 @@ function buildMessages(input: {
     `词条标题：${input.source.title}`,
     `词条链接：${input.source.url}`,
     "",
+    "信息框资料：",
+    input.source.infoboxText || "（未抓到信息框结构化资料）",
+    "",
     "词条摘要：",
     input.source.extract || "（该词条没有可用导语摘要，请参考搜索摘要）",
     "",
@@ -973,6 +1141,8 @@ function buildMessages(input: {
         "你在帮助用户把联网百科资料整理成小说写作工具里的角色档案字段。",
         "你必须只根据用户提供的联网百科资料和搜索摘要整理，不要凭空补写资料中没有的信息。",
         "资料不确定、没有明确提到、或无法从资料推出的字段请留空，不要编造。",
+        "信息框资料里的明确属性优先填入对应字段，例如发色、瞳色/眼睛颜色、身高、体重、年龄、生日、声优、萌点/标签、所属团体等。",
+        "正文后段明确提到的经历、最终走向、死亡/幸存/结局等，请整理到背景、重要事件或最终走向相关字段。",
         "只生成字段清单中存在的字段，不要新增字段。",
         "输出必须是严格 JSON，不要 Markdown，不要代码块，不要解释。",
         'JSON 结构必须是：{ "fields": { "<字段 key 或 label>": "<整理后的内容>" } }',
@@ -1060,6 +1230,94 @@ function normalizeResultFields(raw: string, fields: ResearchCharacterField[]): R
   return kept;
 }
 
+function parseInfoboxKeyValues(infoboxText: string): Record<string, string> {
+  const values: Record<string, string> = {};
+  for (const line of infoboxText.split(/\n+/)) {
+    const separatorIndex = line.indexOf("=");
+    if (separatorIndex <= 0) {
+      continue;
+    }
+    const key = line.slice(0, separatorIndex).trim();
+    const value = line.slice(separatorIndex + 1).trim();
+    if (key && value && !values[key]) {
+      values[key] = value;
+    }
+  }
+  return values;
+}
+
+function findInfoboxValue(infoboxValues: Record<string, string>, aliases: string[]): string {
+  const normalizedAliases = aliases.map(compactFieldKey).filter(Boolean);
+  for (const [key, value] of Object.entries(infoboxValues)) {
+    const normalizedKey = compactFieldKey(key);
+    if (normalizedAliases.some((alias) => normalizedKey === alias || normalizedKey.includes(alias) || alias.includes(normalizedKey))) {
+      return value;
+    }
+  }
+  return "";
+}
+
+function outputFieldKey(fields: ResearchCharacterField[], key: string, label: string): string {
+  const normalizedKey = compactFieldKey(key);
+  const normalizedLabel = compactFieldKey(label);
+  const match = fields.find((field) =>
+    compactFieldKey(field.key || "") === normalizedKey ||
+    compactFieldKey(field.label || "") === normalizedLabel ||
+    compactFieldKey(field.label || "") === normalizedKey,
+  );
+  return match?.key || match?.label || "";
+}
+
+function fillFieldsFromInfobox(
+  generatedFields: Record<string, string>,
+  fields: ResearchCharacterField[],
+  infoboxText: string,
+): Record<string, string> {
+  if (!infoboxText.trim()) {
+    return generatedFields;
+  }
+
+  const infoboxValues = parseInfoboxKeyValues(infoboxText);
+  const mapping: Array<{ key: string; label: string; aliases: string[] }> = [
+    { key: "nickname", label: "昵称/外号", aliases: ["别号", "昵称", "外号"] },
+    { key: "age", label: "年龄", aliases: ["年龄", "年齡"] },
+    { key: "birthday", label: "生日", aliases: ["生日", "出生日期"] },
+    { key: "height", label: "身高", aliases: ["身高"] },
+    { key: "weight", label: "体重", aliases: ["体重", "體重"] },
+    { key: "hairColor", label: "发色", aliases: ["发色", "髮色", "头发颜色"] },
+    { key: "eyeColor", label: "眼睛颜色", aliases: ["瞳色", "眼睛颜色", "眼色"] },
+    { key: "currentState", label: "当前状态", aliases: ["个人状态", "当前状态", "状态"] },
+    { key: "organization", label: "所属组织/阵营", aliases: ["所属团体", "所属组织", "所属"] },
+    { key: "specialPower", label: "是否拥有该世界观特殊能力", aliases: ["全集中呼吸法", "能力", "呼吸法"] },
+  ];
+
+  const filled: Record<string, string> = { ...generatedFields };
+  const added: Record<string, string> = {};
+  for (const item of mapping) {
+    const targetKey = outputFieldKey(fields, item.key, item.label);
+    if (!targetKey || filled[targetKey]) {
+      continue;
+    }
+    const value = findInfoboxValue(infoboxValues, item.aliases);
+    if (value) {
+      filled[targetKey] = value;
+      added[targetKey] = value;
+    }
+  }
+
+  const finalDirectionKey = outputFieldKey(fields, "finalDirection", "最终会走向哪里");
+  if (finalDirectionKey && !filled[finalDirectionKey]) {
+    const status = findInfoboxValue(infoboxValues, ["个人状态", "当前状态", "状态"]);
+    if (status) {
+      filled[finalDirectionKey] = status;
+      added[finalDirectionKey] = status;
+    }
+  }
+
+  researchLog("信息框确定性补全字段", Object.keys(added).length ? added : []);
+  return filled;
+}
+
 async function generateFieldsFromSource(input: {
   registry: ProviderRegistry;
   modelId: string;
@@ -1093,7 +1351,11 @@ async function generateFieldsFromSource(input: {
         throw new Error("模型返回了流式响应，角色联网查资料接口期望完整 JSON 响应");
       }
       researchLog("模型返回原始 content", response.content);
-      return normalizeResultFields(response.content, input.fields);
+      return fillFieldsFromInfobox(
+        normalizeResultFields(response.content, input.fields),
+        input.fields,
+        input.source.infoboxText,
+      );
     } catch (error) {
       lastError = error;
       if (!(error instanceof ResearchJsonParseError)) {
