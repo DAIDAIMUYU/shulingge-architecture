@@ -333,6 +333,11 @@ export interface SearchSourceInfo {
 }
 export interface ResearchSettings {
   defaultSource: string;
+  customSources?: Array<{
+    id: string;
+    name: string;
+    baseUrl: string;
+  }>;
   customSource?: {
     name?: string;
     baseUrl?: string;

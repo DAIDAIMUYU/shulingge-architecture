@@ -65,8 +65,15 @@ export interface SearchSourceInfo {
   networkNote: string;
 }
 
+export interface CustomResearchSource {
+  id: string;
+  name: string;
+  baseUrl: string;
+}
+
 export interface ResearchSettings {
   defaultSource: string;
+  customSources?: CustomResearchSource[];
   customSource?: {
     name?: string;
     baseUrl?: string;
@@ -271,13 +278,78 @@ function cleanOptionalString(value: unknown): string | undefined {
   return typeof value === "string" && value.trim() ? value.trim() : undefined;
 }
 
+function createCustomSourceId(name: string, baseUrl: string, index: number): string {
+  const base = `${name || "custom"}-${baseUrl || index}`
+    .toLowerCase()
+    .replace(/https?:\/\//g, "")
+    .replace(/[^a-z0-9\u4e00-\u9fa5]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 48);
+  return base || `custom-${index + 1}`;
+}
+
+function normalizeCustomSources(input: unknown, legacy?: ResearchSettings["customSource"]): CustomResearchSource[] {
+  const seen = new Set<string>();
+  const items = Array.isArray(input) ? input : [];
+  const normalized: CustomResearchSource[] = [];
+
+  for (const [index, item] of items.entries()) {
+    if (!item || typeof item !== "object") {
+      continue;
+    }
+    const record = item as Record<string, unknown>;
+    const name = cleanOptionalString(record.name);
+    const baseUrl = cleanOptionalString(record.baseUrl);
+    if (!name || !baseUrl) {
+      continue;
+    }
+    const rawId = cleanOptionalString(record.id);
+    let id = rawId?.replace(/^custom:/, "") || createCustomSourceId(name, baseUrl, index);
+    let suffix = 2;
+    while (seen.has(id)) {
+      id = `${id}-${suffix}`;
+      suffix += 1;
+    }
+    seen.add(id);
+    normalized.push({ id, name, baseUrl });
+  }
+
+  const legacyName = cleanOptionalString(legacy?.name);
+  const legacyBaseUrl = cleanOptionalString(legacy?.baseUrl);
+  if (legacyBaseUrl && !normalized.some((source) => source.baseUrl === legacyBaseUrl)) {
+    let id = createCustomSourceId(legacyName || "自定义源", legacyBaseUrl, normalized.length);
+    let suffix = 2;
+    while (seen.has(id)) {
+      id = `${id}-${suffix}`;
+      suffix += 1;
+    }
+    normalized.push({ id, name: legacyName || "自定义源", baseUrl: legacyBaseUrl });
+  }
+
+  return normalized;
+}
+
+function customSearchSourceId(id: string): string {
+  return `custom:${id}`;
+}
+
+function parseCustomSearchSourceId(value: string): string | null {
+  return value.startsWith("custom:") ? value.slice("custom:".length) : null;
+}
+
 function normalizeResearchSettings(input: Partial<ResearchSettings>): ResearchSettings {
-  const customBaseUrl = cleanOptionalString(input.customSource?.baseUrl);
-  const customName = cleanOptionalString(input.customSource?.name);
+  const customSources = normalizeCustomSources((input as { customSources?: unknown }).customSources, input.customSource);
   const googleCx = cleanOptionalString(input.google?.cx);
+  const defaultSource = typeof input.defaultSource === "string" && (
+    isKnownSourceId(input.defaultSource) || customSources.some((source) => customSearchSourceId(source.id) === input.defaultSource)
+  )
+    ? input.defaultSource
+    : input.defaultSource === "custom" && customSources[0]
+      ? customSearchSourceId(customSources[0].id)
+      : DEFAULT_RESEARCH_SOURCE;
   return {
-    defaultSource: isKnownSourceId(input.defaultSource) ? input.defaultSource : DEFAULT_RESEARCH_SOURCE,
-    customSource: customBaseUrl || customName ? { name: customName, baseUrl: customBaseUrl } : undefined,
+    defaultSource,
+    customSources: customSources.length > 0 ? customSources : undefined,
     google: googleCx || input.google?.keyRef ? { cx: googleCx, keyRef: input.google?.keyRef } : undefined,
     bing: input.bing?.keyRef ? { keyRef: input.bing.keyRef } : undefined,
   };
@@ -301,8 +373,8 @@ function isSourceConfigured(source: SearchSourceInfo, settings: ResearchSettings
   if (source.id === "wikipedia" || source.id === "moegirl") {
     return true;
   }
-  if (source.id === "custom") {
-    return Boolean(settings.customSource?.baseUrl);
+  if (parseCustomSearchSourceId(source.id)) {
+    return Boolean(settings.customSources?.some((item) => customSearchSourceId(item.id) === source.id && item.baseUrl));
   }
   if (source.id === "google") {
     return Boolean(settings.google?.cx && settings.google.hasKey);
@@ -317,17 +389,23 @@ export async function listSearchSources(vaultRoot?: string, credentialService?: 
   const settings = vaultRoot
     ? await withCredentialStatus(await getResearchSettings(vaultRoot), credentialService)
     : { defaultSource: DEFAULT_RESEARCH_SOURCE };
+  const customTemplate = SEARCH_SOURCES.find((source) => source.id === "custom")!;
+  const customSources = (settings.customSources ?? []).map((source) => ({
+    ...customTemplate,
+    id: customSearchSourceId(source.id),
+    name: source.name,
+    configured: Boolean(source.baseUrl),
+  }));
   return {
-    sources: SEARCH_SOURCES.map((source) => ({
+    sources: SEARCH_SOURCES.filter((source) => source.id !== "custom").map((source) => ({
       ...source,
       configured: isSourceConfigured(source, settings),
-      name: source.id === "custom" && settings.customSource?.name ? settings.customSource.name : source.name,
-    })),
+    })).concat(customSources),
   };
 }
 
 function isKnownSourceId(value: unknown): value is string {
-  return typeof value === "string" && SEARCH_SOURCES.some((source) => source.id === value);
+  return typeof value === "string" && SEARCH_SOURCES.some((source) => source.id === value && source.id !== "custom");
 }
 
 export async function getResearchSettings(vaultRoot: string): Promise<ResearchSettings> {
@@ -344,16 +422,15 @@ export async function updateResearchSettings(vaultRoot: string, input: unknown, 
   const current = await getResearchSettings(vaultRoot);
   const googleInput = record.google && typeof record.google === "object" ? record.google as Record<string, unknown> : {};
   const bingInput = record.bing && typeof record.bing === "object" ? record.bing as Record<string, unknown> : {};
-  const customInput = record.customSource && typeof record.customSource === "object" ? record.customSource as Record<string, unknown> : {};
   const googleApiKey = cleanOptionalString(googleInput.apiKey);
   const bingApiKey = cleanOptionalString(bingInput.apiKey);
+  const inputCustomSources = Object.hasOwn(record, "customSources")
+    ? record.customSources
+    : current.customSources;
 
   const next: ResearchSettings = normalizeResearchSettings({
-    defaultSource: isKnownSourceId(record.defaultSource) ? record.defaultSource : current.defaultSource,
-    customSource: {
-      name: cleanOptionalString(customInput.name),
-      baseUrl: cleanOptionalString(customInput.baseUrl),
-    },
+    defaultSource: typeof record.defaultSource === "string" ? record.defaultSource : current.defaultSource,
+    customSources: inputCustomSources as CustomResearchSource[] | undefined,
     google: {
       cx: cleanOptionalString(googleInput.cx),
       keyRef: current.google?.keyRef,
@@ -1833,7 +1910,11 @@ async function researchStructuredEntry(
   const fields = normalizeFields(input.fields, input.fallbackFields);
   const settings = await withCredentialStatus(await getResearchSettings(vaultRoot), options.credentialService);
   const requestedSourceId = typeof input.source === "string" && input.source.trim() ? input.source.trim() : settings.defaultSource;
-  const sourceInfo = SEARCH_SOURCES.find((source) => source.id === requestedSourceId);
+  const customSourceId = parseCustomSearchSourceId(requestedSourceId);
+  const customSource = customSourceId ? settings.customSources?.find((source) => source.id === customSourceId) : undefined;
+  const sourceInfo = customSource
+    ? { ...SEARCH_SOURCES.find((source) => source.id === "custom")!, id: requestedSourceId, name: customSource.name, configured: true }
+    : SEARCH_SOURCES.find((source) => source.id === requestedSourceId);
   if (!sourceInfo?.implemented) {
     throw createHttpError(400, "RESEARCH_SOURCE_NOT_IMPLEMENTED", `${sourceInfo?.name ?? requestedSourceId} 暂未启用`);
   }
@@ -1843,8 +1924,8 @@ async function researchStructuredEntry(
   const mediaWikiSource = MEDIAWIKI_SOURCES[requestedSourceId];
   if (mediaWikiSource) {
     source = await fetchMediaWikiSource({ fetchImpl, source: mediaWikiSource, characterName: input.subjectName, sourceWork: input.sourceWork });
-  } else if (requestedSourceId === "custom") {
-    const baseUrl = settings.customSource?.baseUrl?.trim();
+  } else if (customSourceId) {
+    const baseUrl = customSource?.baseUrl?.trim();
     if (!baseUrl) {
       throw createHttpError(400, "RESEARCH_SOURCE_NOT_CONFIGURED", "自定义源未配置，请先在设置页填写 MediaWiki api.php base url");
     }
@@ -1853,7 +1934,8 @@ async function researchStructuredEntry(
       fetchImpl,
       source: {
         ...customInfo,
-        name: settings.customSource?.name?.trim() || customInfo.name,
+        id: requestedSourceId,
+        name: customSource?.name?.trim() || customInfo.name,
         kind: "mediawiki",
         baseUrl,
         articleBaseUrl: articleBaseUrlFromApi(baseUrl),

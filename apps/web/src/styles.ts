@@ -295,6 +295,8 @@ input[type="radio"] { width: 15px; height: 15px; margin: 0; accent-color: var(--
 .custom-select-option.active { background: var(--bg-hover); color: var(--text-primary); }
 .custom-select-option.selected { background: linear-gradient(90deg, var(--primary-light), color-mix(in srgb, var(--bg-card) 72%, transparent)); color: var(--primary); box-shadow: inset 3px 0 0 var(--accent-cinnabar); }
 .custom-select-option:disabled { opacity: .52; cursor: not-allowed; }
+.settings-source-select { z-index: 120; }
+.settings-source-select .custom-select-menu { z-index: 220; }
 .muted { color: var(--text-secondary); }
 .faint { color: var(--text-muted); }
 

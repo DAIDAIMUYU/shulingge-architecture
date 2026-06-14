@@ -42,12 +42,20 @@ const SECTIONS = ["外观", "模型与 API", "联网查资料", "远程访问", 
 type Section = (typeof SECTIONS)[number];
 
 type ResearchConfigSource = "google" | "bing" | "custom";
+type CustomResearchSourceDraft = { id: string; name: string; baseUrl: string };
 
 const RESEARCH_CONFIG_SOURCE_OPTIONS: Array<{ value: ResearchConfigSource; label: string; hint: string }> = [
   { value: "google", label: "谷歌 Google", hint: "API key + 搜索引擎 ID（cx）" },
   { value: "bing", label: "必应 Bing", hint: "Bing Web Search API key" },
   { value: "custom", label: "自定义 MediaWiki 源", hint: "公开 MediaWiki api.php 地址" },
 ];
+
+function createLocalCustomSourceId(): string {
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+    return crypto.randomUUID().slice(0, 12);
+  }
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+}
 
 const THEME_OPTIONS: Array<{ value: WebThemeMode; label: string; description: string }> = [
   { value: "light", label: "浅色", description: "晨雾红日水墨，宣纸暖白，适合日间写作。" },
@@ -778,8 +786,13 @@ export function SettingsView({ vaultPath, onSetVault, onClearVault }: SettingsVi
   const [remoteFeedback, setRemoteFeedback] = useState<string | null>(null);
   const [searchSources, setSearchSources] = useState<SearchSourceInfo[]>([]);
   const [defaultResearchSource, setDefaultResearchSource] = useState("wikipedia");
-  const [customSourceName, setCustomSourceName] = useState("");
-  const [customSourceBaseUrl, setCustomSourceBaseUrl] = useState("");
+  const [customSources, setCustomSources] = useState<CustomResearchSourceDraft[]>([]);
+  const [customSourceDraft, setCustomSourceDraft] = useState<CustomResearchSourceDraft>(() => ({
+    id: createLocalCustomSourceId(),
+    name: "",
+    baseUrl: "",
+  }));
+  const [editingCustomSourceId, setEditingCustomSourceId] = useState<string | null>(null);
   const [googleCx, setGoogleCx] = useState("");
   const [googleApiKey, setGoogleApiKey] = useState("");
   const [googleHasKey, setGoogleHasKey] = useState(false);
@@ -838,8 +851,16 @@ export function SettingsView({ vaultPath, onSetVault, onClearVault }: SettingsVi
       ]);
       setSearchSources(sources);
       setDefaultResearchSource(settings.defaultSource || "wikipedia");
-      setCustomSourceName(settings.customSource?.name ?? "");
-      setCustomSourceBaseUrl(settings.customSource?.baseUrl ?? "");
+      const loadedCustomSources = settings.customSources?.length
+        ? settings.customSources
+        : settings.customSource?.baseUrl
+          ? [{
+            id: "legacy",
+            name: settings.customSource.name || "自定义源",
+            baseUrl: settings.customSource.baseUrl,
+          }]
+          : [];
+      setCustomSources(loadedCustomSources);
       setGoogleCx(settings.google?.cx ?? "");
       setGoogleHasKey(Boolean(settings.google?.hasKey));
       setBingHasKey(Boolean(settings.bing?.hasKey));
@@ -873,10 +894,13 @@ export function SettingsView({ vaultPath, onSetVault, onClearVault }: SettingsVi
     try {
       const saved = await api.updateResearchSettings({
         defaultSource: defaultResearchSource,
-        customSource: {
-          name: customSourceName.trim() || undefined,
-          baseUrl: customSourceBaseUrl.trim() || undefined,
-        },
+        customSources: customSources
+          .map((source) => ({
+            id: source.id,
+            name: source.name.trim(),
+            baseUrl: source.baseUrl.trim(),
+          }))
+          .filter((source) => source.name && source.baseUrl),
         google: {
           cx: googleCx.trim() || undefined,
           apiKey: googleApiKey.trim() || undefined,
@@ -886,8 +910,7 @@ export function SettingsView({ vaultPath, onSetVault, onClearVault }: SettingsVi
         },
       });
       setDefaultResearchSource(saved.defaultSource || defaultResearchSource);
-      setCustomSourceName(saved.customSource?.name ?? "");
-      setCustomSourceBaseUrl(saved.customSource?.baseUrl ?? "");
+      setCustomSources(saved.customSources ?? []);
       setGoogleCx(saved.google?.cx ?? "");
       setGoogleHasKey(Boolean(saved.google?.hasKey));
       setBingHasKey(Boolean(saved.bing?.hasKey));
@@ -899,6 +922,46 @@ export function SettingsView({ vaultPath, onSetVault, onClearVault }: SettingsVi
       setResearchSettingsFeedback(error instanceof ApiError ? error.message : "联网查资料配置保存失败");
     } finally {
       setSavingResearchSettings(false);
+    }
+  }
+
+  function resetCustomSourceDraft(): void {
+    setCustomSourceDraft({ id: createLocalCustomSourceId(), name: "", baseUrl: "" });
+    setEditingCustomSourceId(null);
+  }
+
+  function upsertCustomSourceDraft(): void {
+    const name = customSourceDraft.name.trim();
+    const baseUrl = customSourceDraft.baseUrl.trim();
+    setResearchSettingsFeedback(null);
+    if (!name || !baseUrl) {
+      setResearchSettingsFeedback("请填写自定义源名称和 api.php base url");
+      return;
+    }
+
+    const nextSource = { ...customSourceDraft, name, baseUrl };
+    setCustomSources((current) => {
+      if (editingCustomSourceId) {
+        return current.map((source) => source.id === editingCustomSourceId ? nextSource : source);
+      }
+      return [...current, nextSource];
+    });
+    resetCustomSourceDraft();
+  }
+
+  function editCustomSource(source: CustomResearchSourceDraft): void {
+    setResearchConfigSource("custom");
+    setEditingCustomSourceId(source.id);
+    setCustomSourceDraft(source);
+  }
+
+  function removeCustomSource(id: string): void {
+    setCustomSources((current) => current.filter((source) => source.id !== id));
+    if (editingCustomSourceId === id) {
+      resetCustomSourceDraft();
+    }
+    if (defaultResearchSource === `custom:${id}`) {
+      setDefaultResearchSource("wikipedia");
     }
   }
 
@@ -1286,6 +1349,7 @@ export function SettingsView({ vaultPath, onSetVault, onClearVault }: SettingsVi
                     <div className="fr-desc">角色、世界大纲、时间线会默认使用这里选择的资料源；各弹窗里仍可临时切换。</div>
                   </div>
                   <Select
+                    className="settings-source-select"
                     value={defaultResearchSource}
                     onChange={(value) => void saveResearchDefaultSource(value)}
                     options={searchSources.map((source) => ({
@@ -1363,25 +1427,65 @@ export function SettingsView({ vaultPath, onSetVault, onClearVault }: SettingsVi
                 {researchConfigSource === "custom" ? (
                   <div className="model-editor-section">
                     <div className="model-editor-section-title">自定义 MediaWiki 源</div>
-                    <div className="form-grid form-grid-2">
+                    <div className="list-card">
+                      <div className="list-row head">
+                        <span className="col col-grow">已添加的自定义源</span>
+                        <span className="col" style={{ width: 92 }}>操作</span>
+                      </div>
+                      {customSources.length > 0 ? customSources.map((source) => (
+                        <div className="list-row model-list-row" key={source.id}>
+                          <span className="col col-grow">
+                            <div className="col-name">{source.name}</div>
+                            <div className="col-sub">{source.baseUrl}</div>
+                          </span>
+                          <span className="model-row-actions">
+                            <button type="button" className="btn" onClick={() => editCustomSource(source)}>
+                              编辑
+                            </button>
+                            <button type="button" className="btn btn-danger" onClick={() => removeCustomSource(source.id)}>
+                              删除
+                            </button>
+                          </span>
+                        </div>
+                      )) : (
+                        <div className="list-row">
+                          <span className="col col-grow">
+                            <div className="col-sub">还没有添加自定义源。添加后会出现在默认源和各处联网查资料下拉里。</div>
+                          </span>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="model-editor-section">
+                      <div className="model-editor-section-title">{editingCustomSourceId ? "编辑自定义源" : "添加自定义源"}</div>
                       <label className="form-block">
-                        <span>源名称（可选）</span>
+                        <span>源名称</span>
                         <input
                           className="input"
-                          value={customSourceName}
+                          value={customSourceDraft.name}
                           placeholder="例如 Fandom 百科"
-                          onChange={(event) => setCustomSourceName(event.target.value)}
+                          onChange={(event) => setCustomSourceDraft((current) => ({ ...current, name: event.target.value }))}
                         />
                       </label>
                       <label className="form-block">
                         <span>api.php base url</span>
                         <input
                           className="input"
-                          value={customSourceBaseUrl}
+                          value={customSourceDraft.baseUrl}
                           placeholder="https://xxx.fandom.com/api.php"
-                          onChange={(event) => setCustomSourceBaseUrl(event.target.value)}
+                          onChange={(event) => setCustomSourceDraft((current) => ({ ...current, baseUrl: event.target.value }))}
                         />
                       </label>
+                      <div className="model-actions-row">
+                        <button type="button" className="btn btn-primary" onClick={upsertCustomSourceDraft}>
+                          {editingCustomSourceId ? "保存到列表" : "添加自定义源"}
+                        </button>
+                        {editingCustomSourceId || customSourceDraft.name || customSourceDraft.baseUrl ? (
+                          <button type="button" className="btn" onClick={resetCustomSourceDraft}>
+                            取消
+                          </button>
+                        ) : null}
+                      </div>
                     </div>
                     <div className="fr-desc">自定义源按 MediaWiki 处理，复用维基/萌娘的 search、extracts 和信息框抓取逻辑；公开 MediaWiki 接口一般无需 key。</div>
                   </div>
