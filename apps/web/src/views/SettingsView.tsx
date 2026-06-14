@@ -41,6 +41,14 @@ import { ViewShell } from "./common.js";
 const SECTIONS = ["外观", "模型与 API", "联网查资料", "远程访问", "通用", "智能体", "快捷键", "关于"] as const;
 type Section = (typeof SECTIONS)[number];
 
+type ResearchConfigSource = "google" | "bing" | "custom";
+
+const RESEARCH_CONFIG_SOURCE_OPTIONS: Array<{ value: ResearchConfigSource; label: string; hint: string }> = [
+  { value: "google", label: "谷歌 Google", hint: "API key + 搜索引擎 ID（cx）" },
+  { value: "bing", label: "必应 Bing", hint: "Bing Web Search API key" },
+  { value: "custom", label: "自定义 MediaWiki 源", hint: "公开 MediaWiki api.php 地址" },
+];
+
 const THEME_OPTIONS: Array<{ value: WebThemeMode; label: string; description: string }> = [
   { value: "light", label: "浅色", description: "晨雾红日水墨，宣纸暖白，适合日间写作。" },
   { value: "eye", label: "护眼", description: "青绿山水背景，暖灰米黄，长时间阅读更柔和。" },
@@ -777,6 +785,7 @@ export function SettingsView({ vaultPath, onSetVault, onClearVault }: SettingsVi
   const [googleHasKey, setGoogleHasKey] = useState(false);
   const [bingApiKey, setBingApiKey] = useState("");
   const [bingHasKey, setBingHasKey] = useState(false);
+  const [researchConfigSource, setResearchConfigSource] = useState<ResearchConfigSource>("google");
   const [savingResearchSettings, setSavingResearchSettings] = useState(false);
   const [researchSettingsFeedback, setResearchSettingsFeedback] = useState<string | null>(null);
 
@@ -1268,96 +1277,124 @@ export function SettingsView({ vaultPath, onSetVault, onClearVault }: SettingsVi
           ) : null}
 
           {sec === "联网查资料" ? (
-            <section className="info-card">
-              <h3>联网查资料</h3>
-              <div className="form-row">
-                <div>
-                  <div className="fr-label">默认搜索源</div>
-                  <div className="fr-desc">角色、世界大纲、时间线联网查资料默认使用的资料源；各弹窗里仍可临时切换。</div>
-                </div>
-                <Select
-                  value={defaultResearchSource}
-                  onChange={(value) => void saveResearchDefaultSource(value)}
-                  options={searchSources.map((source) => ({
-                    value: source.id,
-                    label: source.name,
-                    hint: `${source.implemented ? (source.configured ? "已配置" : "未配置") : "占位"} · ${source.free ? "免费" : "付费/限额"}${source.requiresKey ? " · 需 key" : ""} · ${source.networkNote}`,
-                    disabled: !source.implemented || !source.configured,
-                  }))}
-                  placeholder="选择默认源"
-                  ariaLabel="联网查资料默认搜索源"
-                />
-              </div>
-              <div className="model-editor-section">
-                <div className="model-editor-section-title">自定义 MediaWiki 源</div>
-                <div className="form-grid form-grid-2">
-                  <label className="form-block">
-                    <span>源名称（可选）</span>
-                    <input
-                      className="input"
-                      value={customSourceName}
-                      placeholder="例如 Fandom 百科"
-                      onChange={(event) => setCustomSourceName(event.target.value)}
-                    />
-                  </label>
-                  <label className="form-block">
-                    <span>api.php base url</span>
-                    <input
-                      className="input"
-                      value={customSourceBaseUrl}
-                      placeholder="https://xxx.fandom.com/api.php"
-                      onChange={(event) => setCustomSourceBaseUrl(event.target.value)}
-                    />
-                  </label>
-                </div>
-                <div className="fr-desc">自定义源按 MediaWiki 处理，会复用维基/萌娘的 search、extracts 和信息框抓取逻辑。</div>
-              </div>
-              <div className="model-editor-section">
-                <div className="model-editor-section-title">Google Custom Search</div>
-                <div className="form-grid form-grid-2">
-                  <label className="form-block">
-                    <span>搜索引擎 ID（cx）</span>
-                    <input
-                      className="input"
-                      value={googleCx}
-                      placeholder="Google Custom Search cx"
-                      onChange={(event) => setGoogleCx(event.target.value)}
-                    />
-                  </label>
-                  <label className="form-block">
-                    <span>Google API key</span>
-                    <input
-                      className="input"
-                      type="password"
-                      value={googleApiKey}
-                      placeholder={googleHasKey ? "已保存，留空则不变" : "粘贴 API key"}
-                      onChange={(event) => setGoogleApiKey(event.target.value)}
-                    />
-                  </label>
-                </div>
-                <div className="fr-desc">Google Custom Search JSON API 每天免费 100 次，超出可能收费。API key 只写入本机凭据存储，Vault 只保存 keyRef。</div>
-              </div>
-              <div className="model-editor-section">
-                <div className="model-editor-section-title">Bing Web Search</div>
-                <label className="form-block">
-                  <span>Bing API key</span>
-                  <input
-                    className="input"
-                    type="password"
-                    value={bingApiKey}
-                    placeholder={bingHasKey ? "已保存，留空则不变" : "粘贴 API key"}
-                    onChange={(event) => setBingApiKey(event.target.value)}
+            <div className="stack-list">
+              <section className="info-card">
+                <h3>默认搜索源</h3>
+                <div className="form-row">
+                  <div>
+                    <div className="fr-label">联网查资料默认使用</div>
+                    <div className="fr-desc">角色、世界大纲、时间线会默认使用这里选择的资料源；各弹窗里仍可临时切换。</div>
+                  </div>
+                  <Select
+                    value={defaultResearchSource}
+                    onChange={(value) => void saveResearchDefaultSource(value)}
+                    options={searchSources.map((source) => ({
+                      value: source.id,
+                      label: source.name,
+                      hint: `${source.implemented ? (source.configured ? "已配置" : "未配置") : "占位"} · ${source.free ? "免费" : "付费/限额"}${source.requiresKey ? " · 需 key" : ""} · ${source.networkNote}`,
+                      disabled: !source.implemented || !source.configured,
+                    }))}
+                    placeholder="选择默认源"
+                    ariaLabel="联网查资料默认搜索源"
                   />
-                </label>
-                <div className="fr-desc">使用 Bing Web Search API 的 Ocp-Apim-Subscription-Key。微软接口可能随账号和区域调整，有可用旧 key 时可继续使用。</div>
-              </div>
-              <div className="view-actions">
-                <button type="button" className="btn btn-primary" onClick={() => void saveResearchSettings()} disabled={savingResearchSettings}>
-                  {savingResearchSettings ? "保存中..." : "保存联网查资料配置"}
-                </button>
-              </div>
-              {researchSettingsFeedback ? <div className="inspector-feedback">{researchSettingsFeedback}</div> : null}
-            </section>
+                </div>
+              </section>
+
+              <section className="info-card">
+                <h3>配置搜索源</h3>
+                <div className="form-row">
+                  <div>
+                    <div className="fr-label">选择要配置的搜索源</div>
+                    <div className="fr-desc">只在这里填写搜索源配置；角色、世界大纲、时间线里的下拉框只选择已配置好的源。</div>
+                  </div>
+                  <Select
+                    value={researchConfigSource}
+                    onChange={(value) => setResearchConfigSource(value as ResearchConfigSource)}
+                    options={RESEARCH_CONFIG_SOURCE_OPTIONS}
+                    ariaLabel="选择要配置的搜索源"
+                  />
+                </div>
+
+                {researchConfigSource === "google" ? (
+                  <div className="model-editor-section">
+                    <div className="model-editor-section-title">谷歌 Google</div>
+                    <div className="form-grid form-grid-2">
+                      <label className="form-block">
+                        <span>Google API key</span>
+                        <input
+                          className="input"
+                          type="password"
+                          value={googleApiKey}
+                          placeholder={googleHasKey ? "已保存，留空则不变" : "粘贴 API key"}
+                          onChange={(event) => setGoogleApiKey(event.target.value)}
+                        />
+                      </label>
+                      <label className="form-block">
+                        <span>搜索引擎 ID（cx）</span>
+                        <input
+                          className="input"
+                          value={googleCx}
+                          placeholder="Google Custom Search cx"
+                          onChange={(event) => setGoogleCx(event.target.value)}
+                        />
+                      </label>
+                    </div>
+                    <div className="fr-desc">Google Custom Search JSON API 每天免费 100 次，超出可能收费。API key 只写入本机凭据存储，Vault 只保存 keyRef。</div>
+                  </div>
+                ) : null}
+
+                {researchConfigSource === "bing" ? (
+                  <div className="model-editor-section">
+                    <div className="model-editor-section-title">必应 Bing</div>
+                    <label className="form-block">
+                      <span>Bing API key</span>
+                      <input
+                        className="input"
+                        type="password"
+                        value={bingApiKey}
+                        placeholder={bingHasKey ? "已保存，留空则不变" : "粘贴 API key"}
+                        onChange={(event) => setBingApiKey(event.target.value)}
+                      />
+                    </label>
+                    <div className="fr-desc">使用 Bing Web Search API 的 Ocp-Apim-Subscription-Key。微软接口可能随账号和区域调整，有可用旧 key 时可继续使用。</div>
+                  </div>
+                ) : null}
+
+                {researchConfigSource === "custom" ? (
+                  <div className="model-editor-section">
+                    <div className="model-editor-section-title">自定义 MediaWiki 源</div>
+                    <div className="form-grid form-grid-2">
+                      <label className="form-block">
+                        <span>源名称（可选）</span>
+                        <input
+                          className="input"
+                          value={customSourceName}
+                          placeholder="例如 Fandom 百科"
+                          onChange={(event) => setCustomSourceName(event.target.value)}
+                        />
+                      </label>
+                      <label className="form-block">
+                        <span>api.php base url</span>
+                        <input
+                          className="input"
+                          value={customSourceBaseUrl}
+                          placeholder="https://xxx.fandom.com/api.php"
+                          onChange={(event) => setCustomSourceBaseUrl(event.target.value)}
+                        />
+                      </label>
+                    </div>
+                    <div className="fr-desc">自定义源按 MediaWiki 处理，复用维基/萌娘的 search、extracts 和信息框抓取逻辑；公开 MediaWiki 接口一般无需 key。</div>
+                  </div>
+                ) : null}
+
+                <div className="view-actions">
+                  <button type="button" className="btn btn-primary" onClick={() => void saveResearchSettings()} disabled={savingResearchSettings}>
+                    {savingResearchSettings ? "保存中..." : "保存联网查资料配置"}
+                  </button>
+                </div>
+                {researchSettingsFeedback ? <div className="inspector-feedback">{researchSettingsFeedback}</div> : null}
+              </section>
+            </div>
           ) : null}
 
           {sec === "智能体" ? (
