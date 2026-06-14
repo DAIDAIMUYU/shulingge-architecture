@@ -862,8 +862,8 @@ function CharacterResearchModal({
               options={sources.map((item) => ({
                 value: item.id,
                 label: item.name,
-                hint: `${item.implemented ? "已接入" : "占位"} · ${item.free ? "免费" : "付费/限额"}${item.requiresKey ? " · 需 key" : ""} · ${item.networkNote}`,
-                disabled: !item.implemented,
+                hint: `${item.implemented ? (item.configured ? "已配置" : "未配置-请先到设置配置") : "占位"} · ${item.free ? "免费" : "付费/限额"}${item.requiresKey ? " · 需 key" : ""} · ${item.networkNote}`,
+                disabled: !item.implemented || !item.configured,
               }))}
               placeholder="选择搜索源"
               ariaLabel="联网查资料搜索源"

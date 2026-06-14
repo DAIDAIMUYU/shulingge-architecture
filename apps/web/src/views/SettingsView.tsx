@@ -770,6 +770,14 @@ export function SettingsView({ vaultPath, onSetVault, onClearVault }: SettingsVi
   const [remoteFeedback, setRemoteFeedback] = useState<string | null>(null);
   const [searchSources, setSearchSources] = useState<SearchSourceInfo[]>([]);
   const [defaultResearchSource, setDefaultResearchSource] = useState("wikipedia");
+  const [customSourceName, setCustomSourceName] = useState("");
+  const [customSourceBaseUrl, setCustomSourceBaseUrl] = useState("");
+  const [googleCx, setGoogleCx] = useState("");
+  const [googleApiKey, setGoogleApiKey] = useState("");
+  const [googleHasKey, setGoogleHasKey] = useState(false);
+  const [bingApiKey, setBingApiKey] = useState("");
+  const [bingHasKey, setBingHasKey] = useState(false);
+  const [savingResearchSettings, setSavingResearchSettings] = useState(false);
   const [researchSettingsFeedback, setResearchSettingsFeedback] = useState<string | null>(null);
 
   const selectedModel = useMemo(
@@ -821,6 +829,11 @@ export function SettingsView({ vaultPath, onSetVault, onClearVault }: SettingsVi
       ]);
       setSearchSources(sources);
       setDefaultResearchSource(settings.defaultSource || "wikipedia");
+      setCustomSourceName(settings.customSource?.name ?? "");
+      setCustomSourceBaseUrl(settings.customSource?.baseUrl ?? "");
+      setGoogleCx(settings.google?.cx ?? "");
+      setGoogleHasKey(Boolean(settings.google?.hasKey));
+      setBingHasKey(Boolean(settings.bing?.hasKey));
     } catch (error) {
       setResearchSettingsFeedback(error instanceof ApiError ? error.message : "联网查资料设置加载失败");
     }
@@ -842,6 +855,41 @@ export function SettingsView({ vaultPath, onSetVault, onClearVault }: SettingsVi
       setResearchSettingsFeedback("联网查资料默认源已保存");
     } catch (error) {
       setResearchSettingsFeedback(error instanceof ApiError ? error.message : "联网查资料默认源保存失败");
+    }
+  }
+
+  async function saveResearchSettings(): Promise<void> {
+    setSavingResearchSettings(true);
+    setResearchSettingsFeedback(null);
+    try {
+      const saved = await api.updateResearchSettings({
+        defaultSource: defaultResearchSource,
+        customSource: {
+          name: customSourceName.trim() || undefined,
+          baseUrl: customSourceBaseUrl.trim() || undefined,
+        },
+        google: {
+          cx: googleCx.trim() || undefined,
+          apiKey: googleApiKey.trim() || undefined,
+        },
+        bing: {
+          apiKey: bingApiKey.trim() || undefined,
+        },
+      });
+      setDefaultResearchSource(saved.defaultSource || defaultResearchSource);
+      setCustomSourceName(saved.customSource?.name ?? "");
+      setCustomSourceBaseUrl(saved.customSource?.baseUrl ?? "");
+      setGoogleCx(saved.google?.cx ?? "");
+      setGoogleHasKey(Boolean(saved.google?.hasKey));
+      setBingHasKey(Boolean(saved.bing?.hasKey));
+      setGoogleApiKey("");
+      setBingApiKey("");
+      await loadResearchSettings();
+      setResearchSettingsFeedback("联网查资料配置已保存");
+    } catch (error) {
+      setResearchSettingsFeedback(error instanceof ApiError ? error.message : "联网查资料配置保存失败");
+    } finally {
+      setSavingResearchSettings(false);
     }
   }
 
@@ -1225,7 +1273,7 @@ export function SettingsView({ vaultPath, onSetVault, onClearVault }: SettingsVi
               <div className="form-row">
                 <div>
                   <div className="fr-label">默认搜索源</div>
-                  <div className="fr-desc">角色页联网查资料默认使用的资料源；角色弹窗里仍可临时切换。</div>
+                  <div className="fr-desc">角色、世界大纲、时间线联网查资料默认使用的资料源；各弹窗里仍可临时切换。</div>
                 </div>
                 <Select
                   value={defaultResearchSource}
@@ -1233,12 +1281,80 @@ export function SettingsView({ vaultPath, onSetVault, onClearVault }: SettingsVi
                   options={searchSources.map((source) => ({
                     value: source.id,
                     label: source.name,
-                    hint: `${source.implemented ? "已接入" : "占位"} · ${source.free ? "免费" : "付费/限额"}${source.requiresKey ? " · 需 key" : ""} · ${source.networkNote}`,
-                    disabled: !source.implemented,
+                    hint: `${source.implemented ? (source.configured ? "已配置" : "未配置") : "占位"} · ${source.free ? "免费" : "付费/限额"}${source.requiresKey ? " · 需 key" : ""} · ${source.networkNote}`,
+                    disabled: !source.implemented || !source.configured,
                   }))}
                   placeholder="选择默认源"
                   ariaLabel="联网查资料默认搜索源"
                 />
+              </div>
+              <div className="model-editor-section">
+                <div className="model-editor-section-title">自定义 MediaWiki 源</div>
+                <div className="form-grid form-grid-2">
+                  <label className="form-block">
+                    <span>源名称（可选）</span>
+                    <input
+                      className="input"
+                      value={customSourceName}
+                      placeholder="例如 Fandom 百科"
+                      onChange={(event) => setCustomSourceName(event.target.value)}
+                    />
+                  </label>
+                  <label className="form-block">
+                    <span>api.php base url</span>
+                    <input
+                      className="input"
+                      value={customSourceBaseUrl}
+                      placeholder="https://xxx.fandom.com/api.php"
+                      onChange={(event) => setCustomSourceBaseUrl(event.target.value)}
+                    />
+                  </label>
+                </div>
+                <div className="fr-desc">自定义源按 MediaWiki 处理，会复用维基/萌娘的 search、extracts 和信息框抓取逻辑。</div>
+              </div>
+              <div className="model-editor-section">
+                <div className="model-editor-section-title">Google Custom Search</div>
+                <div className="form-grid form-grid-2">
+                  <label className="form-block">
+                    <span>搜索引擎 ID（cx）</span>
+                    <input
+                      className="input"
+                      value={googleCx}
+                      placeholder="Google Custom Search cx"
+                      onChange={(event) => setGoogleCx(event.target.value)}
+                    />
+                  </label>
+                  <label className="form-block">
+                    <span>Google API key</span>
+                    <input
+                      className="input"
+                      type="password"
+                      value={googleApiKey}
+                      placeholder={googleHasKey ? "已保存，留空则不变" : "粘贴 API key"}
+                      onChange={(event) => setGoogleApiKey(event.target.value)}
+                    />
+                  </label>
+                </div>
+                <div className="fr-desc">Google Custom Search JSON API 每天免费 100 次，超出可能收费。API key 只写入本机凭据存储，Vault 只保存 keyRef。</div>
+              </div>
+              <div className="model-editor-section">
+                <div className="model-editor-section-title">Bing Web Search</div>
+                <label className="form-block">
+                  <span>Bing API key</span>
+                  <input
+                    className="input"
+                    type="password"
+                    value={bingApiKey}
+                    placeholder={bingHasKey ? "已保存，留空则不变" : "粘贴 API key"}
+                    onChange={(event) => setBingApiKey(event.target.value)}
+                  />
+                </label>
+                <div className="fr-desc">使用 Bing Web Search API 的 Ocp-Apim-Subscription-Key。微软接口可能随账号和区域调整，有可用旧 key 时可继续使用。</div>
+              </div>
+              <div className="view-actions">
+                <button type="button" className="btn btn-primary" onClick={() => void saveResearchSettings()} disabled={savingResearchSettings}>
+                  {savingResearchSettings ? "保存中..." : "保存联网查资料配置"}
+                </button>
               </div>
               {researchSettingsFeedback ? <div className="inspector-feedback">{researchSettingsFeedback}</div> : null}
             </section>

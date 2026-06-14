@@ -328,10 +328,24 @@ export interface SearchSourceInfo {
   free: boolean;
   requiresKey: boolean;
   implemented: boolean;
+  configured?: boolean;
   networkNote: string;
 }
 export interface ResearchSettings {
   defaultSource: string;
+  customSource?: {
+    name?: string;
+    baseUrl?: string;
+  };
+  google?: {
+    cx?: string;
+    apiKey?: string;
+    hasKey?: boolean;
+  };
+  bing?: {
+    apiKey?: string;
+    hasKey?: boolean;
+  };
 }
 export interface AssistWorldbookField {
   group: string;

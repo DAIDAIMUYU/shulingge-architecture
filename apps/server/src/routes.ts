@@ -113,7 +113,7 @@ import { invokePluginHook, listPlugins, registerPlugin, updatePluginState } from
 import { createCollaborationSession, listCollaborationSessions, updateCollaborationSession } from "./collaboration.js";
 import { buildRelationReplay } from "./graph-replay.js";
 import { assistCharacter } from "./assist-character.js";
-import { getResearchSettings, listSearchSources, researchCharacter, researchTimeline, researchWorldbook, updateResearchSettings } from "./assist-character-research.js";
+import { getPublicResearchSettings, listSearchSources, researchCharacter, researchTimeline, researchWorldbook, updateResearchSettings } from "./assist-character-research.js";
 import { assistWorldbook } from "./assist-worldbook.js";
 import { assistTimeline } from "./assist-timeline.js";
 import { loadDirectorConversation, saveDirectorConversation } from "./director-conversations.js";
@@ -454,8 +454,9 @@ export const routeDefinitions: RouteDefinition[] = [
   {
     method: "GET",
     path: "/api/v1/assist/search-sources",
-    async handler() {
-      return listSearchSources();
+    async handler(_request, context) {
+      const vaultRoot = requireVaultRoot(context);
+      return await listSearchSources(vaultRoot, context.services.credentialService);
     },
   },
   {
@@ -463,7 +464,7 @@ export const routeDefinitions: RouteDefinition[] = [
     path: "/api/v1/assist/research-settings",
     async handler(request, context) {
       const vaultRoot = requireVaultRoot(context);
-      return await getResearchSettings(vaultRoot);
+      return await getPublicResearchSettings(vaultRoot, context.services.credentialService);
     },
   },
   {
@@ -471,7 +472,7 @@ export const routeDefinitions: RouteDefinition[] = [
     path: "/api/v1/assist/research-settings",
     async handler(request, context) {
       const vaultRoot = requireVaultRoot(context);
-      return await updateResearchSettings(vaultRoot, request.body);
+      return await updateResearchSettings(vaultRoot, request.body, context.services.credentialService);
     },
   },
   {
