@@ -21,6 +21,7 @@ import {
 import { ConfirmModal } from "../app/Modals.js";
 import { CenterState, ViewShell } from "./common.js";
 import { ProjectSelector } from "./ProjectSelector.js";
+import { ResearchPreviewModal, type ResearchPreviewSource } from "./ResearchPreviewModal.js";
 import { Select } from "./Select.js";
 
 type EditorMode = "create" | "edit";
@@ -373,7 +374,7 @@ function collectExistingValues(draft: WorldbookEntryInput, profile: WorldbookPro
   return values;
 }
 
-function mergeAssistFields(draft: WorldbookEntryInput, fields: WorldbookAssistField[], generated: Record<string, string>): WorldbookEntryInput {
+function mergeAssistFields(draft: WorldbookEntryInput, fields: WorldbookAssistField[], generated: Record<string, string>, overwrite = false): WorldbookEntryInput {
   let next: WorldbookEntryInput = {
     ...draft,
     profile: normalizeProfile(draft.profile, draft.template ?? "simple"),
@@ -389,7 +390,7 @@ function mergeAssistFields(draft: WorldbookEntryInput, fields: WorldbookAssistFi
       const profile = normalizeProfile(next.profile, next.template ?? "simple");
       const rows = [...(profile.custom?.[field.profileGroup] ?? [])];
       const rowIndex = rows.findIndex((row) => row.label?.trim() === field.label);
-      if (rowIndex >= 0 && !rows[rowIndex].value?.trim()) {
+      if (rowIndex >= 0 && (overwrite || !rows[rowIndex].value?.trim())) {
         rows[rowIndex] = { ...rows[rowIndex], value: generatedValue };
         next = {
           ...next,
@@ -405,7 +406,7 @@ function mergeAssistFields(draft: WorldbookEntryInput, fields: WorldbookAssistFi
     if (field.profileGroup) {
       const profile = normalizeProfile(next.profile, next.template ?? "simple");
       const currentValue = profile[field.profileGroup]?.[field.key]?.trim();
-      if (!currentValue) {
+      if (overwrite || !currentValue) {
         next = {
           ...next,
           profile: {
@@ -420,13 +421,13 @@ function mergeAssistFields(draft: WorldbookEntryInput, fields: WorldbookAssistFi
       continue;
     }
 
-    if (field.key === "title" && !next.title.trim()) {
+    if (field.key === "title" && (overwrite || !next.title.trim())) {
       next = { ...next, title: generatedValue, name: generatedValue };
-    } else if (field.key === "summary" && !next.summary?.trim()) {
+    } else if (field.key === "summary" && (overwrite || !next.summary?.trim())) {
       next = { ...next, summary: generatedValue };
-    } else if (field.key === "description" && !next.description?.trim()) {
+    } else if (field.key === "description" && (overwrite || !next.description?.trim())) {
       next = { ...next, description: generatedValue };
-    } else if (field.key === "keywords" && !(next.keywords ?? []).length) {
+    } else if (field.key === "keywords" && (overwrite || !(next.keywords ?? []).length)) {
       next = { ...next, keywords: linesToArray(generatedValue) };
     }
   }
@@ -988,6 +989,13 @@ function WorldbookEditor({
   const [researchLoading, setResearchLoading] = useState(false);
   const [researchError, setResearchError] = useState<string | null>(null);
   const [researchSource, setResearchSource] = useState<{ title: string; url: string; sourceName?: string } | null>(null);
+  const [researchPreview, setResearchPreview] = useState<{
+    fields: WorldbookAssistField[];
+    generated: Record<string, string>;
+    existingValues: Record<string, string>;
+    source: ResearchPreviewSource;
+    fallbackTitle: string;
+  } | null>(null);
   const [expanded, setExpanded] = useState<Record<WorldbookProfileGroup, boolean>>(() =>
     GROUPS.reduce((result, group) => ({ ...result, [group.id]: group.defaultOpen }), {} as Record<WorldbookProfileGroup, boolean>),
   );
@@ -1090,7 +1098,10 @@ function WorldbookEditor({
     setResearchError(null);
     setAssistNotice(null);
     setResearchSource(null);
+    setResearchPreview(null);
     try {
+      const baseDraft = { ...value, profile: normalizedProfile };
+      const existingValues = collectExistingValues(baseDraft, normalizedProfile, fields);
       const response = await api.researchWorldbook({
         entryName: input.entryName,
         sourceWork: input.sourceWork,
@@ -1100,12 +1111,19 @@ function WorldbookEditor({
         category: categoryLabel(value.category),
         fields: fields.map(({ group, key, label }) => ({ group, key, label })),
       });
-      const nextDraft = mergeAssistFields({ ...value, profile: normalizedProfile }, fields, response.fields);
-      const title = nextDraft.title || input.entryName;
-      onChange({ ...nextDraft, title, name: nextDraft.name || title });
+      const hasFields = fields.some((field) => (response.fields[field.key] ?? response.fields[field.label])?.trim());
+      if (!hasFields) {
+        setResearchError("联网资料没有整理出可采纳的字段。");
+        return;
+      }
       setResearchOpen(false);
-      setResearchSource(response.source);
-      setAssistNotice(`已根据${response.source.sourceName ?? "联网资料"}「${response.source.title}」填入可用空字段，请核对后保存。`);
+      setResearchPreview({
+        fields,
+        generated: response.fields,
+        existingValues,
+        source: response.source,
+        fallbackTitle: input.entryName,
+      });
     } catch (researchErrorValue) {
       setResearchError(researchErrorValue instanceof ApiError ? researchErrorValue.message : "联网查资料失败");
     } finally {
@@ -1284,6 +1302,24 @@ function WorldbookEditor({
               }}
               onSubmit={(input) => {
                 void runResearch(input);
+              }}
+            />
+          ) : null}
+          {researchPreview ? (
+            <ResearchPreviewModal
+              source={researchPreview.source}
+              fields={researchPreview.fields}
+              generated={researchPreview.generated}
+              existingValues={researchPreview.existingValues}
+              onCancel={() => setResearchPreview(null)}
+              onApply={(selected) => {
+                const baseDraft = { ...value, profile: normalizeProfile(profile, value.template ?? "simple") };
+                const nextDraft = mergeAssistFields(baseDraft, researchPreview.fields, selected, true);
+                const title = nextDraft.title || researchPreview.fallbackTitle;
+                onChange({ ...nextDraft, title, name: nextDraft.name || title });
+                setResearchSource(researchPreview.source);
+                setAssistNotice("已采纳选中的联网资料字段，请核对后保存。");
+                setResearchPreview(null);
               }}
             />
           ) : null}

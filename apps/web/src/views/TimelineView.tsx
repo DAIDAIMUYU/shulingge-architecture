@@ -21,6 +21,7 @@ import {
 import { ConfirmModal } from "../app/Modals.js";
 import { CenterState, ViewShell } from "./common.js";
 import { ProjectSelector } from "./ProjectSelector.js";
+import { ResearchPreviewModal, type ResearchPreviewSource } from "./ResearchPreviewModal.js";
 import { Select } from "./Select.js";
 
 type EditorMode = "create" | "edit";
@@ -334,7 +335,7 @@ function collectExistingValues(draft: TimelineEventInput, profile: TimelineProfi
   return values;
 }
 
-function mergeAssistFields(draft: TimelineEventInput, fields: TimelineAssistField[], generated: Record<string, string>): TimelineEventInput {
+function mergeAssistFields(draft: TimelineEventInput, fields: TimelineAssistField[], generated: Record<string, string>, overwrite = false): TimelineEventInput {
   let next: TimelineEventInput = {
     ...draft,
     profile: normalizeProfile(draft.profile, draft.template ?? "simple"),
@@ -350,7 +351,7 @@ function mergeAssistFields(draft: TimelineEventInput, fields: TimelineAssistFiel
       const profile = normalizeProfile(next.profile, next.template ?? "simple");
       const rows = [...(profile.custom?.[field.profileGroup] ?? [])];
       const rowIndex = rows.findIndex((row) => row.label?.trim() === field.label);
-      if (rowIndex >= 0 && !rows[rowIndex].value?.trim()) {
+      if (rowIndex >= 0 && (overwrite || !rows[rowIndex].value?.trim())) {
         rows[rowIndex] = { ...rows[rowIndex], value: generatedValue };
         next = {
           ...next,
@@ -366,7 +367,7 @@ function mergeAssistFields(draft: TimelineEventInput, fields: TimelineAssistFiel
     if (field.profileGroup) {
       const profile = normalizeProfile(next.profile, next.template ?? "simple");
       const currentValue = profile[field.profileGroup]?.[field.key]?.trim();
-      if (!currentValue) {
+      if (overwrite || !currentValue) {
         next = {
           ...next,
           profile: {
@@ -381,15 +382,15 @@ function mergeAssistFields(draft: TimelineEventInput, fields: TimelineAssistFiel
       continue;
     }
 
-    if (field.key === "title" && !next.title.trim()) {
+    if (field.key === "title" && (overwrite || !next.title.trim())) {
       next = { ...next, title: generatedValue };
-    } else if (field.key === "eventDate" && !next.eventDate?.trim()) {
+    } else if (field.key === "eventDate" && (overwrite || !next.eventDate?.trim())) {
       next = { ...next, eventDate: generatedValue };
-    } else if (field.key === "location" && !next.location?.trim()) {
+    } else if (field.key === "location" && (overwrite || !next.location?.trim())) {
       next = { ...next, location: generatedValue };
-    } else if (field.key === "summary" && !next.summary?.trim()) {
+    } else if (field.key === "summary" && (overwrite || !next.summary?.trim())) {
       next = { ...next, summary: generatedValue };
-    } else if (field.key === "description" && !next.description?.trim()) {
+    } else if (field.key === "description" && (overwrite || !next.description?.trim())) {
       next = { ...next, description: generatedValue };
     }
   }
@@ -955,6 +956,13 @@ function TimelineEditor({
   const [researchLoading, setResearchLoading] = useState(false);
   const [researchError, setResearchError] = useState<string | null>(null);
   const [researchSource, setResearchSource] = useState<{ title: string; url: string; sourceName?: string } | null>(null);
+  const [researchPreview, setResearchPreview] = useState<{
+    fields: TimelineAssistField[];
+    generated: Record<string, string>;
+    existingValues: Record<string, string>;
+    source: ResearchPreviewSource;
+    fallbackTitle: string;
+  } | null>(null);
   const [expanded, setExpanded] = useState<Record<TimelineProfileGroup, boolean>>(() =>
     GROUPS.reduce((result, group) => ({ ...result, [group.id]: group.defaultOpen }), {} as Record<TimelineProfileGroup, boolean>),
   );
@@ -1058,7 +1066,10 @@ function TimelineEditor({
     setResearchError(null);
     setAssistNotice(null);
     setResearchSource(null);
+    setResearchPreview(null);
     try {
+      const baseDraft = { ...value, profile: normalizedProfile };
+      const existingValues = collectExistingValues(baseDraft, normalizedProfile, fields);
       const response = await api.researchTimeline({
         eventName: input.eventName,
         sourceWork: input.sourceWork,
@@ -1068,11 +1079,19 @@ function TimelineEditor({
         line: lineLabel(value.line),
         fields: fields.map(({ group, key, label }) => ({ group, key, label })),
       });
-      const nextDraft = mergeAssistFields({ ...value, profile: normalizedProfile }, fields, response.fields);
-      onChange({ ...nextDraft, title: nextDraft.title || input.eventName });
+      const hasFields = fields.some((field) => (response.fields[field.key] ?? response.fields[field.label])?.trim());
+      if (!hasFields) {
+        setResearchError("联网资料没有整理出可采纳的字段。");
+        return;
+      }
       setResearchOpen(false);
-      setResearchSource(response.source);
-      setAssistNotice(`已根据${response.source.sourceName ?? "联网资料"}「${response.source.title}」填入可用空字段，请核对后保存。`);
+      setResearchPreview({
+        fields,
+        generated: response.fields,
+        existingValues,
+        source: response.source,
+        fallbackTitle: input.eventName,
+      });
     } catch (researchErrorValue) {
       setResearchError(researchErrorValue instanceof ApiError ? researchErrorValue.message : "联网查资料失败");
     } finally {
@@ -1262,6 +1281,23 @@ function TimelineEditor({
               }}
               onSubmit={(input) => {
                 void runResearch(input);
+              }}
+            />
+          ) : null}
+          {researchPreview ? (
+            <ResearchPreviewModal
+              source={researchPreview.source}
+              fields={researchPreview.fields}
+              generated={researchPreview.generated}
+              existingValues={researchPreview.existingValues}
+              onCancel={() => setResearchPreview(null)}
+              onApply={(selected) => {
+                const baseDraft = { ...value, profile: normalizeProfile(profile, value.template ?? "simple") };
+                const nextDraft = mergeAssistFields(baseDraft, researchPreview.fields, selected, true);
+                onChange({ ...nextDraft, title: nextDraft.title || researchPreview.fallbackTitle });
+                setResearchSource(researchPreview.source);
+                setAssistNotice("已采纳选中的联网资料字段，请核对后保存。");
+                setResearchPreview(null);
               }}
             />
           ) : null}

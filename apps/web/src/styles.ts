@@ -525,6 +525,25 @@ body.app-focus .main { padding-bottom: 0; }
 .review-report-card-head strong { display: block; color: var(--text-primary); }
 .review-report-card-head span { font-size: 12px; color: var(--text-muted); }
 .review-report-text { margin: 10px 0 0; white-space: pre-wrap; word-break: break-word; font: inherit; line-height: 1.75; color: var(--text-primary); }
+.research-preview-modal { width: min(820px, 100%); max-height: min(84vh, 880px); display: flex; flex-direction: column; padding: 0; overflow: hidden; }
+.research-preview-modal .character-modal-head a { display: inline-flex; align-items: center; gap: 4px; color: var(--primary); }
+.research-preview-body { overflow: auto; padding: 18px 24px; display: grid; gap: 10px; }
+.research-preview-row { display: grid; grid-template-columns: 18px minmax(0, 1fr); gap: 12px; align-items: flex-start; padding: 13px 14px; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--bg-panel); cursor: pointer; }
+.research-preview-row.overwrite { border-color: color-mix(in srgb, var(--warning) 42%, var(--border)); background: color-mix(in srgb, var(--warning) 10%, var(--bg-panel)); }
+.research-preview-row input { margin-top: 3px; accent-color: var(--primary); }
+.research-preview-content { min-width: 0; display: grid; gap: 9px; }
+.research-preview-title { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.research-preview-title strong { color: var(--text-primary); font-size: 13px; }
+.research-preview-title span { color: var(--text-muted); font-size: 12px; }
+.research-preview-title em { font-style: normal; padding: 2px 7px; border-radius: 999px; background: color-mix(in srgb, var(--warning) 16%, var(--bg-card)); color: var(--warning); font-size: 11px; }
+.research-preview-title em.safe { background: color-mix(in srgb, var(--success) 14%, var(--bg-card)); color: var(--success); }
+.research-preview-existing,
+.research-preview-suggested { display: grid; gap: 4px; }
+.research-preview-existing span,
+.research-preview-suggested span { color: var(--text-muted); font-size: 11px; }
+.research-preview-existing p,
+.research-preview-suggested p { margin: 0; white-space: pre-wrap; word-break: break-word; color: var(--text-secondary); font-size: 12.5px; line-height: 1.65; }
+.research-preview-suggested p { color: var(--text-primary); }
 
 /* 对话内的 Agent 执行卡片 */
 .run-inline { background: var(--bg-card); background-image: none; border: 1px solid var(--border); border-radius: var(--radius-md); padding: 14px; margin-left: 38px; box-shadow: var(--shadow-card); }

@@ -16,6 +16,7 @@ import {
 import { ConfirmModal } from "../app/Modals.js";
 import { CenterState, ViewShell } from "./common.js";
 import { ProjectSelector } from "./ProjectSelector.js";
+import { ResearchPreviewModal, type ResearchPreviewSource } from "./ResearchPreviewModal.js";
 import { Select } from "./Select.js";
 
 type CharacterViewMode = "card" | "list";
@@ -533,7 +534,7 @@ function collectExistingValues(profile: CharacterProfile, fields: CharacterAssis
   return values;
 }
 
-function mergeAssistFields(profile: CharacterProfile, fields: CharacterAssistField[], generated: Record<string, string>): CharacterProfile {
+function mergeAssistFields(profile: CharacterProfile, fields: CharacterAssistField[], generated: Record<string, string>, overwrite = false): CharacterProfile {
   let next = normalizeProfile(profile);
 
   for (const field of fields) {
@@ -550,7 +551,7 @@ function mergeAssistFields(profile: CharacterProfile, fields: CharacterAssistFie
     if (field.custom) {
       const rows = [...(next.custom?.[groupDefinition.id] ?? [])];
       const rowIndex = rows.findIndex((row) => row.label?.trim() === field.label);
-      if (rowIndex >= 0 && !rows[rowIndex].value?.trim()) {
+      if (rowIndex >= 0 && (overwrite || !rows[rowIndex].value?.trim())) {
         rows[rowIndex] = { ...rows[rowIndex], value: generatedValue };
         next = { ...next, custom: { ...next.custom, [groupDefinition.id]: rows } };
       }
@@ -558,7 +559,7 @@ function mergeAssistFields(profile: CharacterProfile, fields: CharacterAssistFie
     }
 
     const currentValue = next[groupDefinition.id]?.[field.key]?.trim();
-    if (!currentValue) {
+    if (overwrite || !currentValue) {
       next = {
         ...next,
         [groupDefinition.id]: {
@@ -1076,6 +1077,13 @@ function CharacterEditor({
   const [researchError, setResearchError] = useState<string | null>(null);
   const [assistNotice, setAssistNotice] = useState<string | null>(null);
   const [researchSource, setResearchSource] = useState<{ title: string; url: string } | null>(null);
+  const [researchPreview, setResearchPreview] = useState<{
+    fields: CharacterAssistField[];
+    generated: Record<string, string>;
+    existingValues: Record<string, string>;
+    source: ResearchPreviewSource;
+    fallbackName: string;
+  } | null>(null);
   const [fieldAssistLoading, setFieldAssistLoading] = useState<string | null>(null);
   const isDetailed = profile.template === "detailed";
   const initialResearchName = (value.name || profile.basic?.fullName || "").trim();
@@ -1293,7 +1301,9 @@ function CharacterEditor({
     setResearchError(null);
     setAssistNotice(null);
     setResearchSource(null);
+    setResearchPreview(null);
     try {
+      const existingValues = collectExistingValues(profile, fields);
       const response = await api.researchCharacter({
         characterName: input.characterName,
         sourceWork: input.sourceWork,
@@ -1301,11 +1311,19 @@ function CharacterEditor({
         projectId,
         fields: fields.map(({ group, key, label }) => ({ group, key, label })),
       });
-      const nextProfile = mergeAssistFields(profile, fields, response.fields);
-      onChange({ ...value, name: value.name || input.characterName, profile: nextProfile });
+      const hasFields = fields.some((field) => (response.fields[field.key] ?? response.fields[field.label])?.trim());
+      if (!hasFields) {
+        setResearchError("联网资料没有整理出可采纳的字段。");
+        return;
+      }
       setResearchOpen(false);
-      setResearchSource(response.source);
-      setAssistNotice(`已根据${response.source.sourceName ?? "联网资料"}「${response.source.title}」填入可用空字段，请核对后保存。`);
+      setResearchPreview({
+        fields,
+        generated: response.fields,
+        existingValues,
+        source: response.source,
+        fallbackName: input.characterName,
+      });
     } catch (researchErrorValue) {
       setResearchError(researchErrorValue instanceof ApiError ? researchErrorValue.message : "联网查资料失败");
     } finally {
@@ -1452,6 +1470,22 @@ function CharacterEditor({
           }}
           onSubmit={(input) => {
             void runResearch(input);
+          }}
+        />
+      ) : null}
+      {researchPreview ? (
+        <ResearchPreviewModal
+          source={researchPreview.source}
+          fields={researchPreview.fields}
+          generated={researchPreview.generated}
+          existingValues={researchPreview.existingValues}
+          onCancel={() => setResearchPreview(null)}
+          onApply={(selected) => {
+            const nextProfile = mergeAssistFields(profile, researchPreview.fields, selected, true);
+            onChange({ ...value, name: value.name || researchPreview.fallbackName, profile: nextProfile });
+            setResearchSource(researchPreview.source);
+            setAssistNotice("已采纳选中的联网资料字段，请核对后保存。");
+            setResearchPreview(null);
           }}
         />
       ) : null}
