@@ -740,6 +740,11 @@ body.app-focus .main { padding-bottom: 0; }
 .character-card-body h3 { margin: 0 0 5px; font-family: var(--font-serif); font-size: 20px; }
 .character-card-body p { min-height: 42px; margin: 0; color: var(--text-secondary); font-size: 13px; line-height: 1.6; }
 .character-list-card .character-compact-row { min-height: 64px; }
+.character-field-label { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 24px; }
+.character-field-ai { width: 24px; height: 24px; flex: none; color: var(--primary); opacity: .72; }
+.character-field-ai:hover { opacity: 1; }
+.character-field-ai:disabled { opacity: .42; cursor: not-allowed; }
+.character-field-textarea { min-height: 92px; resize: vertical; line-height: 1.7; }
 .character-template-modal { width: min(620px, 100%); }
 .character-template-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
 .character-template-card { min-height: 150px; display: flex; flex-direction: column; align-items: flex-start; gap: 10px; padding: 18px; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--bg-panel); background-image: none; color: var(--text-primary); text-align: left; cursor: pointer; transition: border-color .18s ease, background .18s ease, transform .18s ease, box-shadow .18s ease; }

@@ -340,6 +340,97 @@ const SIMPLE_FIELDS: Partial<Record<CharacterProfileGroup, string[]>> = {
   background: ["importantPastEvent", "pastEventEffect", "finalDirection"],
 };
 
+const AI_TEXT_FIELD_KEYS = new Set([
+  "appearanceImpression",
+  "personalityImpression",
+  "currentState",
+  "distinctiveFeatures",
+  "firstImpression",
+  "obviousFeature",
+  "facialFeatures",
+  "bodyType",
+  "posture",
+  "voice",
+  "clothingStyle",
+  "health",
+  "corePersonality",
+  "bestQuality",
+  "worstFlaw",
+  "culturalBackground",
+  "speechStyle",
+  "catchphrases",
+  "fears",
+  "goodHabits",
+  "badHabits",
+  "gestures",
+  "problemSolving",
+  "empathy",
+  "creativity",
+  "bucketList",
+  "coreValues",
+  "morality",
+  "happiness",
+  "success",
+  "worldview",
+  "socialIssues",
+  "philosophy",
+  "selfImage",
+  "coreMotivation",
+  "darkestSecret",
+  "biggestDream",
+  "currentGoal",
+  "deepFear",
+  "innerConflict",
+  "externalConflict",
+  "regret",
+  "strongestDesire",
+  "externalPressure",
+  "insecurity",
+  "legacy",
+  "whatTheyWant",
+  "whatTheyFear",
+  "familyPattern",
+  "withFriends",
+  "withEnemies",
+  "intimacyWeakness",
+  "attractedTo",
+  "conflictsWith",
+  "familyRelationship",
+  "friendshipStyle",
+  "workEthic",
+  "careerGoal",
+  "reputation",
+  "careerChallenge",
+  "jobFeeling",
+  "coworkers",
+  "teamPosition",
+  "authority",
+  "failure",
+  "proveThemselves",
+  "childhood",
+  "importantPastEvent",
+  "lifeMilestones",
+  "achievements",
+  "keyMemory",
+  "childhoodInfluence",
+  "lifeChoice",
+  "lifeLesson",
+  "preciousMoment",
+  "biggestFailure",
+  "hardDecision",
+  "backgroundImpact",
+  "escapingPast",
+  "pastEventEffect",
+  "finalDirection",
+  "sourceWorldRelation",
+  "sourceCharacterRelation",
+  "specialPower",
+  "changedCanon",
+  "worldAchievement",
+  "canonConflict",
+  "storyChange",
+]);
+
 function readStoredProjectId(): string {
   if (typeof window === "undefined") {
     return DEFAULT_PROJECT_ID;
@@ -867,6 +958,7 @@ function CharacterEditor({
   const [assistLoading, setAssistLoading] = useState(false);
   const [assistError, setAssistError] = useState<string | null>(null);
   const [assistNotice, setAssistNotice] = useState<string | null>(null);
+  const [fieldAssistLoading, setFieldAssistLoading] = useState<string | null>(null);
   const isDetailed = profile.template === "detailed";
 
   const updateProfile = (nextProfile: CharacterProfile) => {
@@ -905,6 +997,48 @@ function CharacterEditor({
       },
     });
   };
+  const runFieldAssist = async (group: CharacterGroupDefinition, field: CharacterField) => {
+    const target: CharacterAssistField = {
+      group: group.simpleTitle ?? group.title,
+      key: field.key,
+      label: field.label,
+    };
+    const contextFields = collectAssistFields(profile);
+    const sourceWork = (profile.background?.sourceWork ?? "").trim();
+    const characterName = (value.name || profile.basic?.fullName || "").trim();
+    const oneLine = (profile.basic?.oneLine ?? "").trim();
+    const modeValue: AssistMode = sourceWork ? "fanfic" : "original";
+
+    setFieldAssistLoading(`${group.id}.${field.key}`);
+    setAssistError(null);
+    setAssistNotice(null);
+    try {
+      const response = await api.assistCharacter({
+        mode: modeValue,
+        userPrompt: modeValue === "fanfic"
+          ? `${characterName || "这个角色"}，来源作品：${sourceWork}`
+          : `${characterName ? `角色名：${characterName}。` : ""}${oneLine ? `一句话设定：${oneLine}。` : ""}请只生成「${field.label}」字段。`,
+        characterName,
+        sourceWork,
+        scopeInstruction: `只生成「${field.label}」这一个字段，参考已填写字段保持角色设定一致。`,
+        template: profile.template,
+        projectId,
+        fields: [{ group: target.group, key: target.key, label: target.label }],
+        existingValues: collectExistingValues(profile, contextFields),
+      });
+      const generatedValue = (response.fields[field.key] ?? response.fields[field.label])?.trim();
+      if (!generatedValue) {
+        setAssistError("AI 没有返回该字段内容，请重试。");
+        return;
+      }
+      updateField(group.id, field.key, generatedValue);
+      setAssistNotice(`AI 已生成「${field.label}」，可继续修改后保存。`);
+    } catch (fieldAssistError) {
+      setAssistError(fieldAssistError instanceof ApiError ? fieldAssistError.message : "单字段 AI 生成失败");
+    } finally {
+      setFieldAssistLoading(null);
+    }
+  };
   const renderFields = (group: CharacterGroupDefinition, compact: boolean) => {
     const allowed = compact ? new Set(SIMPLE_FIELDS[group.id] ?? []) : null;
     return (
@@ -918,16 +1052,46 @@ function CharacterEditor({
             <div className="character-subsection" key={`${group.id}-${sectionIndex}`}>
               {subsection.title && !compact ? <h4>{subsection.title}</h4> : null}
               <div className="character-field-grid">
-                {fields.map((field) => (
-                  <label className="form-block" key={`${group.id}-${field.key}`}>
-                    <span>{field.label}</span>
-                    <input
-                      className="input"
-                      value={profile[group.id]?.[field.key] ?? ""}
-                      onChange={(event) => updateField(group.id, field.key, event.target.value)}
-                    />
-                  </label>
-                ))}
+                {fields.map((field) => {
+                  const canAssistField = AI_TEXT_FIELD_KEYS.has(field.key);
+                  const loadingKey = `${group.id}.${field.key}`;
+                  const fieldLoading = fieldAssistLoading === loadingKey;
+                  return (
+                    <label className="form-block" key={`${group.id}-${field.key}`}>
+                      <span className="character-field-label">
+                        <span>{field.label}</span>
+                        {canAssistField ? (
+                          <button
+                            type="button"
+                            className="btn-icon character-field-ai"
+                            title={`AI 生成${field.label}`}
+                            disabled={Boolean(fieldAssistLoading) || assistLoading}
+                            onClick={(event) => {
+                              event.preventDefault();
+                              event.stopPropagation();
+                              void runFieldAssist(group, field);
+                            }}
+                          >
+                            <Sparkles size={14} className={fieldLoading ? "spin-icon" : undefined} />
+                          </button>
+                        ) : null}
+                      </span>
+                      {canAssistField ? (
+                        <textarea
+                          className="textarea character-field-textarea"
+                          value={profile[group.id]?.[field.key] ?? ""}
+                          onChange={(event) => updateField(group.id, field.key, event.target.value)}
+                        />
+                      ) : (
+                        <input
+                          className="input"
+                          value={profile[group.id]?.[field.key] ?? ""}
+                          onChange={(event) => updateField(group.id, field.key, event.target.value)}
+                        />
+                      )}
+                    </label>
+                  );
+                })}
               </div>
             </div>
           );
