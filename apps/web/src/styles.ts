@@ -2223,7 +2223,7 @@ body::after,
 
 .app-shell.app-desktop-layout:not(.app-focus-mode) .workspace {
   display: grid !important;
-  grid-template-columns: minmax(232px, 252px) minmax(0, 1fr) !important;
+  grid-template-columns: minmax(188px, 224px) minmax(0, 1fr) !important;
   grid-template-rows: minmax(0, 1fr) !important;
   height: 100% !important;
   min-height: 0 !important;
@@ -2251,9 +2251,9 @@ body::after,
 }
 
 .app-shell.app-desktop-layout:not(.app-focus-mode) .editor-scroll {
-  justify-items: start !important;
-  padding-left: clamp(16px, 2vw, 32px) !important;
-  padding-right: clamp(16px, 2vw, 32px) !important;
+  justify-items: center !important;
+  padding-left: clamp(8px, 1.4vw, 22px) !important;
+  padding-right: clamp(8px, 1.4vw, 22px) !important;
   min-width: 0 !important;
   max-width: 100% !important;
   overflow-x: hidden !important;
@@ -2261,8 +2261,8 @@ body::after,
 
 .app-shell.app-desktop-layout:not(.app-focus-mode) .editor-workbench {
   width: 100% !important;
-  max-width: min(920px, 100%) !important;
-  justify-self: start !important;
+  max-width: min(760px, 100%) !important;
+  justify-self: center !important;
 }
 
 .app-shell.app-desktop-layout:not(.app-focus-mode) .paper {
@@ -2337,7 +2337,7 @@ body::after,
 
 @media (min-width: 1500px) {
   .app-shell.app-desktop-layout:not(.app-focus-mode) .workspace {
-    grid-template-columns: minmax(232px, 252px) minmax(0, 1fr) minmax(260px, 300px) !important;
+    grid-template-columns: minmax(220px, 252px) minmax(0, 1fr) minmax(260px, 300px) !important;
   }
 
   .app-shell.app-desktop-layout:not(.app-focus-mode) .workspace > .chat-pane {
@@ -2349,7 +2349,7 @@ body::after,
   }
 }
 
-@media (max-width: 1366px) {
+@media (max-width: 1180px) {
   .app-shell.app-desktop-layout:not(.app-focus-mode) {
     grid-template-columns: 1fr !important;
     grid-template-rows: minmax(0, 1fr) !important;
@@ -2421,12 +2421,75 @@ body::after,
   }
 }
 
+@media (min-width: 1181px) and (max-width: 1499px) {
+  .app-shell.app-desktop-layout:not(.app-focus-mode) {
+    grid-template-columns: 64px minmax(0, 1fr) !important;
+  }
+
+  .app-shell.app-desktop-layout:not(.app-focus-mode) .workspace {
+    grid-template-columns: minmax(152px, 180px) minmax(0, 1fr) !important;
+  }
+
+  .app-shell.app-desktop-layout:not(.app-focus-mode) .tree-head {
+    min-height: 82px !important;
+    padding: 22px 12px 10px !important;
+  }
+
+  .app-shell.app-desktop-layout:not(.app-focus-mode) .tree-scroll {
+    padding-left: 8px !important;
+    padding-right: 8px !important;
+  }
+
+  .app-shell.app-desktop-layout:not(.app-focus-mode) .tree-item {
+    padding-left: 9px !important;
+    padding-right: 9px !important;
+  }
+
+  .app-shell.app-desktop-layout:not(.app-focus-mode) .editor-scroll {
+    justify-items: start !important;
+    padding-left: 8px !important;
+    padding-right: 8px !important;
+    overflow-x: hidden !important;
+  }
+
+  .app-shell.app-desktop-layout:not(.app-focus-mode) .editor-workbench {
+    width: 520px !important;
+    max-width: calc(100% - 8px) !important;
+    min-width: 0 !important;
+    justify-self: start !important;
+  }
+
+  .app-shell.app-desktop-layout:not(.app-focus-mode) .paper {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+  }
+
+  .app-shell.app-desktop-layout:not(.app-focus-mode) .paper-body {
+    padding-left: clamp(18px, 3vw, 32px) !important;
+    padding-right: clamp(18px, 3vw, 32px) !important;
+  }
+
+  .app-shell.app-desktop-layout:not(.app-focus-mode) .chapter-title {
+    max-width: 100% !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+    font-size: clamp(24px, 2.6vw, 30px) !important;
+    letter-spacing: .035em !important;
+  }
+
+  .app-shell.app-desktop-layout:not(.app-focus-mode) .manuscript,
+  .app-shell.app-desktop-layout:not(.app-focus-mode) .rich-editor-shell,
+  .app-shell.app-desktop-layout:not(.app-focus-mode) .source-manuscript {
+    max-width: min(100%, 520px) !important;
+  }
+}
+
 /* Final narrow-window safety net: real Chrome windows around 900x680 need
    visible controls, not a horizontally clipped desktop toolbar. */
 .app-shell.app-mobile-layout.app-compact-height .workspace.mobile-panel-editor .paper-toolbar,
-.app-shell.app-mobile-layout.app-compact-height .workspace.mobile-panel-inspector .paper-toolbar,
-.app-shell.app-desktop-layout.app-compact-height:not(.app-focus-mode) .workspace.mobile-panel-editor .paper-toolbar,
-.app-shell.app-desktop-layout.app-compact-height:not(.app-focus-mode) .workspace.mobile-panel-inspector .paper-toolbar {
+.app-shell.app-mobile-layout.app-compact-height .workspace.mobile-panel-inspector .paper-toolbar {
   flex-wrap: wrap !important;
   overflow-x: visible !important;
   overflow-y: visible !important;
@@ -2437,9 +2500,7 @@ body::after,
 }
 
 .app-shell.app-mobile-layout.app-compact-height .workspace.mobile-panel-editor .editor-scroll,
-.app-shell.app-mobile-layout.app-compact-height .workspace.mobile-panel-inspector .editor-scroll,
-.app-shell.app-desktop-layout.app-compact-height:not(.app-focus-mode) .workspace.mobile-panel-editor .editor-scroll,
-.app-shell.app-desktop-layout.app-compact-height:not(.app-focus-mode) .workspace.mobile-panel-inspector .editor-scroll {
+.app-shell.app-mobile-layout.app-compact-height .workspace.mobile-panel-inspector .editor-scroll {
   padding-left: 6px !important;
   padding-right: 6px !important;
 }
@@ -2447,11 +2508,7 @@ body::after,
 .app-shell.app-mobile-layout.app-compact-height .workspace.mobile-panel-editor .editor-workbench,
 .app-shell.app-mobile-layout.app-compact-height .workspace.mobile-panel-inspector .editor-workbench,
 .app-shell.app-mobile-layout.app-compact-height .workspace.mobile-panel-editor .paper,
-.app-shell.app-mobile-layout.app-compact-height .workspace.mobile-panel-inspector .paper,
-.app-shell.app-desktop-layout.app-compact-height:not(.app-focus-mode) .workspace.mobile-panel-editor .editor-workbench,
-.app-shell.app-desktop-layout.app-compact-height:not(.app-focus-mode) .workspace.mobile-panel-inspector .editor-workbench,
-.app-shell.app-desktop-layout.app-compact-height:not(.app-focus-mode) .workspace.mobile-panel-editor .paper,
-.app-shell.app-desktop-layout.app-compact-height:not(.app-focus-mode) .workspace.mobile-panel-inspector .paper {
+.app-shell.app-mobile-layout.app-compact-height .workspace.mobile-panel-inspector .paper {
   width: calc(100% - 2px) !important;
   max-width: calc(100% - 2px) !important;
   margin-left: auto !important;
@@ -2459,43 +2516,35 @@ body::after,
 }
 
 .app-shell.app-mobile-layout.app-compact-height .paper-toolbar .sep,
-.app-shell.app-mobile-layout.app-compact-height .paper-toolbar .grow,
-.app-shell.app-desktop-layout.app-compact-height:not(.app-focus-mode) .paper-toolbar .sep,
-.app-shell.app-desktop-layout.app-compact-height:not(.app-focus-mode) .paper-toolbar .grow {
+.app-shell.app-mobile-layout.app-compact-height .paper-toolbar .grow {
   display: none !important;
 }
 
-.app-shell.app-mobile-layout.app-compact-height .paper-toolbar .btn-icon,
-.app-shell.app-desktop-layout.app-compact-height:not(.app-focus-mode) .paper-toolbar .btn-icon {
+.app-shell.app-mobile-layout.app-compact-height .paper-toolbar .btn-icon {
   width: 28px !important;
   height: 28px !important;
 }
 
-.app-shell.app-mobile-layout.app-compact-height .paper-toolbar .btn,
-.app-shell.app-desktop-layout.app-compact-height:not(.app-focus-mode) .paper-toolbar .btn {
+.app-shell.app-mobile-layout.app-compact-height .paper-toolbar .btn {
   height: 28px !important;
 }
 
-.app-shell.app-mobile-layout.app-compact-height .paper-toolbar .toolbar-action,
-.app-shell.app-desktop-layout.app-compact-height:not(.app-focus-mode) .paper-toolbar .toolbar-action {
+.app-shell.app-mobile-layout.app-compact-height .paper-toolbar .toolbar-action {
   width: 30px !important;
   min-width: 30px !important;
   padding: 0 !important;
 }
 
-.app-shell.app-mobile-layout.app-compact-height .paper-toolbar .toolbar-action-polish,
-.app-shell.app-desktop-layout.app-compact-height:not(.app-focus-mode) .paper-toolbar .toolbar-action-polish {
+.app-shell.app-mobile-layout.app-compact-height .paper-toolbar .toolbar-action-polish {
   width: 32px !important;
   min-width: 32px !important;
 }
 
-.app-shell.app-mobile-layout.app-compact-height .paper-toolbar .editor-mode-switch,
-.app-shell.app-desktop-layout.app-compact-height:not(.app-focus-mode) .paper-toolbar .editor-mode-switch {
+.app-shell.app-mobile-layout.app-compact-height .paper-toolbar .editor-mode-switch {
   margin-left: 2px !important;
 }
 
-.app-shell.app-mobile-layout.app-compact-height .paper-toolbar .editor-mode-switch button,
-.app-shell.app-desktop-layout.app-compact-height:not(.app-focus-mode) .paper-toolbar .editor-mode-switch button {
+.app-shell.app-mobile-layout.app-compact-height .paper-toolbar .editor-mode-switch button {
   width: 32px !important;
   min-width: 32px !important;
   height: 26px !important;
