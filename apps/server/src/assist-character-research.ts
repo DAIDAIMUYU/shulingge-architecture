@@ -49,6 +49,7 @@ interface WikipediaSource {
   url: string;
   extract: string;
   searchContext: string;
+  usedFullExtract: boolean;
 }
 
 class ResearchJsonParseError extends Error {
@@ -62,6 +63,7 @@ const WIKIPEDIA_API = "https://zh.wikipedia.org/w/api.php";
 const REQUEST_TIMEOUT_MS = 10_000;
 const MAX_GENERATION_ATTEMPTS = 3;
 const MAX_WIKI_CONTEXT_CHARS = 10_000;
+const MIN_USEFUL_EXTRACT_CHARS = 180;
 const FALLBACK_FIELDS: ResearchCharacterField[] = [
   { group: "基础", key: "fullName", label: "角色全名" },
   { group: "基础", key: "oneLine", label: "一句话介绍" },
@@ -81,6 +83,20 @@ const FALLBACK_FIELDS: ResearchCharacterField[] = [
 
 function isAsyncIterable(value: unknown): value is AsyncIterable<unknown> {
   return Boolean(value) && typeof (value as AsyncIterable<unknown>)[Symbol.asyncIterator] === "function";
+}
+
+function researchLog(label: string, value?: unknown): void {
+  if (value === undefined) {
+    console.log(`[character-research] ${label}`);
+    return;
+  }
+
+  if (typeof value === "string") {
+    console.log(`[character-research] ${label}: ${value}`);
+    return;
+  }
+
+  console.log(`[character-research] ${label}:`, value);
 }
 
 async function readModelConfigs(vaultRoot: string, models: Array<{ id: string }>): Promise<Record<string, ModelConfig>> {
@@ -154,6 +170,13 @@ function cleanHtmlSnippet(value: string): string {
     .trim();
 }
 
+function compactFieldKey(value: string): string {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[\s_：:「」『』【】《》（）()\[\]{}·.。、“”，,\/\\|-]+/g, "");
+}
+
 function cleanJsonCandidate(raw: string): string {
   const trimmed = raw.trim();
   if (!trimmed) {
@@ -220,6 +243,30 @@ function wikiArticleUrl(title: string): string {
   return `https://zh.wikipedia.org/wiki/${encodeURIComponent(title.replace(/ /g, "_"))}`;
 }
 
+async function fetchWikipediaExtract(input: {
+  fetchImpl: typeof fetch;
+  title: string;
+  introOnly: boolean;
+}): Promise<{ title: string; extract: string }> {
+  const extractUrl = buildWikipediaUrl({
+    action: "query",
+    prop: "extracts",
+    ...(input.introOnly ? { exintro: "1" } : { exchars: "6500" }),
+    explaintext: "1",
+    redirects: "1",
+    titles: input.title,
+  });
+  const extractData = await fetchJsonWithTimeout<{
+    query?: { pages?: Record<string, { title?: string; extract?: string; missing?: unknown }> };
+  }>(input.fetchImpl, extractUrl);
+  const page = Object.values(extractData.query?.pages ?? {}).find((candidate) => !candidate.missing);
+
+  return {
+    title: page?.title?.trim() || input.title,
+    extract: page?.extract?.trim() ?? "",
+  };
+}
+
 function scoreSearchItem(item: WikipediaSearchItem, characterName: string, sourceWork: string): number {
   const title = item.title.toLowerCase();
   const snippet = cleanHtmlSnippet(item.snippet ?? "").toLowerCase();
@@ -259,6 +306,11 @@ async function fetchWikipediaSource(input: {
         snippet: typeof item.snippet === "string" ? item.snippet : "",
       }))
       .filter((item) => item.title);
+    researchLog("维基百科搜索结果", {
+      query,
+      found: searchItems.length,
+      titles: searchItems.map((item) => item.title),
+    });
   } catch (error) {
     if (error instanceof Error && "statusCode" in error) {
       throw error;
@@ -271,6 +323,7 @@ async function fetchWikipediaSource(input: {
   }
 
   if (!searchItems.length) {
+    researchLog("维基百科搜索结果为空", { query });
     throw createHttpError(404, "WIKIPEDIA_CHARACTER_NOT_FOUND", "未在维基百科找到该角色");
   }
 
@@ -281,29 +334,48 @@ async function fetchWikipediaSource(input: {
   );
 
   for (const item of rankedItems.slice(0, 5)) {
-    const extractUrl = buildWikipediaUrl({
-      action: "query",
-      prop: "extracts",
-      exintro: "1",
-      explaintext: "1",
-      redirects: "1",
-      titles: item.title,
+    let { title, extract } = await fetchWikipediaExtract({
+      fetchImpl: input.fetchImpl,
+      title: item.title,
+      introOnly: true,
     });
-    const extractData = await fetchJsonWithTimeout<{
-      query?: { pages?: Record<string, { title?: string; extract?: string; missing?: unknown }> };
-    }>(input.fetchImpl, extractUrl);
-    const page = Object.values(extractData.query?.pages ?? {}).find((candidate) => !candidate.missing);
-    const title = page?.title?.trim() || item.title;
-    const extract = page?.extract?.trim() ?? "";
+    let usedFullExtract = false;
+    researchLog("词条导语 extract", {
+      title,
+      length: extract.length,
+      preview: extract.slice(0, 200),
+    });
+    if (extract.length < MIN_USEFUL_EXTRACT_CHARS) {
+      const fullExtract = await fetchWikipediaExtract({
+        fetchImpl: input.fetchImpl,
+        title: item.title,
+        introOnly: false,
+      });
+      title = fullExtract.title;
+      extract = fullExtract.extract;
+      usedFullExtract = true;
+      researchLog("导语过短，改取词条更多内容", {
+        title,
+        length: extract.length,
+        preview: extract.slice(0, 200),
+      });
+    }
     const snippets = rankedItems
       .map((candidate, index) => `${index + 1}. ${candidate.title}：${cleanHtmlSnippet(candidate.snippet ?? "")}`)
       .join("\n");
     if (extract || snippets) {
+      researchLog("最终采用维基百科资料", {
+        title,
+        extractLength: extract.length,
+        extractPreview: extract.slice(0, 200),
+        usedFullExtract,
+      });
       return {
         title,
         url: wikiArticleUrl(title),
         extract,
         searchContext: snippets,
+        usedFullExtract,
       };
     }
   }
@@ -376,16 +448,55 @@ function normalizeResultFields(raw: string, fields: ResearchCharacterField[]): R
   }
 
   const allowed = new Set<string>();
+  const normalizedAllowed = new Map<string, string>();
   for (const field of fields) {
-    if (field.key) allowed.add(field.key);
-    if (field.label) allowed.add(field.label);
+    if (field.key) {
+      allowed.add(field.key);
+      normalizedAllowed.set(compactFieldKey(field.key), field.key);
+    }
+    if (field.label) {
+      allowed.add(field.label);
+      normalizedAllowed.set(compactFieldKey(field.label), field.key || field.label);
+    }
   }
 
-  return Object.fromEntries(
-    Object.entries(generated as Record<string, unknown>)
-      .map(([key, value]) => [key.trim(), typeof value === "string" ? value.trim() : ""])
-      .filter(([key, value]) => key && value && allowed.has(key)),
+  const rawFields = Object.entries(generated as Record<string, unknown>)
+    .map(([key, value]) => [key.trim(), typeof value === "string" ? value.trim() : ""] as const)
+    .filter(([key, value]) => key && value);
+  researchLog(
+    "normalizeResultFields 过滤前字段",
+    rawFields.map(([key, value]) => ({ key, length: value.length, preview: value.slice(0, 80) })),
   );
+
+  const kept: Record<string, string> = {};
+  const unmatched: Record<string, string> = {};
+  for (const [key, value] of rawFields) {
+    const directKey = allowed.has(key) ? key : undefined;
+    const looseKey = normalizedAllowed.get(compactFieldKey(key));
+    const outputKey = directKey ?? looseKey;
+    if (outputKey) {
+      kept[outputKey] = value;
+    } else {
+      unmatched[key] = value;
+      kept[key] = value;
+    }
+  }
+
+  if (Object.keys(unmatched).length) {
+    const summaryTarget = ["oneLine", "sourceWorldRelation", "importantPastEvent"].find((key) =>
+      fields.some((field) => field.key === key || field.label === key),
+    );
+    if (summaryTarget && !kept[summaryTarget]) {
+      kept[summaryTarget] = Object.entries(unmatched)
+        .map(([key, value]) => `${key}：${value}`)
+        .join("\n")
+        .slice(0, 1600);
+    }
+  }
+
+  researchLog("normalizeResultFields 未匹配字段", Object.keys(unmatched));
+  researchLog("normalizeResultFields 过滤后保留字段", Object.keys(kept));
+  return kept;
 }
 
 async function generateFieldsFromSource(input: {
@@ -400,8 +511,17 @@ async function generateFieldsFromSource(input: {
   let lastError: unknown = null;
   for (let attempt = 1; attempt <= MAX_GENERATION_ATTEMPTS; attempt += 1) {
     try {
+      const messages = buildMessages({ ...input, attempt });
+      const promptText = messages.map((message) => `[${message.role}]\n${message.content}`).join("\n\n");
+      researchLog("喂给模型的 prompt 长度", {
+        attempt,
+        chars: promptText.length,
+        sourceTitle: input.source.title,
+        sourceExtractLength: input.source.extract.length,
+        usedFullExtract: input.source.usedFullExtract,
+      });
       const result = await input.registry.chat(input.modelId, {
-        messages: buildMessages({ ...input, attempt }),
+        messages,
         stream: false,
         jsonMode: true,
         maxTokens: 2600,
@@ -410,6 +530,7 @@ async function generateFieldsFromSource(input: {
       if (isAsyncIterable(response)) {
         throw new Error("模型返回了流式响应，角色联网查资料接口期望完整 JSON 响应");
       }
+      researchLog("模型返回原始 content", response.content);
       return normalizeResultFields(response.content, input.fields);
     } catch (error) {
       lastError = error;
