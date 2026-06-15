@@ -19,7 +19,9 @@ import {
 import {
   DEFAULT_WEB_PREFERENCES,
   DEFAULT_BODY_FONT,
+  DEFAULT_UI_FONT,
   applyBodyFontPreference,
+  applyUiFontPreference,
   mergeWebPreferences,
   readWebPreferences,
   writeWebPreferences,
@@ -51,15 +53,22 @@ type CustomResearchSourceDraft = { id: string; name: string; baseUrl: string };
 type SourceStatesDraft = Record<string, SearchSourceState>;
 type FontOption = FontPreference & { dataUrl?: string };
 
-const BODY_FONT_PRESETS: FontOption[] = [
-  DEFAULT_BODY_FONT,
+const UI_FONT_PRESETS: FontOption[] = [
   { id: "preset-source-han-sans", label: "思源黑体", family: '"Noto Sans SC", "Source Han Sans SC", "Microsoft YaHei", sans-serif', source: "preset" },
+  DEFAULT_BODY_FONT,
+  { id: "preset-yahei", label: "微软雅黑", family: '"Microsoft YaHei", "微软雅黑", sans-serif', source: "preset" },
+  { id: "preset-simhei", label: "黑体 SimHei", family: '"SimHei", "黑体", sans-serif', source: "preset" },
+  { id: "preset-dengxian", label: "等线 DengXian", family: '"DengXian", "等线", sans-serif', source: "preset" },
+  { id: "preset-pingfang", label: "苹方 PingFang SC", family: '"PingFang SC", "Microsoft YaHei", sans-serif', source: "preset" },
+];
+
+const BODY_FONT_PRESETS: FontOption[] = [
+  { id: "body-follow-ui", label: "跟随界面字体", family: "var(--font-sans)", source: "preset" },
+  DEFAULT_BODY_FONT,
   { id: "preset-simsun", label: "宋体", family: '"SimSun", "宋体", serif', source: "preset" },
   { id: "preset-kaiti", label: "楷体 KaiTi", family: '"KaiTi", "楷体", serif', source: "preset" },
-  { id: "preset-simhei", label: "黑体 SimHei", family: '"SimHei", "黑体", sans-serif', source: "preset" },
-  { id: "preset-yahei", label: "微软雅黑", family: '"Microsoft YaHei", "微软雅黑", sans-serif', source: "preset" },
   { id: "preset-fangsong", label: "仿宋 FangSong", family: '"FangSong", "仿宋", serif', source: "preset" },
-  { id: "preset-dengxian", label: "等线 DengXian", family: '"DengXian", "等线", sans-serif', source: "preset" },
+  { id: "preset-source-han-sans-body", label: "思源黑体", family: '"Noto Sans SC", "Source Han Sans SC", "Microsoft YaHei", sans-serif', source: "preset" },
 ];
 
 const FONT_IMPORT_ACCEPT = ".ttf,.otf,.woff,.woff2";
@@ -78,8 +87,8 @@ function createLocalCustomSourceId(): string {
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
-function customFontToOption(font: CustomFontRecord): FontOption {
-  return customFontToPreference(font);
+function customFontToOption(font: CustomFontRecord, fallback: FontPreference): FontOption {
+  return customFontToPreference(font, fallback);
 }
 
 function readFileAsBase64(file: File): Promise<string> {
@@ -762,10 +771,19 @@ export function SettingsView({ vaultPath, onSetVault, onClearVault }: SettingsVi
     () => models.find((model) => model.id === selectedModelId) ?? null,
     [models, selectedModelId],
   );
-  const bodyFontOptions = useMemo<FontOption[]>(
-    () => [...BODY_FONT_PRESETS, ...customFonts.map(customFontToOption)],
+  const uiFontOptions = useMemo<FontOption[]>(
+    () => [...UI_FONT_PRESETS, ...customFonts.map((font) => customFontToOption(font, DEFAULT_UI_FONT))],
     [customFonts],
   );
+  const bodyFontOptions = useMemo<FontOption[]>(
+    () => [...BODY_FONT_PRESETS, ...customFonts.map((font) => customFontToOption(font, DEFAULT_BODY_FONT))],
+    [customFonts],
+  );
+
+  function saveUiFont(fontId: string): void {
+    const font = uiFontOptions.find((option) => option.id === fontId) ?? DEFAULT_UI_FONT;
+    savePreferencePatch({ uiFont: font }, setPreferences, setPreferencesFeedback);
+  }
 
   function saveBodyFont(fontId: string): void {
     const font = bodyFontOptions.find((option) => option.id === fontId) ?? DEFAULT_BODY_FONT;
@@ -798,9 +816,7 @@ export function SettingsView({ vaultPath, onSetVault, onClearVault }: SettingsVi
       });
       await registerCustomFont(font);
       setCustomFonts((current) => [...current.filter((item) => item.id !== font.id), font]);
-      const option = customFontToOption(font);
-      savePreferencePatch({ bodyFont: option }, setPreferences, setPreferencesFeedback);
-      setFontFeedback(`已导入并应用字体：${font.label}`);
+      setFontFeedback(`已导入字体：${font.label}，可在界面字体和正文字体中选择`);
     } catch (error) {
       setFontFeedback(error instanceof ApiError ? error.message : "字体导入失败");
     } finally {
@@ -1034,6 +1050,10 @@ export function SettingsView({ vaultPath, onSetVault, onClearVault }: SettingsVi
   }, [preferences.bodyFont]);
 
   useEffect(() => {
+    applyUiFontPreference(preferences.uiFont);
+  }, [preferences.uiFont]);
+
+  useEffect(() => {
     setVaultDraft(vaultPath ?? "");
   }, [vaultPath]);
 
@@ -1178,8 +1198,24 @@ export function SettingsView({ vaultPath, onSetVault, onClearVault }: SettingsVi
               </div>
               <div className="form-row">
                 <div>
+                  <div className="fr-label">界面字体</div>
+                  <div className="fr-desc">影响导航、按钮、列表、设置、弹窗、下拉菜单等所有界面文字。</div>
+                </div>
+                <Select
+                  value={uiFontOptions.some((option) => option.id === preferences.uiFont.id) ? preferences.uiFont.id : DEFAULT_UI_FONT.id}
+                  onChange={saveUiFont}
+                  options={uiFontOptions.map((font) => ({
+                    value: font.id,
+                    label: font.label,
+                    hint: font.source === "custom" ? "已导入字体" : "系统/预设字体",
+                  }))}
+                  ariaLabel="选择界面字体"
+                />
+              </div>
+              <div className="form-row">
+                <div>
                   <div className="fr-label">正文字体</div>
-                  <div className="fr-desc">编辑器正文和章节标题使用的字体，可选择系统预设或导入字体文件。</div>
+                  <div className="fr-desc">只影响编辑器正文和章节标题，优先级高于界面字体。</div>
                 </div>
                 <Select
                   value={bodyFontOptions.some((option) => option.id === preferences.bodyFont.id) ? preferences.bodyFont.id : DEFAULT_BODY_FONT.id}
@@ -1195,7 +1231,7 @@ export function SettingsView({ vaultPath, onSetVault, onClearVault }: SettingsVi
               <div className="form-row">
                 <div>
                   <div className="fr-label">导入字体</div>
-                  <div className="fr-desc">支持 ttf、otf、woff、woff2，单个文件不超过 8MB。导入后会存入当前资料库并加入字体列表。</div>
+                  <div className="fr-desc">支持 ttf、otf、woff、woff2，单个文件不超过 8MB。导入后会同时加入界面字体和正文字体列表。</div>
                 </div>
                 <div className="font-import-actions">
                   <label className={`btn ${fontImporting ? "disabled" : ""}`}>
@@ -1211,8 +1247,13 @@ export function SettingsView({ vaultPath, onSetVault, onClearVault }: SettingsVi
                       }}
                     />
                   </label>
-                  <div className="font-preview" style={{ fontFamily: preferences.bodyFont.family }}>
-                    山月入窗，正文预览
+                  <div className="font-preview-stack">
+                    <div className="font-preview" style={{ fontFamily: preferences.uiFont.family }}>
+                      界面预览 · 按钮列表菜单
+                    </div>
+                    <div className="font-preview" style={{ fontFamily: preferences.bodyFont.family }}>
+                      山月入窗，正文预览
+                    </div>
                   </div>
                 </div>
               </div>

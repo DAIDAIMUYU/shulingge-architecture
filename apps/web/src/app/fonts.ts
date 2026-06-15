@@ -1,11 +1,11 @@
 import { api, type CustomFontRecord } from "../api/client.js";
-import { DEFAULT_BODY_FONT, applyBodyFontPreference, type FontPreference } from "./preferences.js";
+import { DEFAULT_BODY_FONT, DEFAULT_UI_FONT, applyBodyFontPreference, applyUiFontPreference, type FontPreference } from "./preferences.js";
 
-export function customFontToPreference(font: CustomFontRecord): FontPreference {
+export function customFontToPreference(font: CustomFontRecord, fallback = DEFAULT_BODY_FONT): FontPreference {
   return {
     id: `custom:${font.id}`,
     label: font.label,
-    family: `"${font.family}", ${DEFAULT_BODY_FONT.family}`,
+    family: `"${font.family}", ${fallback.family}`,
     source: "custom",
   };
 }
@@ -25,13 +25,17 @@ export async function loadCustomFonts(): Promise<CustomFontRecord[]> {
   return fonts;
 }
 
-export async function hydrateSelectedCustomFont(font: FontPreference): Promise<void> {
-  if (font.source !== "custom") {
+export async function hydrateSelectedCustomFonts(input: { uiFont: FontPreference; bodyFont: FontPreference }): Promise<void> {
+  if (input.uiFont.source !== "custom" && input.bodyFont.source !== "custom") {
     return;
   }
   const fonts = await loadCustomFonts();
-  const selected = fonts.find((item) => `custom:${item.id}` === font.id);
-  if (selected) {
-    applyBodyFontPreference(customFontToPreference(selected));
+  const selectedUi = fonts.find((item) => `custom:${item.id}` === input.uiFont.id);
+  if (selectedUi) {
+    applyUiFontPreference(customFontToPreference(selectedUi, DEFAULT_UI_FONT));
+  }
+  const selectedBody = fonts.find((item) => `custom:${item.id}` === input.bodyFont.id);
+  if (selectedBody) {
+    applyBodyFontPreference(customFontToPreference(selectedBody, DEFAULT_BODY_FONT));
   }
 }

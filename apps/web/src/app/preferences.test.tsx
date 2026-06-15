@@ -28,6 +28,7 @@ test("normalizeWebPreferences keeps supported values and falls back for invalid 
       defaultInspectorTab: "annotations",
       sendShortcut: "mod-enter",
       watchedAgentIds: ["writer", "director"],
+      uiFont: DEFAULT_WEB_PREFERENCES.uiFont,
       bodyFont: {
         id: "preset-kaiti",
         label: "楷体 KaiTi",
