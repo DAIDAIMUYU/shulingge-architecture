@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import type { DragEvent as ReactDragEvent, KeyboardEvent as ReactKeyboardEvent } from "react";
+import { createPortal } from "react-dom";
 import { EditorContent, useEditor, type Editor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import { Markdown } from "tiptap-markdown";
@@ -15,20 +16,23 @@ import {
   ChevronDown,
   ChevronRight,
   Check,
+  Code2,
   FilePenLine,
   Heading2,
   Italic,
-  List,
   ListOrdered,
   Maximize2,
   Minimize2,
   Minus,
+  MoreHorizontal,
   PenLine,
   Quote,
   Redo2,
   RefreshCw,
   Search,
   Sparkles,
+  Strikethrough,
+  type LucideIcon,
   Undo2,
   X,
 } from "lucide-react";
@@ -130,22 +134,43 @@ const TOOLS = [
   { kind: "italic" as const, Icon: Italic, label: "斜体" },
   { kind: "heading" as const, Icon: Heading2, label: "二级标题" },
   { kind: "quote" as const, Icon: Quote, label: "引用" },
-  { kind: "bullet-list" as const, Icon: List, label: "无序列表" },
-  { kind: "ordered-list" as const, Icon: ListOrdered, label: "有序列表" },
+  { kind: "list-menu" as const, Icon: ListOrdered, label: "列表" },
   { kind: "horizontal-rule" as const, Icon: Minus, label: "分割线" },
+  { kind: "more-format" as const, Icon: MoreHorizontal, label: "更多格式" },
   { sep: true as const },
   { kind: "body-align-left" as const, Icon: AlignLeft, label: "正文居左", align: "left" as const },
   { kind: "body-align-center" as const, Icon: AlignCenter, label: "正文居中", align: "center" as const },
   { kind: "body-align-right" as const, Icon: AlignRight, label: "正文居右", align: "right" as const },
 ];
 
-const FOCUS_TOOL_KINDS: readonly string[] = ["undo", "redo", "bold", "italic", "heading", "quote", "bullet-list", "ordered-list", "horizontal-rule", "body-align-left", "body-align-center", "body-align-right"];
+const FOCUS_TOOL_KINDS: readonly string[] = ["undo", "redo", "bold", "italic", "heading", "quote", "list-menu", "horizontal-rule", "more-format", "body-align-left", "body-align-center", "body-align-right"];
 type ToolbarTool = Exclude<(typeof TOOLS)[number], { sep: true }>;
 type BodyAlignTool = ToolbarTool & { align: BodyAlignPreference };
+type ListStyleKind = "ordered-decimal" | "ordered-paren" | "ordered-circle" | "bullet-disc" | "bullet-circle" | "bullet-square";
+type MoreFormatKind = "strike" | "code";
+
+interface ToolbarMenuPosition {
+  top: number;
+  left: number;
+}
 
 function isBodyAlignTool(tool: ToolbarTool): tool is BodyAlignTool {
   return "align" in tool;
 }
+
+const LIST_STYLE_OPTIONS: Array<{ kind: ListStyleKind; group: "有序" | "无序"; label: string; sample: string }> = [
+  { kind: "ordered-decimal", group: "有序", label: "1. 2. 3.", sample: "1." },
+  { kind: "ordered-paren", group: "有序", label: "(1) (2) (3)", sample: "(1)" },
+  { kind: "ordered-circle", group: "有序", label: "① ② ③", sample: "①" },
+  { kind: "bullet-disc", group: "无序", label: "实心圆点", sample: "•" },
+  { kind: "bullet-circle", group: "无序", label: "空心圆", sample: "○" },
+  { kind: "bullet-square", group: "无序", label: "实心方块", sample: "▪" },
+];
+
+const MORE_FORMAT_OPTIONS: Array<{ kind: MoreFormatKind; label: string; Icon: LucideIcon }> = [
+  { kind: "strike", label: "删除线", Icon: Strikethrough },
+  { kind: "code", label: "行内代码", Icon: Code2 },
+];
 
 const CHAPTER_STATUS_LABELS: Record<ChapterStatus, string> = {
   "not-started": "未开始",
@@ -423,6 +448,9 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
   const [quickLookupLoading, setQuickLookupLoading] = useState(false);
   const [quickLookupError, setQuickLookupError] = useState<string | null>(null);
   const [expandedQuickLookupId, setExpandedQuickLookupId] = useState<string | null>(null);
+  const [listStyle, setListStyle] = useState<ListStyleKind>("ordered-decimal");
+  const [listMenuPosition, setListMenuPosition] = useState<ToolbarMenuPosition | null>(null);
+  const [moreMenuPosition, setMoreMenuPosition] = useState<ToolbarMenuPosition | null>(null);
   const [selectionRange, setSelectionRange] = useState({ start: 0, end: 0 });
   const [history, setHistory] = useState<string[]>([]);
   const [future, setFuture] = useState<string[]>([]);
@@ -435,6 +463,10 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
   const sourceTextareaRef = useRef<HTMLTextAreaElement | null>(null);
   const createMenuRef = useRef<HTMLDivElement | null>(null);
   const treeContextMenuRef = useRef<HTMLDivElement | null>(null);
+  const listMenuRef = useRef<HTMLDivElement | null>(null);
+  const listMenuButtonRef = useRef<HTMLButtonElement | null>(null);
+  const moreMenuRef = useRef<HTMLDivElement | null>(null);
+  const moreMenuButtonRef = useRef<HTMLButtonElement | null>(null);
   const conversationSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const editorSyncingFromDraft = useRef(false);
   const nextId = () => idRef.current++;
@@ -958,12 +990,73 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
   }, [editor, hasValidActiveChapter]);
 
   useEffect(() => {
+    if (!listMenuPosition && !moreMenuPosition) {
+      return;
+    }
+
+    const closeOnOutsidePointer = (event: PointerEvent) => {
+      const target = event.target as Node;
+      if (
+        listMenuRef.current?.contains(target) ||
+        listMenuButtonRef.current?.contains(target) ||
+        moreMenuRef.current?.contains(target) ||
+        moreMenuButtonRef.current?.contains(target)
+      ) {
+        return;
+      }
+      setListMenuPosition(null);
+      setMoreMenuPosition(null);
+    };
+    const closeOnEscape = (event: globalThis.KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setListMenuPosition(null);
+        setMoreMenuPosition(null);
+      }
+    };
+    const closeOnViewportChange = () => {
+      setListMenuPosition(null);
+      setMoreMenuPosition(null);
+    };
+
+    window.addEventListener("pointerdown", closeOnOutsidePointer);
+    window.addEventListener("keydown", closeOnEscape);
+    window.addEventListener("resize", closeOnViewportChange);
+    window.addEventListener("scroll", closeOnViewportChange, true);
+    return () => {
+      window.removeEventListener("pointerdown", closeOnOutsidePointer);
+      window.removeEventListener("keydown", closeOnEscape);
+      window.removeEventListener("resize", closeOnViewportChange);
+      window.removeEventListener("scroll", closeOnViewportChange, true);
+    };
+  }, [listMenuPosition, moreMenuPosition]);
+
+  useEffect(() => {
     applyBodyAlignPreference(bodyAlign);
   }, [bodyAlign]);
 
   const changeBodyAlign = (align: BodyAlignPreference) => {
     const next = mergeWebPreferences({ bodyAlign: align });
     setBodyAlign(next.bodyAlign);
+  };
+
+  const getToolbarMenuPosition = (button: HTMLElement): ToolbarMenuPosition => {
+    const rect = button.getBoundingClientRect();
+    const width = 220;
+    const gap = 8;
+    return {
+      top: rect.bottom + gap,
+      left: Math.min(Math.max(gap, rect.left), Math.max(gap, window.innerWidth - width - gap)),
+    };
+  };
+
+  const openListMenu = (button: HTMLButtonElement) => {
+    setMoreMenuPosition(null);
+    setListMenuPosition(getToolbarMenuPosition(button));
+  };
+
+  const openMoreMenu = (button: HTMLButtonElement) => {
+    setListMenuPosition(null);
+    setMoreMenuPosition(getToolbarMenuPosition(button));
   };
 
   const switchEditorMode = (mode: EditorMode) => {
@@ -1005,6 +1098,34 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
       setHistory((items) => items.slice(0, -1));
       setFuture([]);
     }
+  };
+
+  const applyListStyle = (kind: ListStyleKind) => {
+    const isOrdered = kind.startsWith("ordered");
+    setListStyle(kind);
+    setListMenuPosition(null);
+    if (!editor || !hasValidActiveChapter || editorMode !== "rich") {
+      return;
+    }
+    const alreadyUsingListType = isOrdered ? editor.isActive("orderedList") : editor.isActive("bulletList");
+    if (alreadyUsingListType) {
+      editor.commands.focus();
+      return;
+    }
+    runEditorCommand((activeEditor) =>
+      isOrdered
+        ? activeEditor.chain().focus().toggleOrderedList().run()
+        : activeEditor.chain().focus().toggleBulletList().run(),
+    );
+  };
+
+  const applyMoreFormat = (kind: MoreFormatKind) => {
+    setMoreMenuPosition(null);
+    if (kind === "strike") {
+      runEditorCommand((activeEditor) => activeEditor.chain().focus().toggleStrike().run());
+      return;
+    }
+    runEditorCommand((activeEditor) => activeEditor.chain().focus().toggleCode().run());
   };
 
   useEffect(() => {
@@ -1833,6 +1954,66 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
     };
   }, [focusMode]);
 
+  const listMenuPortal = listMenuPosition
+    ? createPortal(
+        <div
+          ref={listMenuRef}
+          className="toolbar-popover toolbar-list-menu"
+          style={{ top: listMenuPosition.top, left: listMenuPosition.left } satisfies CSSProperties}
+          role="menu"
+        >
+          {(["有序", "无序"] as const).map((group) => (
+            <div className="toolbar-popover-group" key={group}>
+              <div className="toolbar-popover-heading">{group}</div>
+              {LIST_STYLE_OPTIONS.filter((option) => option.group === group).map((option) => (
+                <button
+                  key={option.kind}
+                  type="button"
+                  role="menuitem"
+                  className={`toolbar-popover-option ${listStyle === option.kind ? "active" : ""}`}
+                  onClick={() => applyListStyle(option.kind)}
+                >
+                  <span className="toolbar-popover-sample">{option.sample}</span>
+                  <span>{option.label}</span>
+                </button>
+              ))}
+            </div>
+          ))}
+        </div>,
+        document.body,
+      )
+    : null;
+
+  const moreFormatPortal = moreMenuPosition
+    ? createPortal(
+        <div
+          ref={moreMenuRef}
+          className="toolbar-popover toolbar-more-menu"
+          style={{ top: moreMenuPosition.top, left: moreMenuPosition.left } satisfies CSSProperties}
+          role="menu"
+        >
+          {MORE_FORMAT_OPTIONS.map((option) => (
+            <button
+              key={option.kind}
+              type="button"
+              role="menuitem"
+              className={`toolbar-popover-option ${
+                editorMode === "rich" &&
+                ((option.kind === "strike" && editor?.isActive("strike")) || (option.kind === "code" && editor?.isActive("code")))
+                  ? "active"
+                  : ""
+              }`}
+              onClick={() => applyMoreFormat(option.kind)}
+            >
+              <option.Icon size={15} strokeWidth={1.8} />
+              <span>{option.label}</span>
+            </button>
+          ))}
+        </div>,
+        document.body,
+      )
+    : null;
+
   return (
     <>
     <div className={`workspace mobile-panel-${mobilePanel}${focusMode ? " focus-mode" : ""}`}>
@@ -2167,29 +2348,60 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
                   if ("sep" in tool && focusMode && index > 2) {
                     return null;
                   }
-                  return "sep" in tool ? (
-                    <span className="sep" key={index} />
-                  ) : (
+                  if ("sep" in tool) {
+                    return <span className="sep" key={index} />;
+                  }
+                  const disabled =
+                    (!hasValidActiveChapter && tool.kind !== "undo" && tool.kind !== "redo") ||
+                    (editorMode === "source" && ["bold", "italic", "heading", "quote", "list-menu", "horizontal-rule", "more-format"].includes(tool.kind));
+                  const active =
+                    (editorMode === "rich" && tool.kind === "bold" && editor?.isActive("bold")) ||
+                    (editorMode === "rich" && tool.kind === "italic" && editor?.isActive("italic")) ||
+                    (editorMode === "rich" && tool.kind === "heading" && editor?.isActive("heading", { level: 2 })) ||
+                    (editorMode === "rich" && tool.kind === "quote" && editor?.isActive("blockquote")) ||
+                    (editorMode === "rich" && tool.kind === "list-menu" && (editor?.isActive("bulletList") || editor?.isActive("orderedList"))) ||
+                    (editorMode === "rich" && tool.kind === "more-format" && (editor?.isActive("strike") || editor?.isActive("code"))) ||
+                    (isBodyAlignTool(tool) && bodyAlign === tool.align);
+
+                  if (tool.kind === "list-menu") {
+                    return (
+                      <div className={`toolbar-split-button ${active ? "toolbar-active" : ""}`} key={tool.kind}>
+                        <button
+                          type="button"
+                          className="toolbar-split-main"
+                          title="有序列表"
+                          disabled={disabled}
+                          onClick={() => applyListStyle("ordered-decimal")}
+                        >
+                          <tool.Icon size={17} strokeWidth={1.75} />
+                        </button>
+                        <button
+                          ref={listMenuButtonRef}
+                          type="button"
+                          className="toolbar-split-arrow"
+                          title="选择列表样式"
+                          disabled={disabled}
+                          aria-haspopup="menu"
+                          aria-expanded={Boolean(listMenuPosition)}
+                          onClick={(event) => openListMenu(event.currentTarget)}
+                        >
+                          <ChevronDown size={13} strokeWidth={1.9} />
+                        </button>
+                      </div>
+                    );
+                  }
+
+                  return (
                     <button
+                      ref={tool.kind === "more-format" ? moreMenuButtonRef : undefined}
                       type="button"
-                      className={`btn-icon ${
-                        (editorMode === "rich" && tool.kind === "bold" && editor?.isActive("bold")) ||
-                        (editorMode === "rich" && tool.kind === "italic" && editor?.isActive("italic")) ||
-                        (editorMode === "rich" && tool.kind === "heading" && editor?.isActive("heading", { level: 2 })) ||
-                        (editorMode === "rich" && tool.kind === "quote" && editor?.isActive("blockquote")) ||
-                        (editorMode === "rich" && tool.kind === "bullet-list" && editor?.isActive("bulletList")) ||
-                        (editorMode === "rich" && tool.kind === "ordered-list" && editor?.isActive("orderedList")) ||
-                        (isBodyAlignTool(tool) && bodyAlign === tool.align)
-                          ? "toolbar-active"
-                          : ""
-                      }`}
+                      className={`btn-icon ${active ? "toolbar-active" : ""}`}
                       key={tool.kind}
                       title={tool.label}
-                      disabled={
-                        (!hasValidActiveChapter && tool.kind !== "undo" && tool.kind !== "redo") ||
-                        (editorMode === "source" && ["bold", "italic", "heading", "quote", "bullet-list", "ordered-list", "horizontal-rule"].includes(tool.kind))
-                      }
-                      onClick={() => {
+                      disabled={disabled}
+                      aria-haspopup={tool.kind === "more-format" ? "menu" : undefined}
+                      aria-expanded={tool.kind === "more-format" ? Boolean(moreMenuPosition) : undefined}
+                      onClick={(event) => {
                         if (tool.kind === "undo") {
                           undo();
                           return;
@@ -2214,16 +2426,12 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
                           runEditorCommand((activeEditor) => activeEditor.chain().focus().toggleBlockquote().run());
                           return;
                         }
-                        if (tool.kind === "bullet-list") {
-                          runEditorCommand((activeEditor) => activeEditor.chain().focus().toggleBulletList().run());
-                          return;
-                        }
-                        if (tool.kind === "ordered-list") {
-                          runEditorCommand((activeEditor) => activeEditor.chain().focus().toggleOrderedList().run());
-                          return;
-                        }
                         if (tool.kind === "horizontal-rule") {
                           runEditorCommand((activeEditor) => activeEditor.chain().focus().setHorizontalRule().run());
+                          return;
+                        }
+                        if (tool.kind === "more-format") {
+                          openMoreMenu(event.currentTarget);
                           return;
                         }
                         if (isBodyAlignTool(tool)) {
@@ -2305,7 +2513,7 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
                     />
                     <div className="title-rule" />
                     {editorMode === "rich" ? (
-                      <div className="rich-editor-shell">
+                      <div className={`rich-editor-shell manuscript-list-${listStyle}`}>
                         {editor && !draft.trim() ? (
                           <div className="rich-editor-placeholder">
                             {vaultSelected ? "在此续写正文……" : "选择资料库后即可读写正文。"}
@@ -2529,6 +2737,8 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
         onClose={() => setQuickLookupOpen(false)}
       />
     ) : null}
+    {listMenuPortal}
+    {moreFormatPortal}
     </>
   );
 }
