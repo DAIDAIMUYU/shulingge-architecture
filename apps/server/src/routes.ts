@@ -3,16 +3,19 @@ import {
   createChapterPlan,
   createKeyEvent,
   createNovel,
+  createPlotNote,
   createProject,
   createVolume,
   deleteChapter,
   deleteChapterPlan,
   deleteKeyEvent,
   deleteNovel,
+  deletePlotNote,
   deleteVolume,
   listKeyEvents,
   listChapterPlans,
   listChapters,
+  listPlotNotes,
   loadEditorChapter,
   listNovels,
   listProjects,
@@ -22,12 +25,14 @@ import {
   renameNovel,
   reorderChapterPlans,
   reorderKeyEvents,
+  reorderPlotNotes,
   reorderVolumes,
   saveEditorAnnotations,
   saveEditorChapter,
   saveEditorLocks,
   updateChapterPlan,
   updateKeyEvent,
+  updatePlotNote,
   updateProjectCover,
   updateVolume,
 } from "./editor.js";
@@ -1691,6 +1696,57 @@ export const routeDefinitions: RouteDefinition[] = [
     async handler(request, context) {
       const vaultRoot = requireVaultRoot(context);
       return await deleteKeyEvent(vaultRoot, request.params.projectId, request.params.novelId, request.params.keyEventId);
+    },
+  },
+  {
+    method: "GET",
+    path: "/api/v1/projects/:projectId/novels/:novelId/plot-notes",
+    async handler(request, context) {
+      const vaultRoot = requireVaultRoot(context);
+      return {
+        plotNotes: await listPlotNotes(vaultRoot, request.params.projectId, request.params.novelId),
+      };
+    },
+  },
+  {
+    method: "POST",
+    path: "/api/v1/projects/:projectId/novels/:novelId/plot-notes",
+    async handler(request, context) {
+      const vaultRoot = requireVaultRoot(context);
+      return await createPlotNote(vaultRoot, request.params.projectId, request.params.novelId, request.body as never);
+    },
+  },
+  {
+    method: "PUT",
+    path: "/api/v1/projects/:projectId/novels/:novelId/plot-notes/reorder",
+    async handler(request, context) {
+      const vaultRoot = requireVaultRoot(context);
+      const body = request.body as { orderedIds?: unknown } | undefined;
+      return {
+        plotNotes: await reorderPlotNotes(vaultRoot, request.params.projectId, request.params.novelId, body?.orderedIds),
+      };
+    },
+  },
+  {
+    method: "PATCH",
+    path: "/api/v1/projects/:projectId/novels/:novelId/plot-notes/:plotNoteId",
+    async handler(request, context) {
+      const vaultRoot = requireVaultRoot(context);
+      return await updatePlotNote(
+        vaultRoot,
+        request.params.projectId,
+        request.params.novelId,
+        request.params.plotNoteId,
+        request.body as never,
+      );
+    },
+  },
+  {
+    method: "DELETE",
+    path: "/api/v1/projects/:projectId/novels/:novelId/plot-notes/:plotNoteId",
+    async handler(request, context) {
+      const vaultRoot = requireVaultRoot(context);
+      return await deletePlotNote(vaultRoot, request.params.projectId, request.params.novelId, request.params.plotNoteId);
     },
   },
   {

@@ -2692,6 +2692,70 @@ test("project create route initializes project and default novel skeleton", asyn
       ok: true;
       data: { keyEvents: Array<{ id: string; title: string; order: number }> };
     };
+    const noteMarkdown = "# 伏笔表\n| 伏笔 | 回收 |\n| --- | --- |\n| 药味 | 蝶屋揭示 |";
+    const createPlotNoteResponse = await fetch(`${server.baseUrl}/api/v1/projects/${createdPayload.data.projectId}/novels/main/plot-notes`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        title: "童磨反派弧线",
+        category: "角色弧线",
+        content: noteMarkdown,
+        customFields: [{ title: "阶段", content: "铺垫" }],
+      }),
+    });
+    const createPlotNotePayload = (await createPlotNoteResponse.json()) as {
+      ok: true;
+      data: { id: string; title: string; category: string; content: string; customFields: Array<{ title: string; content: string }>; order: number };
+    };
+    const createCustomPlotNoteResponse = await fetch(`${server.baseUrl}/api/v1/projects/${createdPayload.data.projectId}/novels/main/plot-notes`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ title: "自定义分类笔记", category: "情绪曲线", content: "自定义分类可用" }),
+    });
+    const createCustomPlotNotePayload = (await createCustomPlotNoteResponse.json()) as {
+      ok: true;
+      data: { id: string; title: string; category: string; order: number };
+    };
+    const listPlotNotesResponse = await fetch(`${server.baseUrl}/api/v1/projects/${createdPayload.data.projectId}/novels/main/plot-notes`);
+    const listPlotNotesPayload = (await listPlotNotesResponse.json()) as {
+      ok: true;
+      data: { plotNotes: Array<{ id: string; title: string; category: string; order: number }> };
+    };
+    const updatePlotNoteResponse = await fetch(
+      `${server.baseUrl}/api/v1/projects/${createdPayload.data.projectId}/novels/main/plot-notes/${createPlotNotePayload.data.id}`,
+      {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          title: "童磨反派弧线改",
+          category: "伏笔回收",
+          content: `${noteMarkdown}\n\n- 补一条回收`,
+          customFields: [{ title: "风险", content: "不能脸谱化" }],
+        }),
+      },
+    );
+    const updatePlotNotePayload = (await updatePlotNoteResponse.json()) as {
+      ok: true;
+      data: { id: string; title: string; category: string; content: string; customFields: Array<{ title: string; content: string }> };
+    };
+    const reorderPlotNotesResponse = await fetch(`${server.baseUrl}/api/v1/projects/${createdPayload.data.projectId}/novels/main/plot-notes/reorder`, {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ orderedIds: [createCustomPlotNotePayload.data.id, createPlotNotePayload.data.id] }),
+    });
+    const reorderPlotNotesPayload = (await reorderPlotNotesResponse.json()) as {
+      ok: true;
+      data: { plotNotes: Array<{ id: string; order: number }> };
+    };
+    const deletePlotNoteResponse = await fetch(
+      `${server.baseUrl}/api/v1/projects/${createdPayload.data.projectId}/novels/main/plot-notes/${createCustomPlotNotePayload.data.id}`,
+      { method: "DELETE" },
+    );
+    const listPlotNotesAfterDeleteResponse = await fetch(`${server.baseUrl}/api/v1/projects/${createdPayload.data.projectId}/novels/main/plot-notes`);
+    const listPlotNotesAfterDeletePayload = (await listPlotNotesAfterDeleteResponse.json()) as {
+      ok: true;
+      data: { plotNotes: Array<{ id: string; title: string; order: number }> };
+    };
 
     const emptyProjectsPayload = (await emptyProjectsResponse.json()) as {
       ok: true;
@@ -2821,6 +2885,41 @@ test("project create route initializes project and default novel skeleton", asyn
     assert.equal(keyEventJson.chapterPlanId, undefined);
     assert.equal(keyEventJson.timelineId, undefined);
     assert.deepEqual(keyEventJson.customFields, [{ title: "伏笔", content: "保留药味线索" }]);
+    assert.equal(createPlotNoteResponse.status, 200);
+    assert.equal(createPlotNotePayload.data.title, "童磨反派弧线");
+    assert.equal(createPlotNotePayload.data.category, "角色弧线");
+    assert.equal(createPlotNotePayload.data.content, noteMarkdown);
+    assert.deepEqual(createPlotNotePayload.data.customFields, [{ title: "阶段", content: "铺垫" }]);
+    assert.equal(createCustomPlotNoteResponse.status, 200);
+    assert.equal(createCustomPlotNotePayload.data.category, "情绪曲线");
+    assert.equal(listPlotNotesResponse.status, 200);
+    assert.equal(listPlotNotesPayload.data.plotNotes.length, 2);
+    assert.equal(updatePlotNoteResponse.status, 200);
+    assert.equal(updatePlotNotePayload.data.title, "童磨反派弧线改");
+    assert.equal(updatePlotNotePayload.data.category, "伏笔回收");
+    assert.equal(updatePlotNotePayload.data.content.includes("| 伏笔 | 回收 |"), true);
+    assert.deepEqual(updatePlotNotePayload.data.customFields, [{ title: "风险", content: "不能脸谱化" }]);
+    assert.equal(reorderPlotNotesResponse.status, 200);
+    assert.equal(reorderPlotNotesPayload.data.plotNotes[0]?.id, createCustomPlotNotePayload.data.id);
+    assert.equal(deletePlotNoteResponse.status, 200);
+    assert.deepEqual(listPlotNotesAfterDeletePayload.data.plotNotes.map((plotNote) => plotNote.order), [0]);
+    const plotNoteJson = await readJsonFile<{
+      projectId: string;
+      novelId: string;
+      title: string;
+      category: string;
+      content: string;
+      customFields: Array<{ title: string; content: string }>;
+    }>(
+      vaultRoot,
+      `projects/${createdPayload.data.projectId}/novels/main/plot-notes/${createPlotNotePayload.data.id}.json`,
+    );
+    assert.equal(plotNoteJson.projectId, createdPayload.data.projectId);
+    assert.equal(plotNoteJson.novelId, "main");
+    assert.equal(plotNoteJson.title, "童磨反派弧线改");
+    assert.equal(plotNoteJson.category, "伏笔回收");
+    assert.equal(plotNoteJson.content.includes("| 药味 | 蝶屋揭示 |"), true);
+    assert.deepEqual(plotNoteJson.customFields, [{ title: "风险", content: "不能脸谱化" }]);
     const volumeChapterMetadata = await readJsonFile<{ volumeId?: string }>(
       vaultRoot,
       `projects/${createdPayload.data.projectId}/novels/main/metadata/chapters/${createVolumeChapterPayload.data.chapterId}.json`,

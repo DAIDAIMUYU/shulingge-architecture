@@ -21,6 +21,9 @@ import {
   type KeyEventInput,
   type KeyEventRecord,
   type NovelSummary,
+  type PlotNoteCustomField,
+  type PlotNoteInput,
+  type PlotNoteRecord,
   type ProjectSummary,
   type TimelineEvent,
   type VolumeInput,
@@ -64,10 +67,19 @@ interface KeyEventDraft {
   timelineId: string;
 }
 
+interface PlotNoteDraft {
+  title: string;
+  category: string;
+  content: string;
+  customFields: PlotNoteCustomField[];
+}
+
 const PROJECT_STORAGE_KEY = "shulingge.web.plotOutline.projectId";
 const VIEW_STORAGE_KEY = "shulingge.web.plotOutline.viewMode";
 const NO_VOLUME = "__none__";
 const NO_REFERENCE = "__none__";
+const ALL_NOTE_CATEGORIES = "__all__";
+const PLOT_NOTE_CATEGORIES = ["角色弧线", "伏笔回收", "冲突节奏", "高光场景"];
 
 const STATUS_OPTIONS: Array<{ value: VolumeStatus; label: string; hint: string }> = [
   { value: "draft", label: "草稿", hint: "还在构思和调整" },
@@ -176,6 +188,26 @@ function toKeyEventPayload(draft: KeyEventDraft): KeyEventInput {
   };
 }
 
+function createPlotNoteDraft(plotNote?: PlotNoteRecord): PlotNoteDraft {
+  return {
+    title: plotNote?.title ?? "",
+    category: plotNote?.category ?? PLOT_NOTE_CATEGORIES[0],
+    content: plotNote?.content ?? "",
+    customFields: plotNote?.customFields?.map((field) => ({ title: field.title, content: field.content })) ?? [],
+  };
+}
+
+function toPlotNotePayload(draft: PlotNoteDraft): PlotNoteInput {
+  return {
+    title: draft.title.trim(),
+    category: draft.category.trim() || PLOT_NOTE_CATEGORIES[0],
+    content: draft.content,
+    customFields: draft.customFields
+      .map((field) => ({ title: field.title.trim(), content: field.content.trim() }))
+      .filter((field) => field.title || field.content),
+  };
+}
+
 function compactText(value: string | undefined, fallback = "未填写摘要"): string {
   const normalized = (value ?? "").split(/\n+/).map((line) => line.trim()).filter(Boolean).join(" / ");
   return normalized || fallback;
@@ -191,6 +223,86 @@ function chapterPlanSummary(chapterPlan: ChapterPlanRecord): string {
 
 function keyEventSummary(keyEvent: KeyEventRecord): string {
   return compactText(keyEvent.positioning, "未填写事件定位");
+}
+
+function plotNoteSummary(plotNote: PlotNoteRecord): string {
+  return compactText(plotNote.content.replace(/[|#*_`>-]/g, " "), "未填写内容");
+}
+
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function renderInlineMarkdown(value: string): string {
+  return escapeHtml(value)
+    .replace(/`([^`]+)`/g, "<code>$1</code>")
+    .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
+    .replace(/\*([^*]+)\*/g, "<em>$1</em>");
+}
+
+function isMarkdownTableSeparator(line: string): boolean {
+  return /^\s*\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)+\|?\s*$/.test(line);
+}
+
+function splitMarkdownTableRow(line: string): string[] {
+  return line.trim().replace(/^\|/, "").replace(/\|$/, "").split("|").map((cell) => cell.trim());
+}
+
+function renderMarkdown(markdown: string): string {
+  const lines = markdown.replace(/\r\n/g, "\n").split("\n");
+  const html: string[] = [];
+  let index = 0;
+  while (index < lines.length) {
+    const line = lines[index] ?? "";
+    const trimmed = line.trim();
+    if (!trimmed) {
+      index += 1;
+      continue;
+    }
+    if (trimmed.startsWith("|") && index + 1 < lines.length && isMarkdownTableSeparator(lines[index + 1] ?? "")) {
+      const headers = splitMarkdownTableRow(trimmed);
+      index += 2;
+      const rows: string[][] = [];
+      while (index < lines.length && (lines[index] ?? "").trim().startsWith("|")) {
+        rows.push(splitMarkdownTableRow(lines[index] ?? ""));
+        index += 1;
+      }
+      html.push(`<table><thead><tr>${headers.map((cell) => `<th>${renderInlineMarkdown(cell)}</th>`).join("")}</tr></thead><tbody>${rows.map((row) => `<tr>${row.map((cell) => `<td>${renderInlineMarkdown(cell)}</td>`).join("")}</tr>`).join("")}</tbody></table>`);
+      continue;
+    }
+    if (trimmed.startsWith("### ")) {
+      html.push(`<h3>${renderInlineMarkdown(trimmed.slice(4))}</h3>`);
+    } else if (trimmed.startsWith("## ")) {
+      html.push(`<h2>${renderInlineMarkdown(trimmed.slice(3))}</h2>`);
+    } else if (trimmed.startsWith("# ")) {
+      html.push(`<h1>${renderInlineMarkdown(trimmed.slice(2))}</h1>`);
+    } else if (/^[-*]\s+/.test(trimmed)) {
+      const items: string[] = [];
+      while (index < lines.length && /^[-*]\s+/.test((lines[index] ?? "").trim())) {
+        items.push(`<li>${renderInlineMarkdown((lines[index] ?? "").trim().replace(/^[-*]\s+/, ""))}</li>`);
+        index += 1;
+      }
+      html.push(`<ul>${items.join("")}</ul>`);
+      continue;
+    } else if (/^\d+\.\s+/.test(trimmed)) {
+      const items: string[] = [];
+      while (index < lines.length && /^\d+\.\s+/.test((lines[index] ?? "").trim())) {
+        items.push(`<li>${renderInlineMarkdown((lines[index] ?? "").trim().replace(/^\d+\.\s+/, ""))}</li>`);
+        index += 1;
+      }
+      html.push(`<ol>${items.join("")}</ol>`);
+      continue;
+    } else {
+      html.push(`<p>${renderInlineMarkdown(trimmed)}</p>`);
+    }
+    index += 1;
+  }
+  return html.join("");
 }
 
 function VolumeEditorModal({
@@ -512,6 +624,109 @@ function KeyEventEditorModal({
   );
 }
 
+function PlotNoteEditorModal({
+  draft,
+  editing,
+  categories,
+  saving,
+  error,
+  onChange,
+  onCancel,
+  onSubmit,
+}: {
+  draft: PlotNoteDraft;
+  editing: boolean;
+  categories: string[];
+  saving: boolean;
+  error?: string | null;
+  onChange(patch: Partial<PlotNoteDraft>): void;
+  onCancel(): void;
+  onSubmit(): void;
+}) {
+  const categoryOptions = [...new Set([...PLOT_NOTE_CATEGORIES, ...categories, draft.category].filter(Boolean))]
+    .map((category) => ({ value: category, label: category }));
+  const updateCustomField = (index: number, patch: Partial<PlotNoteCustomField>) => {
+    const next = [...draft.customFields];
+    next[index] = { ...next[index], ...patch };
+    onChange({ customFields: next });
+  };
+  const removeCustomField = (index: number) => {
+    onChange({ customFields: draft.customFields.filter((_, rowIndex) => rowIndex !== index) });
+  };
+  const submit = (event: FormEvent) => {
+    event.preventDefault();
+    onSubmit();
+  };
+
+  return (
+    <div className="vault-modal-backdrop" onMouseDown={onCancel}>
+      <form className="vault-modal input-modal plot-note-modal" onSubmit={submit} onMouseDown={(event) => event.stopPropagation()}>
+        <h2>{editing ? "编辑剧情笔记" : "新建剧情笔记"}</h2>
+        <div className="plot-modal-body">
+          <div className="form-grid form-grid-2">
+            <label className="form-block">
+              <span>标题</span>
+              <input
+                className="input"
+                value={draft.title}
+                autoFocus
+                onChange={(event) => onChange({ title: event.target.value })}
+                placeholder="例如 童磨反派弧线"
+              />
+            </label>
+            <label className="form-block">
+              <span>分类</span>
+              <Select value={draft.category} options={categoryOptions} onChange={(value) => onChange({ category: value })} ariaLabel="剧情笔记分类" />
+            </label>
+          </div>
+          <label className="form-block">
+            <span>自定义分类</span>
+            <input className="input" value={draft.category} onChange={(event) => onChange({ category: event.target.value })} placeholder="可输入新的分类名称" />
+          </label>
+          <label className="form-block">
+            <span>内容 Markdown</span>
+            <textarea
+              className="textarea plot-note-markdown"
+              value={draft.content}
+              onChange={(event) => onChange({ content: event.target.value })}
+              placeholder={"可写 Markdown，包括表格：\n| 伏笔 | 回收 |\n| --- | --- |\n| 药味 | 蝶屋揭示 |"}
+            />
+          </label>
+          <div className="form-block">
+            <span>预览</span>
+            <div className="plot-markdown-preview" dangerouslySetInnerHTML={{ __html: renderMarkdown(draft.content) || "<p>暂无内容</p>" }} />
+          </div>
+          <div className="character-custom-fields">
+            {draft.customFields.map((field, index) => (
+              <div className="character-custom-row" key={index}>
+                <input className="input" value={field.title} placeholder="自定义标题" onChange={(event) => updateCustomField(index, { title: event.target.value })} />
+                <input className="input" value={field.content} placeholder="内容" onChange={(event) => updateCustomField(index, { content: event.target.value })} />
+                <button type="button" className="btn-icon danger" onClick={() => removeCustomField(index)} aria-label="删除自定义字段">
+                  <Trash2 size={15} />
+                </button>
+              </div>
+            ))}
+            <button type="button" className="btn btn-ghost character-add-custom" onClick={() => onChange({ customFields: [...draft.customFields, { title: "", content: "" }] })}>
+              <Plus size={14} />
+              添加自定义字段
+            </button>
+          </div>
+        </div>
+        {error ? (
+          <div className="model-feedback model-feedback-error">
+            <AlertCircle size={16} />
+            <span>{error}</span>
+          </div>
+        ) : null}
+        <div className="vault-modal-actions">
+          <button type="button" className="btn btn-ghost" disabled={saving} onClick={onCancel}>取消</button>
+          <button type="submit" className="btn btn-primary" disabled={saving}>{saving ? "保存中..." : editing ? "保存剧情笔记" : "创建剧情笔记"}</button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
 export function PlotOutlineView() {
   const [projects, setProjects] = useState<ProjectSummary[]>([]);
   const [novels, setNovels] = useState<NovelSummary[]>([]);
@@ -520,29 +735,37 @@ export function PlotOutlineView() {
   const [volumes, setVolumes] = useState<VolumeRecord[]>([]);
   const [chapterPlans, setChapterPlans] = useState<ChapterPlanRecord[]>([]);
   const [keyEvents, setKeyEvents] = useState<KeyEventRecord[]>([]);
+  const [plotNotes, setPlotNotes] = useState<PlotNoteRecord[]>([]);
   const [timelineEvents, setTimelineEvents] = useState<TimelineEvent[]>([]);
   const [selectedVolumeId, setSelectedVolumeId] = useState<string | null>(null);
   const [draft, setDraft] = useState<VolumeDraft>(() => createDraft());
   const [chapterPlanDraft, setChapterPlanDraft] = useState<ChapterPlanDraft>(() => createChapterPlanDraft());
   const [keyEventDraft, setKeyEventDraft] = useState<KeyEventDraft>(() => createKeyEventDraft());
+  const [plotNoteDraft, setPlotNoteDraft] = useState<PlotNoteDraft>(() => createPlotNoteDraft());
   const [viewMode, setViewMode] = useState<PlotViewMode>(readStoredViewMode);
+  const [plotNoteCategoryFilter, setPlotNoteCategoryFilter] = useState(ALL_NOTE_CATEGORIES);
   const [newMenuOpen, setNewMenuOpen] = useState(false);
   const [volumeModalOpen, setVolumeModalOpen] = useState(false);
   const [chapterPlanModalOpen, setChapterPlanModalOpen] = useState(false);
   const [keyEventModalOpen, setKeyEventModalOpen] = useState(false);
+  const [plotNoteModalOpen, setPlotNoteModalOpen] = useState(false);
   const [editingChapterPlan, setEditingChapterPlan] = useState<ChapterPlanRecord | null>(null);
   const [editingKeyEvent, setEditingKeyEvent] = useState<KeyEventRecord | null>(null);
+  const [editingPlotNote, setEditingPlotNote] = useState<PlotNoteRecord | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [savingChapterPlan, setSavingChapterPlan] = useState(false);
   const [savingKeyEvent, setSavingKeyEvent] = useState(false);
+  const [savingPlotNote, setSavingPlotNote] = useState(false);
   const [feedback, setFeedback] = useState<FeedbackState | null>(null);
   const [volumeModalError, setVolumeModalError] = useState<string | null>(null);
   const [chapterPlanModalError, setChapterPlanModalError] = useState<string | null>(null);
   const [keyEventModalError, setKeyEventModalError] = useState<string | null>(null);
+  const [plotNoteModalError, setPlotNoteModalError] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<VolumeRecord | null>(null);
   const [deleteChapterPlanTarget, setDeleteChapterPlanTarget] = useState<ChapterPlanRecord | null>(null);
   const [deleteKeyEventTarget, setDeleteKeyEventTarget] = useState<KeyEventRecord | null>(null);
+  const [deletePlotNoteTarget, setDeletePlotNoteTarget] = useState<PlotNoteRecord | null>(null);
   const newMenuRef = useRef<HTMLDivElement | null>(null);
 
   const selectedVolume = useMemo(
@@ -561,6 +784,26 @@ export function PlotOutlineView() {
     () => [...keyEvents].sort((left, right) => left.order - right.order || left.title.localeCompare(right.title)),
     [keyEvents],
   );
+  const sortedPlotNotes = useMemo(
+    () => [...plotNotes].sort((left, right) => left.order - right.order || left.title.localeCompare(right.title)),
+    [plotNotes],
+  );
+  const plotNoteCategories = useMemo(
+    () => [...new Set([...PLOT_NOTE_CATEGORIES, ...sortedPlotNotes.map((note) => note.category).filter(Boolean)])],
+    [sortedPlotNotes],
+  );
+  const filteredPlotNotes = useMemo(
+    () => plotNoteCategoryFilter === ALL_NOTE_CATEGORIES ? sortedPlotNotes : sortedPlotNotes.filter((note) => note.category === plotNoteCategoryFilter),
+    [plotNoteCategoryFilter, sortedPlotNotes],
+  );
+  const plotNotesByCategory = useMemo(() => {
+    const groups = new Map<string, PlotNoteRecord[]>();
+    for (const plotNote of filteredPlotNotes) {
+      const key = plotNote.category || PLOT_NOTE_CATEGORIES[0];
+      groups.set(key, [...(groups.get(key) ?? []), plotNote]);
+    }
+    return groups;
+  }, [filteredPlotNotes]);
   const chapterPlansByVolume = useMemo(() => {
     const groups = new Map<string, ChapterPlanRecord[]>();
     for (const chapterPlan of sortedChapterPlans) {
@@ -621,6 +864,7 @@ export function PlotOutlineView() {
       setVolumes([]);
       setChapterPlans([]);
       setKeyEvents([]);
+      setPlotNotes([]);
       setTimelineEvents([]);
       return;
     }
@@ -640,6 +884,7 @@ export function PlotOutlineView() {
       setVolumes([]);
       setChapterPlans([]);
       setKeyEvents([]);
+      setPlotNotes([]);
       setTimelineEvents([]);
       setSelectedVolumeId(null);
       setDraft(createDraft());
@@ -647,21 +892,24 @@ export function PlotOutlineView() {
     }
     setLoading(true);
     try {
-      const [volumeList, chapterList, keyEventList, timelineList] = await Promise.all([
+      const [volumeList, chapterList, keyEventList, plotNoteList, timelineList] = await Promise.all([
         api.listVolumes(nextProjectId, nextNovelId),
         api.listChapterPlans(nextProjectId, nextNovelId),
         api.listKeyEvents(nextProjectId, nextNovelId),
+        api.listPlotNotes(nextProjectId, nextNovelId),
         api.listTimelineByProject(nextProjectId),
       ]);
       setVolumes(volumeList);
       setChapterPlans(chapterList);
       setKeyEvents(keyEventList);
+      setPlotNotes(plotNoteList);
       setTimelineEvents(timelineList);
       setSelectedVolumeId((current) => current && volumeList.some((volume) => volume.id === current) ? current : volumeList[0]?.id ?? null);
     } catch (error) {
       setVolumes([]);
       setChapterPlans([]);
       setKeyEvents([]);
+      setPlotNotes([]);
       setTimelineEvents([]);
       setSelectedVolumeId(null);
       setFeedback({ kind: "error", message: error instanceof ApiError ? error.message : "分卷大纲加载失败" });
@@ -742,6 +990,23 @@ export function PlotOutlineView() {
     setFeedback(null);
   }
 
+  function startCreatePlotNote() {
+    setNewMenuOpen(false);
+    setEditingPlotNote(null);
+    setPlotNoteDraft(createPlotNoteDraft());
+    setPlotNoteModalOpen(true);
+    setPlotNoteModalError(null);
+    setFeedback(null);
+  }
+
+  function startEditPlotNote(plotNote: PlotNoteRecord) {
+    setEditingPlotNote(plotNote);
+    setPlotNoteDraft(createPlotNoteDraft(plotNote));
+    setPlotNoteModalOpen(true);
+    setPlotNoteModalError(null);
+    setFeedback(null);
+  }
+
   async function refreshChapterPlans() {
     if (!projectId || !novelId) {
       setChapterPlans([]);
@@ -756,6 +1021,14 @@ export function PlotOutlineView() {
       return;
     }
     setKeyEvents(await api.listKeyEvents(projectId, novelId));
+  }
+
+  async function refreshPlotNotes() {
+    if (!projectId || !novelId) {
+      setPlotNotes([]);
+      return;
+    }
+    setPlotNotes(await api.listPlotNotes(projectId, novelId));
   }
 
   async function saveVolume() {
@@ -847,6 +1120,35 @@ export function PlotOutlineView() {
     }
   }
 
+  async function savePlotNote() {
+    if (!projectId || !novelId) {
+      setFeedback({ kind: "error", message: "请先选择项目和小说" });
+      return;
+    }
+    const payload = toPlotNotePayload(plotNoteDraft);
+    if (!payload.title) {
+      setPlotNoteModalError("请填写剧情笔记标题");
+      setFeedback({ kind: "error", message: "请填写剧情笔记标题" });
+      return;
+    }
+
+    setSavingPlotNote(true);
+    setPlotNoteModalError(null);
+    try {
+      const saved = editingPlotNote
+        ? await api.updatePlotNote(projectId, novelId, editingPlotNote.id, payload)
+        : await api.createPlotNote(projectId, novelId, payload);
+      await refreshPlotNotes();
+      setPlotNoteModalOpen(false);
+      setEditingPlotNote(null);
+      setFeedback({ kind: "success", message: editingPlotNote ? `剧情笔记「${saved.title}」已保存` : `剧情笔记「${saved.title}」已创建` });
+    } catch (error) {
+      setFeedback({ kind: "error", message: error instanceof ApiError ? error.message : "剧情笔记保存失败" });
+    } finally {
+      setSavingPlotNote(false);
+    }
+  }
+
   async function deleteChapterPlan(chapterPlan: ChapterPlanRecord) {
     if (!projectId || !novelId) {
       return;
@@ -875,6 +1177,20 @@ export function PlotOutlineView() {
     }
   }
 
+  async function deletePlotNote(plotNote: PlotNoteRecord) {
+    if (!projectId || !novelId) {
+      return;
+    }
+    setDeletePlotNoteTarget(null);
+    try {
+      await api.deletePlotNote(projectId, novelId, plotNote.id);
+      await refreshPlotNotes();
+      setFeedback({ kind: "success", message: `剧情笔记「${plotNote.title}」已删除` });
+    } catch (error) {
+      setFeedback({ kind: "error", message: error instanceof ApiError ? error.message : "剧情笔记删除失败" });
+    }
+  }
+
   async function deleteVolume(volume: VolumeRecord) {
     if (!projectId || !novelId) {
       return;
@@ -882,14 +1198,16 @@ export function PlotOutlineView() {
     setDeleteTarget(null);
     try {
       await api.deleteVolume(projectId, novelId, volume.id);
-      const [list, chapterList, keyEventList] = await Promise.all([
+      const [list, chapterList, keyEventList, plotNoteList] = await Promise.all([
         api.listVolumes(projectId, novelId),
         api.listChapterPlans(projectId, novelId),
         api.listKeyEvents(projectId, novelId),
+        api.listPlotNotes(projectId, novelId),
       ]);
       setVolumes(list);
       setChapterPlans(chapterList);
       setKeyEvents(keyEventList);
+      setPlotNotes(plotNoteList);
       setSelectedVolumeId(list[0]?.id ?? null);
       setFeedback({ kind: "success", message: `分卷「${volume.title}」已删除` });
     } catch (error) {
@@ -955,6 +1273,26 @@ export function PlotOutlineView() {
       setKeyEvents(updated);
     } catch (error) {
       setFeedback({ kind: "error", message: error instanceof ApiError ? error.message : "关键事件排序失败" });
+    }
+  }
+
+  async function movePlotNote(plotNote: PlotNoteRecord, direction: -1 | 1) {
+    if (!projectId || !novelId) {
+      return;
+    }
+    const index = sortedPlotNotes.findIndex((item) => item.id === plotNote.id);
+    const targetIndex = index + direction;
+    if (index < 0 || targetIndex < 0 || targetIndex >= sortedPlotNotes.length) {
+      return;
+    }
+    const next = [...sortedPlotNotes];
+    const [removed] = next.splice(index, 1);
+    next.splice(targetIndex, 0, removed);
+    try {
+      const updated = await api.reorderPlotNotes(projectId, novelId, next.map((item) => item.id));
+      setPlotNotes(updated);
+    } catch (error) {
+      setFeedback({ kind: "error", message: error instanceof ApiError ? error.message : "剧情笔记排序失败" });
     }
   }
 
@@ -1051,6 +1389,34 @@ export function PlotOutlineView() {
     );
   }
 
+  function renderPlotNoteRow(plotNote: PlotNoteRecord) {
+    const index = sortedPlotNotes.findIndex((item) => item.id === plotNote.id);
+    return (
+      <article className="plot-chapter-row" key={plotNote.id}>
+        <div className="plot-chapter-main">
+          <span className="plot-chapter-title">{plotNote.title}</span>
+          <span className="plot-chapter-meta">{plotNoteSummary(plotNote)}</span>
+          <div className="plot-note-rendered" dangerouslySetInnerHTML={{ __html: renderMarkdown(plotNote.content) || "<p>暂无内容</p>" }} />
+          <span className="tag">{plotNote.category || PLOT_NOTE_CATEGORIES[0]}</span>
+        </div>
+        <div className="plot-volume-actions">
+          <button type="button" className="btn-icon" title="上移" disabled={index === 0} onClick={() => void movePlotNote(plotNote, -1)}>
+            <ArrowUp size={15} />
+          </button>
+          <button type="button" className="btn-icon" title="下移" disabled={index === sortedPlotNotes.length - 1} onClick={() => void movePlotNote(plotNote, 1)}>
+            <ArrowDown size={15} />
+          </button>
+          <button type="button" className="btn-icon" title="编辑剧情笔记" onClick={() => startEditPlotNote(plotNote)}>
+            <Pencil size={15} />
+          </button>
+          <button type="button" className="btn-icon danger" title="删除剧情笔记" onClick={() => setDeletePlotNoteTarget(plotNote)}>
+            <Trash2 size={15} />
+          </button>
+        </div>
+      </article>
+    );
+  }
+
   return (
     <ViewShell title="剧情大纲" subtitle="先搭好分卷大纲：明确每卷定位、主题和重点；也可以不分卷，直接新建章节开始写">
       <div className="plot-layout">
@@ -1088,6 +1454,10 @@ export function PlotOutlineView() {
                     <button type="button" role="menuitem" onClick={startCreateKeyEvent}>
                       <FilePlus2 size={14} />
                       新建关键事件
+                    </button>
+                    <button type="button" role="menuitem" onClick={startCreatePlotNote}>
+                      <FilePlus2 size={14} />
+                      新建剧情笔记
                     </button>
                   </div>
                 ) : null}
@@ -1225,6 +1595,43 @@ export function PlotOutlineView() {
               <div className="empty-card">还没有关键事件。点击“新建”选择“新建关键事件”来设计重要剧情节点。</div>
             )}
           </section>
+
+          <section className="plot-chapter-section">
+            <div className="editor-card-head plot-chapter-section-head">
+              <div>
+                <h3>剧情笔记</h3>
+                <p className="view-sub">当前小说共 {plotNotes.length} 条剧情笔记，可整理角色弧线、伏笔回收、冲突节奏和高光场景。</p>
+              </div>
+              <div className="segmented" aria-label="剧情笔记分类筛选">
+                <button type="button" className={plotNoteCategoryFilter === ALL_NOTE_CATEGORIES ? "on" : ""} onClick={() => setPlotNoteCategoryFilter(ALL_NOTE_CATEGORIES)}>
+                  全部
+                </button>
+                {plotNoteCategories.map((category) => (
+                  <button type="button" className={plotNoteCategoryFilter === category ? "on" : ""} key={category} onClick={() => setPlotNoteCategoryFilter(category)}>
+                    {category}
+                  </button>
+                ))}
+              </div>
+            </div>
+            {filteredPlotNotes.length ? (
+              <div className="plot-chapter-groups">
+                {plotNoteCategories.map((category) => {
+                  const notes = plotNotesByCategory.get(category) ?? [];
+                  if (!notes.length) {
+                    return null;
+                  }
+                  return (
+                    <div className="plot-chapter-group" key={category}>
+                      <div className="plot-chapter-group-title">{category}</div>
+                      <div className="plot-chapter-list">{notes.map(renderPlotNoteRow)}</div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="empty-card">还没有剧情笔记。点击“新建”选择“新建剧情笔记”来整理辅助剧情资料。</div>
+            )}
+          </section>
         </section>
 
       </div>
@@ -1288,6 +1695,25 @@ export function PlotOutlineView() {
         />
       ) : null}
 
+      {plotNoteModalOpen ? (
+        <PlotNoteEditorModal
+          draft={plotNoteDraft}
+          editing={Boolean(editingPlotNote)}
+          categories={plotNoteCategories}
+          saving={savingPlotNote}
+          error={plotNoteModalError}
+          onChange={(patch) => setPlotNoteDraft((current) => ({ ...current, ...patch }))}
+          onCancel={() => {
+            if (!savingPlotNote) {
+              setPlotNoteModalOpen(false);
+              setEditingPlotNote(null);
+              setPlotNoteModalError(null);
+            }
+          }}
+          onSubmit={() => void savePlotNote()}
+        />
+      ) : null}
+
       {deleteTarget ? (
         <ConfirmModal
           title="删除分卷"
@@ -1318,6 +1744,17 @@ export function PlotOutlineView() {
           danger
           onCancel={() => setDeleteKeyEventTarget(null)}
           onConfirm={() => void deleteKeyEvent(deleteKeyEventTarget)}
+        />
+      ) : null}
+
+      {deletePlotNoteTarget ? (
+        <ConfirmModal
+          title="删除剧情笔记"
+          message={`确定删除剧情笔记「${deletePlotNoteTarget.title}」吗？此操作不可恢复。`}
+          confirmText="删除"
+          danger
+          onCancel={() => setDeletePlotNoteTarget(null)}
+          onConfirm={() => void deletePlotNote(deletePlotNoteTarget)}
         />
       ) : null}
     </ViewShell>

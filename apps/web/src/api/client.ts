@@ -249,6 +249,28 @@ export interface KeyEventInput {
   chapterPlanId?: string | null;
   timelineId?: string | null;
 }
+export interface PlotNoteCustomField {
+  title: string;
+  content: string;
+}
+export interface PlotNoteRecord {
+  id: string;
+  projectId: string;
+  novelId: string;
+  title: string;
+  category: string;
+  order: number;
+  content: string;
+  customFields: PlotNoteCustomField[];
+  createdAt?: string;
+  updatedAt?: string;
+}
+export interface PlotNoteInput {
+  title: string;
+  category?: string;
+  content?: string;
+  customFields?: PlotNoteCustomField[];
+}
 export interface ChapterSummary {
   chapterId: string;
   title: string;
@@ -1230,6 +1252,40 @@ export const api = {
         },
       ),
       "keyEvents",
+    ),
+  listPlotNotes: async (projectId: string, novelId: string): Promise<PlotNoteRecord[]> =>
+    unwrapList<PlotNoteRecord>(
+      await get(`/projects/${encodeURIComponent(projectId)}/novels/${encodeURIComponent(novelId)}/plot-notes`),
+      "plotNotes",
+    ),
+  createPlotNote: async (projectId: string, novelId: string, payload: PlotNoteInput): Promise<PlotNoteRecord> =>
+    post<PlotNoteRecord>(`/projects/${encodeURIComponent(projectId)}/novels/${encodeURIComponent(novelId)}/plot-notes`, payload),
+  updatePlotNote: async (
+    projectId: string,
+    novelId: string,
+    plotNoteId: string,
+    payload: Partial<PlotNoteInput>,
+  ): Promise<PlotNoteRecord> =>
+    patch<PlotNoteRecord>(
+      `/projects/${encodeURIComponent(projectId)}/novels/${encodeURIComponent(novelId)}/plot-notes/${encodeURIComponent(plotNoteId)}`,
+      payload,
+    ),
+  deletePlotNote: async (projectId: string, novelId: string, plotNoteId: string): Promise<{ id: string; deleted: true }> =>
+    request<{ id: string; deleted: true }>(
+      `/projects/${encodeURIComponent(projectId)}/novels/${encodeURIComponent(novelId)}/plot-notes/${encodeURIComponent(plotNoteId)}`,
+      { method: "DELETE" },
+    ),
+  reorderPlotNotes: async (projectId: string, novelId: string, orderedIds: string[]): Promise<PlotNoteRecord[]> =>
+    unwrapList<PlotNoteRecord>(
+      await request<{ plotNotes: PlotNoteRecord[] }>(
+        `/projects/${encodeURIComponent(projectId)}/novels/${encodeURIComponent(novelId)}/plot-notes/reorder`,
+        {
+          method: "PUT",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ orderedIds }),
+        },
+      ),
+      "plotNotes",
     ),
 
   loadChapter: (chapterId: string, projectId: string, novelId: string) =>

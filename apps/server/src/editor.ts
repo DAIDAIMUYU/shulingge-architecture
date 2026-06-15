@@ -1,7 +1,7 @@
 import { mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 
-import { CHAPTER_STATUS_VALUES, type Annotation, type Chapter, type ChapterPlan, type ChapterStatus, type KeyEvent, type KeyEventCustomField, type Lock, type Volume } from "@shulingge/shared";
+import { CHAPTER_STATUS_VALUES, type Annotation, type Chapter, type ChapterPlan, type ChapterStatus, type KeyEvent, type KeyEventCustomField, type Lock, type PlotNote, type PlotNoteCustomField, type Volume } from "@shulingge/shared";
 import { readJsonFile, readManuscriptFile, resolveSafePath, writeJsonFile, writeManuscriptFile } from "@shulingge/vault-core";
 
 import { createHttpError } from "./errors.js";
@@ -75,6 +75,13 @@ export interface KeyEventInput {
   timelineId?: unknown;
 }
 
+export interface PlotNoteInput {
+  title?: unknown;
+  category?: unknown;
+  content?: unknown;
+  customFields?: unknown;
+}
+
 interface SaveChapterInput extends EditorChapterLocator {
   content: string;
 }
@@ -124,6 +131,14 @@ function getKeyEventRelativePath(projectId: string, novelId: string, keyEventId:
   return path.posix.join(getKeyEventsRootPath(projectId, novelId), `${keyEventId}.json`);
 }
 
+function getPlotNotesRootPath(projectId: string, novelId: string): string {
+  return path.posix.join(getNovelRootPathFor(projectId, novelId), "plot-notes");
+}
+
+function getPlotNoteRelativePath(projectId: string, novelId: string, plotNoteId: string): string {
+  return path.posix.join(getPlotNotesRootPath(projectId, novelId), `${plotNoteId}.json`);
+}
+
 function getProjectRelativePath(projectId: string): string {
   return path.posix.join("projects", projectId);
 }
@@ -155,6 +170,12 @@ function assertChapterPlanId(chapterPlanId: string | undefined): asserts chapter
 function assertKeyEventId(keyEventId: string | undefined): asserts keyEventId is string {
   if (!keyEventId) {
     throw createHttpError(400, "EDITOR_INVALID_KEY_EVENT", "keyEventId is required");
+  }
+}
+
+function assertPlotNoteId(plotNoteId: string | undefined): asserts plotNoteId is string {
+  if (!plotNoteId) {
+    throw createHttpError(400, "EDITOR_INVALID_PLOT_NOTE", "plotNoteId is required");
   }
 }
 
@@ -635,6 +656,35 @@ function normalizeKeyEventPayload(input: KeyEventInput, current?: KeyEvent): Omi
   };
 }
 
+function normalizePlotNoteCustomFields(input: unknown, current?: PlotNoteCustomField[]): PlotNoteCustomField[] {
+  if (input === undefined) {
+    return current ?? [];
+  }
+  if (!Array.isArray(input)) {
+    throw createHttpError(400, "EDITOR_INVALID_PLOT_NOTE_CUSTOM_FIELDS", "customFields must be an array");
+  }
+  return input
+    .map((item) => item && typeof item === "object" ? item as Record<string, unknown> : null)
+    .filter((item): item is Record<string, unknown> => Boolean(item))
+    .map((item) => ({
+      title: readOptionalText(item.title),
+      content: readOptionalText(item.content),
+    }))
+    .filter((item) => item.title || item.content);
+}
+
+function normalizePlotNotePayload(input: PlotNoteInput, current?: PlotNote): Omit<PlotNote, "id" | "projectId" | "novelId" | "order" | "schemaVersion" | "createdAt" | "updatedAt"> {
+  if (!current || input.title !== undefined) {
+    assertTitle(input.title);
+  }
+  return {
+    title: input.title !== undefined ? String(input.title).trim() : current?.title ?? "",
+    category: input.category !== undefined ? readOptionalText(input.category) : current?.category ?? "角色弧线",
+    content: input.content !== undefined ? readOptionalText(input.content) : current?.content ?? "",
+    customFields: normalizePlotNoteCustomFields(input.customFields, current?.customFields),
+  };
+}
+
 async function ensureNovelExists(vaultRoot: string, projectId: string, novelId: string): Promise<void> {
   const novelPath = path.posix.join(getNovelRootPathFor(projectId, novelId), "novel.json");
   const metadata = await readOptionalJson<unknown>(vaultRoot, novelPath);
@@ -665,6 +715,14 @@ async function readKeyEvent(vaultRoot: string, projectId: string, novelId: strin
     throw createHttpError(404, "EDITOR_KEY_EVENT_NOT_FOUND", "key event not found");
   }
   return keyEvent;
+}
+
+async function readPlotNote(vaultRoot: string, projectId: string, novelId: string, plotNoteId: string): Promise<PlotNote> {
+  const plotNote = await readOptionalJson<PlotNote>(vaultRoot, getPlotNoteRelativePath(projectId, novelId, plotNoteId));
+  if (!plotNote) {
+    throw createHttpError(404, "EDITOR_PLOT_NOTE_NOT_FOUND", "plot note not found");
+  }
+  return plotNote;
 }
 
 export async function listVolumes(vaultRoot: string, projectId: string, novelId: string): Promise<Volume[]> {
@@ -1021,6 +1079,112 @@ export async function reorderKeyEvents(vaultRoot: string, projectId: string, nov
     });
   }));
   return await listKeyEvents(vaultRoot, projectId, novelId);
+}
+
+export async function listPlotNotes(vaultRoot: string, projectId: string, novelId: string): Promise<PlotNote[]> {
+  assertProjectId(projectId);
+  assertNovelId(novelId);
+  await ensureNovelExists(vaultRoot, projectId, novelId);
+  const plotNoteIds = await listJsonBaseNames(vaultRoot, getPlotNotesRootPath(projectId, novelId));
+  const plotNotes = await Promise.all(
+    plotNoteIds.map((plotNoteId) => readPlotNote(vaultRoot, projectId, novelId, plotNoteId).catch(() => null)),
+  );
+  return plotNotes
+    .filter((plotNote): plotNote is PlotNote => Boolean(plotNote))
+    .sort((left, right) => left.order - right.order || left.title.localeCompare(right.title));
+}
+
+export async function createPlotNote(vaultRoot: string, projectId: string, novelId: string, input: PlotNoteInput): Promise<PlotNote> {
+  assertProjectId(projectId);
+  assertNovelId(novelId);
+  await ensureNovelExists(vaultRoot, projectId, novelId);
+  const payload = normalizePlotNotePayload(input);
+  const existingPlotNotes = await listPlotNotes(vaultRoot, projectId, novelId);
+  const existingIds = existingPlotNotes.map((plotNote) => plotNote.id);
+  const baseId = slugifyTitle(payload.title) || "plot-note";
+  const plotNoteId = existingIds.includes(baseId) ? nextNumberedId(baseId, existingIds) : baseId;
+  const now = new Date().toISOString();
+  const plotNote: PlotNote = {
+    id: plotNoteId,
+    projectId,
+    novelId,
+    order: existingPlotNotes.length,
+    ...payload,
+    schemaVersion: 1,
+    createdAt: now,
+    updatedAt: now,
+  };
+
+  await mkdir(resolveSafePath(vaultRoot, getPlotNotesRootPath(projectId, novelId)), { recursive: true });
+  await writeJsonFile(vaultRoot, getPlotNoteRelativePath(projectId, novelId, plotNoteId), plotNote);
+  return plotNote;
+}
+
+export async function updatePlotNote(
+  vaultRoot: string,
+  projectId: string,
+  novelId: string,
+  plotNoteId: string,
+  input: PlotNoteInput,
+): Promise<PlotNote> {
+  assertProjectId(projectId);
+  assertNovelId(novelId);
+  assertPlotNoteId(plotNoteId);
+  const current = await readPlotNote(vaultRoot, projectId, novelId, plotNoteId);
+  const payload = normalizePlotNotePayload(input, current);
+  const next: PlotNote = {
+    ...current,
+    ...payload,
+    updatedAt: new Date().toISOString(),
+  };
+  await writeJsonFile(vaultRoot, getPlotNoteRelativePath(projectId, novelId, plotNoteId), next);
+  return next;
+}
+
+export async function deletePlotNote(
+  vaultRoot: string,
+  projectId: string,
+  novelId: string,
+  plotNoteId: string,
+): Promise<{ id: string; deleted: true }> {
+  assertProjectId(projectId);
+  assertNovelId(novelId);
+  assertPlotNoteId(plotNoteId);
+  await rm(resolveSafePath(vaultRoot, getPlotNoteRelativePath(projectId, novelId, plotNoteId)), { force: true });
+  const remaining = await listPlotNotes(vaultRoot, projectId, novelId);
+  await Promise.all(remaining.map((plotNote, index) => {
+    const next = { ...plotNote, order: index, updatedAt: new Date().toISOString() };
+    return writeJsonFile(vaultRoot, getPlotNoteRelativePath(projectId, novelId, plotNote.id), next);
+  }));
+  return { id: plotNoteId, deleted: true };
+}
+
+export async function reorderPlotNotes(vaultRoot: string, projectId: string, novelId: string, orderedIds: unknown): Promise<PlotNote[]> {
+  assertProjectId(projectId);
+  assertNovelId(novelId);
+  if (!Array.isArray(orderedIds) || orderedIds.some((id) => typeof id !== "string")) {
+    throw createHttpError(400, "EDITOR_INVALID_PLOT_NOTE_ORDER", "orderedIds is required");
+  }
+  const plotNotes = await listPlotNotes(vaultRoot, projectId, novelId);
+  const knownIds = new Set(plotNotes.map((plotNote) => plotNote.id));
+  const requestedIds = orderedIds as string[];
+  if (requestedIds.some((id) => !knownIds.has(id))) {
+    throw createHttpError(400, "EDITOR_INVALID_PLOT_NOTE_ORDER", "plot note order contains unknown id");
+  }
+  const finalOrder = [...requestedIds, ...plotNotes.map((plotNote) => plotNote.id).filter((id) => !requestedIds.includes(id))];
+  const byId = new Map(plotNotes.map((plotNote) => [plotNote.id, plotNote]));
+  await Promise.all(finalOrder.map((id, index) => {
+    const plotNote = byId.get(id);
+    if (!plotNote) {
+      return Promise.resolve();
+    }
+    return writeJsonFile(vaultRoot, getPlotNoteRelativePath(projectId, novelId, id), {
+      ...plotNote,
+      order: index,
+      updatedAt: new Date().toISOString(),
+    });
+  }));
+  return await listPlotNotes(vaultRoot, projectId, novelId);
 }
 
 export async function updateProjectCover(vaultRoot: string, projectId: string, input: unknown): Promise<ProjectSummary> {

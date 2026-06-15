@@ -990,8 +990,10 @@ body.app-focus .main { padding-bottom: 0; }
 .plot-chapter-modal,
 .plot-chapter-plan-modal,
 .plot-key-event-modal,
+.plot-note-modal,
 .plot-volume-modal { display: grid; gap: 16px; max-height: 85vh; overflow: hidden; }
 .plot-volume-modal { width: min(760px, 100%); }
+.plot-note-modal,
 .plot-key-event-modal { width: min(820px, 100%); }
 .plot-modal-body { min-height: 0; max-height: calc(85vh - 170px); display: grid; gap: 16px; overflow-y: auto; padding-right: 4px; }
 .plot-chapter-section { margin-top: 22px; padding-top: 20px; border-top: 1px solid var(--border); }
@@ -1005,6 +1007,39 @@ body.app-focus .main { padding-bottom: 0; }
 .plot-chapter-main { min-width: 0; display: grid; gap: 3px; }
 .plot-chapter-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; font-weight: 600; color: var(--text-primary); }
 .plot-chapter-meta { color: var(--text-muted); font-size: 12px; }
+.plot-note-markdown { min-height: 220px; font-family: var(--font-mono, Consolas, monospace); }
+.plot-markdown-preview,
+.plot-note-rendered { display: grid; gap: 8px; max-width: 100%; color: var(--text-secondary); font-size: 13px; line-height: 1.65; overflow: auto; }
+.plot-markdown-preview { min-height: 120px; padding: 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--bg-muted); }
+.plot-note-rendered { max-height: 220px; margin-top: 4px; }
+.plot-markdown-preview p,
+.plot-note-rendered p { margin: 0; }
+.plot-markdown-preview h1,
+.plot-markdown-preview h2,
+.plot-markdown-preview h3,
+.plot-note-rendered h1,
+.plot-note-rendered h2,
+.plot-note-rendered h3 { margin: 4px 0 2px; color: var(--text-primary); font-family: var(--font-sans); line-height: 1.35; }
+.plot-markdown-preview h1,
+.plot-note-rendered h1 { font-size: 18px; }
+.plot-markdown-preview h2,
+.plot-note-rendered h2 { font-size: 16px; }
+.plot-markdown-preview h3,
+.plot-note-rendered h3 { font-size: 14px; }
+.plot-markdown-preview ul,
+.plot-markdown-preview ol,
+.plot-note-rendered ul,
+.plot-note-rendered ol { margin: 0; padding-left: 20px; }
+.plot-markdown-preview table,
+.plot-note-rendered table { width: 100%; border-collapse: collapse; font-size: 12px; background: var(--bg-card); }
+.plot-markdown-preview th,
+.plot-markdown-preview td,
+.plot-note-rendered th,
+.plot-note-rendered td { padding: 7px 8px; border: 1px solid var(--border); text-align: left; vertical-align: top; }
+.plot-markdown-preview th,
+.plot-note-rendered th { color: var(--text-primary); background: var(--bg-hover); font-weight: 600; }
+.plot-markdown-preview code,
+.plot-note-rendered code { padding: 1px 4px; border-radius: var(--radius-xs); background: var(--bg-hover); color: var(--text-primary); }
 
 .card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(232px, 1fr)); gap: 22px; }
 .project-card { background: var(--bg-card); background-image: none; border: 1px solid var(--border); border-radius: var(--radius-md); box-shadow: var(--shadow-card); overflow: hidden; transition: box-shadow .18s ease, transform .18s ease, border-color .18s ease; }

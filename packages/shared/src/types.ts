@@ -150,6 +150,21 @@ export interface KeyEvent extends Entity {
   timelineId?: string;
 }
 
+export interface PlotNoteCustomField {
+  title: string;
+  content: string;
+}
+
+export interface PlotNote extends Entity {
+  projectId: string;
+  novelId: string;
+  title: string;
+  category: string;
+  order: number;
+  content: string;
+  customFields: PlotNoteCustomField[];
+}
+
 export interface TextRange {
   start: number;
   end: number;

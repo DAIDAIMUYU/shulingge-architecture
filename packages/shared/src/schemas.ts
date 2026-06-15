@@ -154,6 +154,21 @@ export const keyEventSchema = entitySchema.extend({
   timelineId: z.string().min(1).optional(),
 });
 
+export const plotNoteCustomFieldSchema = z.object({
+  title: z.string(),
+  content: z.string(),
+});
+
+export const plotNoteSchema = entitySchema.extend({
+  projectId: z.string().min(1),
+  novelId: z.string().min(1),
+  title: z.string().min(1),
+  category: z.string(),
+  order: z.number().int().nonnegative(),
+  content: z.string(),
+  customFields: z.array(plotNoteCustomFieldSchema),
+});
+
 export const chapterSourceSchema = z.object({
   lastWrittenBy: z.string().min(1).optional(),
   lastRunId: z.string().min(1).optional(),
