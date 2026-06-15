@@ -3,6 +3,7 @@ export type SendShortcut = "enter" | "mod-enter";
 export type InspectorTabPreference = "outline" | "annotations" | "locks";
 export type WebThemeMode = "light" | "eye" | "dark";
 export type TitleAlignPreference = "left" | "center" | "right";
+export type BodyAlignPreference = "left" | "center" | "right";
 
 export interface FontPreference {
   id: string;
@@ -23,6 +24,7 @@ export interface WebPreferences {
   uiFont: FontPreference;
   bodyFont: FontPreference;
   titleAlign: TitleAlignPreference;
+  bodyAlign: BodyAlignPreference;
 }
 
 const STORAGE_KEY = "shulingge.web.preferences";
@@ -53,6 +55,7 @@ export const DEFAULT_WEB_PREFERENCES: WebPreferences = {
   uiFont: DEFAULT_UI_FONT,
   bodyFont: DEFAULT_BODY_FONT,
   titleAlign: "center",
+  bodyAlign: "left",
 };
 
 export function applyUiFontPreference(font: FontPreference): void {
@@ -76,6 +79,13 @@ export function applyTitleAlignPreference(align: TitleAlignPreference): void {
     return;
   }
   document.documentElement.style.setProperty("--chapter-title-align", align);
+}
+
+export function applyBodyAlignPreference(align: BodyAlignPreference): void {
+  if (typeof document === "undefined") {
+    return;
+  }
+  document.documentElement.style.setProperty("--body-align", align);
 }
 
 export function applyThemePreference(themeMode: WebThemeMode): void {
@@ -129,6 +139,10 @@ function isTitleAlign(value: unknown): value is TitleAlignPreference {
   return value === "left" || value === "center" || value === "right";
 }
 
+function isBodyAlign(value: unknown): value is BodyAlignPreference {
+  return value === "left" || value === "center" || value === "right";
+}
+
 function normalizeFontPreference(value: unknown, fallbackFont: FontPreference = DEFAULT_BODY_FONT): FontPreference {
   if (!value || typeof value !== "object") {
     return fallbackFont;
@@ -168,6 +182,7 @@ export function normalizeWebPreferences(input: unknown): WebPreferences {
     uiFont: normalizeFontPreference(record.uiFont, DEFAULT_UI_FONT),
     bodyFont: normalizeFontPreference(record.bodyFont),
     titleAlign: isTitleAlign(record.titleAlign) ? record.titleAlign : DEFAULT_WEB_PREFERENCES.titleAlign,
+    bodyAlign: isBodyAlign(record.bodyAlign) ? record.bodyAlign : DEFAULT_WEB_PREFERENCES.bodyAlign,
   };
 }
 
@@ -199,6 +214,7 @@ export function writeWebPreferences(next: WebPreferences): WebPreferences {
   applyThemePreference(normalized.themeMode);
   applyBodyFontPreference(normalized.bodyFont);
   applyTitleAlignPreference(normalized.titleAlign);
+  applyBodyAlignPreference(normalized.bodyAlign);
   return normalized;
 }
 

@@ -3,7 +3,7 @@ import { createRoot } from "react-dom/client";
 
 import { App } from "./app/App.js";
 import { hydrateSelectedCustomFonts } from "./app/fonts.js";
-import { applyBodyFontPreference, applyThemePreference, applyTitleAlignPreference, applyUiFontPreference, readWebPreferences } from "./app/preferences.js";
+import { applyBodyAlignPreference, applyBodyFontPreference, applyThemePreference, applyTitleAlignPreference, applyUiFontPreference, readWebPreferences } from "./app/preferences.js";
 import { globalCss } from "./styles.js";
 
 // 浏览器 CSR 入口：注入设计系统全局样式，再挂载书灵阁 App。
@@ -15,6 +15,7 @@ applyUiFontPreference(initialPreferences.uiFont);
 applyThemePreference(initialPreferences.themeMode);
 applyBodyFontPreference(initialPreferences.bodyFont);
 applyTitleAlignPreference(initialPreferences.titleAlign);
+applyBodyAlignPreference(initialPreferences.bodyAlign);
 void hydrateSelectedCustomFonts(initialPreferences).catch(() => undefined);
 
 const container = document.getElementById("root");

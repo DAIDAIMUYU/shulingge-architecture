@@ -5,6 +5,9 @@ import StarterKit from "@tiptap/starter-kit";
 import { Markdown } from "tiptap-markdown";
 import {
   AlertCircle,
+  AlignCenter,
+  AlignLeft,
+  AlignRight,
   ArrowUp,
   Bold,
   Bookmark,
@@ -46,7 +49,7 @@ import {
   type SearchResult,
   type WorldbookEntry,
 } from "../api/client.js";
-import { readWebPreferences } from "../app/preferences.js";
+import { applyBodyAlignPreference, mergeWebPreferences, readWebPreferences, type BodyAlignPreference } from "../app/preferences.js";
 import { ConfirmModal, InputModal } from "../app/Modals.js";
 import { CHAPTER_STATUS_VALUES, type ChapterStatus } from "@shulingge/shared";
 import {
@@ -133,13 +136,23 @@ const TOOLS = [
   { kind: "quote" as const, Icon: Quote, label: "引用" },
   { kind: "list" as const, Icon: List, label: "列表" },
   { sep: true as const },
+  { kind: "body-align-left" as const, Icon: AlignLeft, label: "正文居左", align: "left" as const },
+  { kind: "body-align-center" as const, Icon: AlignCenter, label: "正文居中", align: "center" as const },
+  { kind: "body-align-right" as const, Icon: AlignRight, label: "正文居右", align: "right" as const },
+  { sep: true as const },
   { kind: "outline" as const, Icon: Lightbulb, label: "大纲面板" },
   { kind: "annotations" as const, Icon: FilePenLine, label: "批注面板" },
   { kind: "locks" as const, Icon: Lock, label: "锁定面板" },
   { kind: "run" as const, Icon: Bot, label: "运行详情" },
 ];
 
-const FOCUS_TOOL_KINDS: readonly string[] = ["undo", "redo", "bold", "italic", "heading", "quote", "list"];
+const FOCUS_TOOL_KINDS: readonly string[] = ["undo", "redo", "bold", "italic", "heading", "quote", "list", "body-align-left", "body-align-center", "body-align-right"];
+type ToolbarTool = Exclude<(typeof TOOLS)[number], { sep: true }>;
+type BodyAlignTool = ToolbarTool & { align: BodyAlignPreference };
+
+function isBodyAlignTool(tool: ToolbarTool): tool is BodyAlignTool {
+  return "align" in tool;
+}
 
 const CHAPTER_STATUS_LABELS: Record<ChapterStatus, string> = {
   "not-started": "未开始",
@@ -419,6 +432,7 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
   const [inspectorTab, setInspectorTab] = useState<InspectorTab>(preferences.defaultInspectorTab);
   const [showInspector] = useState(false);
   const [focusMode, setFocusMode] = useState(preferences.startInFocusMode);
+  const [bodyAlign, setBodyAlign] = useState<BodyAlignPreference>(preferences.bodyAlign);
   const [mobilePanel, setMobilePanel] = useState<MobilePanel>("editor");
   const [editorMode, setEditorMode] = useState<EditorMode>("rich");
   const [messages, setMessages] = useState<ChatMessage[]>(() => hydrateChatMessages([], () => 0));
@@ -1078,6 +1092,15 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
   useEffect(() => {
     editor?.setEditable(hasValidActiveChapter);
   }, [editor, hasValidActiveChapter]);
+
+  useEffect(() => {
+    applyBodyAlignPreference(bodyAlign);
+  }, [bodyAlign]);
+
+  const changeBodyAlign = (align: BodyAlignPreference) => {
+    const next = mergeWebPreferences({ bodyAlign: align });
+    setBodyAlign(next.bodyAlign);
+  };
 
   const switchEditorMode = (mode: EditorMode) => {
     if (mode === editorMode) {
@@ -2324,7 +2347,8 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
                         (editorMode === "rich" && tool.kind === "italic" && editor?.isActive("italic")) ||
                         (editorMode === "rich" && tool.kind === "heading" && editor?.isActive("heading", { level: 2 })) ||
                         (editorMode === "rich" && tool.kind === "quote" && editor?.isActive("blockquote")) ||
-                        (editorMode === "rich" && tool.kind === "list" && editor?.isActive("bulletList"))
+                        (editorMode === "rich" && tool.kind === "list" && editor?.isActive("bulletList")) ||
+                        (isBodyAlignTool(tool) && bodyAlign === tool.align)
                           ? "toolbar-active"
                           : ""
                       }`}
@@ -2362,6 +2386,10 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
                         }
                         if (tool.kind === "list") {
                           runEditorCommand((activeEditor) => activeEditor.chain().focus().toggleBulletList().run());
+                          return;
+                        }
+                        if (isBodyAlignTool(tool)) {
+                          changeBodyAlign(tool.align);
                           return;
                         }
                         if (tool.kind === "outline") {

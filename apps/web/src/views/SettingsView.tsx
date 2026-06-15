@@ -20,12 +20,14 @@ import {
   DEFAULT_WEB_PREFERENCES,
   DEFAULT_BODY_FONT,
   DEFAULT_UI_FONT,
+  applyBodyAlignPreference,
   applyBodyFontPreference,
   applyTitleAlignPreference,
   applyUiFontPreference,
   mergeWebPreferences,
   readWebPreferences,
   writeWebPreferences,
+  type BodyAlignPreference,
   type FontPreference,
   type TitleAlignPreference,
   type WebThemeMode,
@@ -77,6 +79,12 @@ const TITLE_ALIGN_OPTIONS: Array<{ value: TitleAlignPreference; label: string; d
   { value: "left", label: "居左", description: "章节标题靠左显示" },
   { value: "center", label: "居中", description: "章节标题居中显示" },
   { value: "right", label: "居右", description: "章节标题靠右显示" },
+];
+
+const BODY_ALIGN_OPTIONS: Array<{ value: BodyAlignPreference; label: string; description: string }> = [
+  { value: "left", label: "居左", description: "正文从左侧开始排版" },
+  { value: "center", label: "居中", description: "正文整篇居中排版" },
+  { value: "right", label: "居右", description: "正文整篇靠右排版" },
 ];
 
 const FONT_IMPORT_ACCEPT = ".ttf,.otf,.woff,.woff2";
@@ -1091,6 +1099,10 @@ export function SettingsView({ vaultPath, onSetVault, onClearVault }: SettingsVi
   }, [preferences.titleAlign]);
 
   useEffect(() => {
+    applyBodyAlignPreference(preferences.bodyAlign);
+  }, [preferences.bodyAlign]);
+
+  useEffect(() => {
     applyUiFontPreference(preferences.uiFont);
   }, [preferences.uiFont]);
 
@@ -1282,6 +1294,25 @@ export function SettingsView({ vaultPath, onSetVault, onClearVault }: SettingsVi
                       className={preferences.titleAlign === option.value ? "on" : ""}
                       title={option.description}
                       onClick={() => savePreferencePatch({ titleAlign: option.value }, setPreferences, setPreferencesFeedback)}
+                    >
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="form-row">
+                <div>
+                  <div className="fr-label">正文对齐</div>
+                  <div className="fr-desc">只影响写作页正文内容，不改变章节标题对齐。</div>
+                </div>
+                <div className="segmented">
+                  {BODY_ALIGN_OPTIONS.map((option) => (
+                    <button
+                      key={option.value}
+                      type="button"
+                      className={preferences.bodyAlign === option.value ? "on" : ""}
+                      title={option.description}
+                      onClick={() => savePreferencePatch({ bodyAlign: option.value }, setPreferences, setPreferencesFeedback)}
                     >
                       {option.label}
                     </button>

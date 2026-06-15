@@ -14,6 +14,7 @@ test("normalizeWebPreferences keeps supported values and falls back for invalid 
       sendShortcut: "mod-enter",
       watchedAgentIds: ["writer", "", "director"],
       titleAlign: "right",
+      bodyAlign: "center",
       bodyFont: {
         id: "preset-kaiti",
         label: "楷体 KaiTi",
@@ -38,6 +39,7 @@ test("normalizeWebPreferences keeps supported values and falls back for invalid 
         fallback: undefined,
       },
       titleAlign: "right",
+      bodyAlign: "center",
     },
   );
 
