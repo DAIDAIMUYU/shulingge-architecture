@@ -124,6 +124,15 @@ export const volumeSchema = entitySchema.extend({
   notes: z.string().optional(),
 });
 
+export const chapterPlanSchema = entitySchema.extend({
+  projectId: z.string().min(1),
+  novelId: z.string().min(1),
+  volumeId: z.string().min(1).optional(),
+  title: z.string().min(1),
+  order: z.number().int().nonnegative(),
+  summary: z.string(),
+});
+
 export const chapterSourceSchema = z.object({
   lastWrittenBy: z.string().min(1).optional(),
   lastRunId: z.string().min(1).optional(),

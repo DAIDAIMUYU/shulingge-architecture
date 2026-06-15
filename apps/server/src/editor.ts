@@ -1,7 +1,7 @@
 import { mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 
-import { CHAPTER_STATUS_VALUES, type Annotation, type Chapter, type ChapterStatus, type Lock, type Volume } from "@shulingge/shared";
+import { CHAPTER_STATUS_VALUES, type Annotation, type Chapter, type ChapterPlan, type ChapterStatus, type Lock, type Volume } from "@shulingge/shared";
 import { readJsonFile, readManuscriptFile, resolveSafePath, writeJsonFile, writeManuscriptFile } from "@shulingge/vault-core";
 
 import { createHttpError } from "./errors.js";
@@ -43,7 +43,6 @@ export interface ChapterSummary {
   title: string;
   status: ChapterStatus;
   wordCount: number;
-  volumeId?: string;
 }
 
 export type VolumeStatus = NonNullable<Volume["status"]>;
@@ -55,6 +54,12 @@ export interface VolumeInput {
   themes?: unknown;
   keyPoints?: unknown;
   notes?: unknown;
+}
+
+export interface ChapterPlanInput {
+  title?: unknown;
+  volumeId?: unknown;
+  summary?: unknown;
 }
 
 interface SaveChapterInput extends EditorChapterLocator {
@@ -90,6 +95,14 @@ function getVolumeRelativePath(projectId: string, novelId: string, volumeId: str
   return path.posix.join(getVolumesRootPath(projectId, novelId), `${volumeId}.json`);
 }
 
+function getChapterPlansRootPath(projectId: string, novelId: string): string {
+  return path.posix.join(getNovelRootPathFor(projectId, novelId), "chapter-plans");
+}
+
+function getChapterPlanRelativePath(projectId: string, novelId: string, chapterPlanId: string): string {
+  return path.posix.join(getChapterPlansRootPath(projectId, novelId), `${chapterPlanId}.json`);
+}
+
 function getProjectRelativePath(projectId: string): string {
   return path.posix.join("projects", projectId);
 }
@@ -109,6 +122,12 @@ function assertNovelId(novelId: string | undefined): asserts novelId is string {
 function assertVolumeId(volumeId: string | undefined): asserts volumeId is string {
   if (!volumeId) {
     throw createHttpError(400, "EDITOR_INVALID_VOLUME", "volumeId is required");
+  }
+}
+
+function assertChapterPlanId(chapterPlanId: string | undefined): asserts chapterPlanId is string {
+  if (!chapterPlanId) {
+    throw createHttpError(400, "EDITOR_INVALID_CHAPTER_PLAN", "chapterPlanId is required");
   }
 }
 
@@ -515,6 +534,28 @@ function normalizeVolumePayload(input: VolumeInput, current?: Volume): Omit<Volu
   };
 }
 
+function normalizeChapterPlanPayload(input: ChapterPlanInput, current?: ChapterPlan): Pick<ChapterPlan, "title" | "summary" | "volumeId"> {
+  if (!current || input.title !== undefined) {
+    assertTitle(input.title);
+  }
+  let volumeId = current?.volumeId;
+  if (input.volumeId !== undefined) {
+    if (input.volumeId === null) {
+      volumeId = undefined;
+    } else if (typeof input.volumeId === "string") {
+      volumeId = input.volumeId.trim() || undefined;
+    } else {
+      throw createHttpError(400, "EDITOR_INVALID_VOLUME", "volumeId is invalid");
+    }
+  }
+
+  return {
+    title: input.title !== undefined ? String(input.title).trim() : current?.title ?? "",
+    summary: input.summary !== undefined ? readOptionalText(input.summary) : current?.summary ?? "",
+    volumeId,
+  };
+}
+
 async function ensureNovelExists(vaultRoot: string, projectId: string, novelId: string): Promise<void> {
   const novelPath = path.posix.join(getNovelRootPathFor(projectId, novelId), "novel.json");
   const metadata = await readOptionalJson<unknown>(vaultRoot, novelPath);
@@ -529,6 +570,14 @@ async function readVolume(vaultRoot: string, projectId: string, novelId: string,
     throw createHttpError(404, "EDITOR_VOLUME_NOT_FOUND", "分卷不存在");
   }
   return volume;
+}
+
+async function readChapterPlan(vaultRoot: string, projectId: string, novelId: string, chapterPlanId: string): Promise<ChapterPlan> {
+  const chapterPlan = await readOptionalJson<ChapterPlan>(vaultRoot, getChapterPlanRelativePath(projectId, novelId, chapterPlanId));
+  if (!chapterPlan) {
+    throw createHttpError(404, "EDITOR_CHAPTER_PLAN_NOT_FOUND", "chapter plan not found");
+  }
+  return chapterPlan;
 }
 
 export async function listVolumes(vaultRoot: string, projectId: string, novelId: string): Promise<Volume[]> {
@@ -629,6 +678,126 @@ export async function reorderVolumes(vaultRoot: string, projectId: string, novel
   return await listVolumes(vaultRoot, projectId, novelId);
 }
 
+export async function listChapterPlans(vaultRoot: string, projectId: string, novelId: string): Promise<ChapterPlan[]> {
+  assertProjectId(projectId);
+  assertNovelId(novelId);
+  await ensureNovelExists(vaultRoot, projectId, novelId);
+  const chapterPlanIds = await listJsonBaseNames(vaultRoot, getChapterPlansRootPath(projectId, novelId));
+  const chapterPlans = await Promise.all(
+    chapterPlanIds.map((chapterPlanId) => readChapterPlan(vaultRoot, projectId, novelId, chapterPlanId).catch(() => null)),
+  );
+  return chapterPlans
+    .filter((chapterPlan): chapterPlan is ChapterPlan => Boolean(chapterPlan))
+    .sort((left, right) => left.order - right.order || left.title.localeCompare(right.title));
+}
+
+export async function createChapterPlan(vaultRoot: string, projectId: string, novelId: string, input: ChapterPlanInput): Promise<ChapterPlan> {
+  assertProjectId(projectId);
+  assertNovelId(novelId);
+  await ensureNovelExists(vaultRoot, projectId, novelId);
+  const payload = normalizeChapterPlanPayload(input);
+  if (payload.volumeId) {
+    await readVolume(vaultRoot, projectId, novelId, payload.volumeId);
+  }
+  const existingChapterPlans = await listChapterPlans(vaultRoot, projectId, novelId);
+  const existingIds = existingChapterPlans.map((chapterPlan) => chapterPlan.id);
+  const baseId = slugifyTitle(payload.title) || "chapter-plan";
+  const chapterPlanId = existingIds.includes(baseId) ? nextNumberedId(baseId, existingIds) : baseId;
+  const now = new Date().toISOString();
+  const chapterPlan: ChapterPlan = {
+    id: chapterPlanId,
+    projectId,
+    novelId,
+    order: existingChapterPlans.length,
+    title: payload.title,
+    summary: payload.summary,
+    ...(payload.volumeId ? { volumeId: payload.volumeId } : {}),
+    schemaVersion: 1,
+    createdAt: now,
+    updatedAt: now,
+  };
+
+  await mkdir(resolveSafePath(vaultRoot, getChapterPlansRootPath(projectId, novelId)), { recursive: true });
+  await writeJsonFile(vaultRoot, getChapterPlanRelativePath(projectId, novelId, chapterPlanId), chapterPlan);
+  return chapterPlan;
+}
+
+export async function updateChapterPlan(
+  vaultRoot: string,
+  projectId: string,
+  novelId: string,
+  chapterPlanId: string,
+  input: ChapterPlanInput,
+): Promise<ChapterPlan> {
+  assertProjectId(projectId);
+  assertNovelId(novelId);
+  assertChapterPlanId(chapterPlanId);
+  const current = await readChapterPlan(vaultRoot, projectId, novelId, chapterPlanId);
+  const payload = normalizeChapterPlanPayload(input, current);
+  if (payload.volumeId) {
+    await readVolume(vaultRoot, projectId, novelId, payload.volumeId);
+  }
+  const next: ChapterPlan = {
+    ...current,
+    title: payload.title,
+    summary: payload.summary,
+    updatedAt: new Date().toISOString(),
+  };
+  if (payload.volumeId) {
+    next.volumeId = payload.volumeId;
+  } else {
+    delete next.volumeId;
+  }
+  await writeJsonFile(vaultRoot, getChapterPlanRelativePath(projectId, novelId, chapterPlanId), next);
+  return next;
+}
+
+export async function deleteChapterPlan(
+  vaultRoot: string,
+  projectId: string,
+  novelId: string,
+  chapterPlanId: string,
+): Promise<{ id: string; deleted: true }> {
+  assertProjectId(projectId);
+  assertNovelId(novelId);
+  assertChapterPlanId(chapterPlanId);
+  await rm(resolveSafePath(vaultRoot, getChapterPlanRelativePath(projectId, novelId, chapterPlanId)), { force: true });
+  const remaining = await listChapterPlans(vaultRoot, projectId, novelId);
+  await Promise.all(remaining.map((chapterPlan, index) => {
+    const next = { ...chapterPlan, order: index, updatedAt: new Date().toISOString() };
+    return writeJsonFile(vaultRoot, getChapterPlanRelativePath(projectId, novelId, chapterPlan.id), next);
+  }));
+  return { id: chapterPlanId, deleted: true };
+}
+
+export async function reorderChapterPlans(vaultRoot: string, projectId: string, novelId: string, orderedIds: unknown): Promise<ChapterPlan[]> {
+  assertProjectId(projectId);
+  assertNovelId(novelId);
+  if (!Array.isArray(orderedIds) || orderedIds.some((id) => typeof id !== "string")) {
+    throw createHttpError(400, "EDITOR_INVALID_CHAPTER_PLAN_ORDER", "orderedIds is required");
+  }
+  const chapterPlans = await listChapterPlans(vaultRoot, projectId, novelId);
+  const knownIds = new Set(chapterPlans.map((chapterPlan) => chapterPlan.id));
+  const requestedIds = orderedIds as string[];
+  if (requestedIds.some((id) => !knownIds.has(id))) {
+    throw createHttpError(400, "EDITOR_INVALID_CHAPTER_PLAN_ORDER", "chapter plan order contains unknown id");
+  }
+  const finalOrder = [...requestedIds, ...chapterPlans.map((chapterPlan) => chapterPlan.id).filter((id) => !requestedIds.includes(id))];
+  const byId = new Map(chapterPlans.map((chapterPlan) => [chapterPlan.id, chapterPlan]));
+  await Promise.all(finalOrder.map((id, index) => {
+    const chapterPlan = byId.get(id);
+    if (!chapterPlan) {
+      return Promise.resolve();
+    }
+    return writeJsonFile(vaultRoot, getChapterPlanRelativePath(projectId, novelId, id), {
+      ...chapterPlan,
+      order: index,
+      updatedAt: new Date().toISOString(),
+    });
+  }));
+  return await listChapterPlans(vaultRoot, projectId, novelId);
+}
+
 export async function updateProjectCover(vaultRoot: string, projectId: string, input: unknown): Promise<ProjectSummary> {
   assertProjectId(projectId);
   const record = input && typeof input === "object" ? input as Record<string, unknown> : {};
@@ -710,7 +879,6 @@ export async function listChapters(vaultRoot: string, projectId: string, novelId
         title: readTitle(metadata, chapterId),
         status: metadata?.status ?? "drafting",
         wordCount: metadata?.wordCount ?? 0,
-        volumeId: metadata?.volumeId,
       };
     }),
   );
@@ -755,13 +923,12 @@ export async function createChapter(
     title,
     status: "drafting",
     wordCount: 0,
-    volumeId,
   };
 }
 
 export async function renameChapter(
   vaultRoot: string,
-  input: { projectId: string; novelId: string; chapterId: string; title?: unknown; status?: unknown; volumeId?: unknown },
+  input: { projectId: string; novelId: string; chapterId: string; title?: unknown; status?: unknown },
 ): Promise<ChapterSummary> {
   assertLocator(input);
   if (input.title !== undefined) {
@@ -770,41 +937,21 @@ export async function renameChapter(
   if (input.status !== undefined) {
     assertChapterStatus(input.status);
   }
-  let nextVolumeId: string | undefined;
-  if (input.volumeId !== undefined && input.volumeId !== null) {
-    if (typeof input.volumeId !== "string") {
-      throw createHttpError(400, "EDITOR_INVALID_VOLUME", "volumeId is invalid");
-    }
-    nextVolumeId = input.volumeId.trim() || undefined;
-    if (nextVolumeId) {
-      await readVolume(vaultRoot, input.projectId, input.novelId, nextVolumeId);
-    }
-  }
-
   const metadata = await readChapterMetadata(vaultRoot, input);
   const title = typeof input.title === "string" ? input.title.trim() : metadata.title;
   const status = input.status !== undefined ? input.status : metadata.status;
-  const nextMetadata: Chapter = {
+  await writeJsonFile(vaultRoot, getMetadataRelativePath(input), {
     ...metadata,
     title,
     status,
     updatedAt: new Date().toISOString(),
-  };
-  if (input.volumeId !== undefined) {
-    if (nextVolumeId) {
-      nextMetadata.volumeId = nextVolumeId;
-    } else {
-      delete nextMetadata.volumeId;
-    }
-  }
-  await writeJsonFile(vaultRoot, getMetadataRelativePath(input), nextMetadata);
+  });
 
   return {
     chapterId: input.chapterId,
     title,
     status,
     wordCount: metadata.wordCount ?? 0,
-    volumeId: nextMetadata.volumeId,
   };
 }
 

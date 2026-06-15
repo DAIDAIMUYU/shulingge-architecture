@@ -988,6 +988,7 @@ body.app-focus .main { padding-bottom: 0; }
 .plot-textarea { min-height: 108px; }
 .plot-textarea-lg { min-height: 172px; }
 .plot-chapter-modal,
+.plot-chapter-plan-modal,
 .plot-volume-modal { display: grid; gap: 16px; max-height: 85vh; overflow: hidden; }
 .plot-volume-modal { width: min(760px, 100%); }
 .plot-modal-body { min-height: 0; max-height: calc(85vh - 170px); display: grid; gap: 16px; overflow-y: auto; padding-right: 4px; }

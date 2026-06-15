@@ -120,6 +120,15 @@ export interface Volume extends Entity {
   notes?: string;
 }
 
+export interface ChapterPlan extends Entity {
+  projectId: string;
+  novelId: string;
+  volumeId?: string;
+  title: string;
+  order: number;
+  summary: string;
+}
+
 export interface TextRange {
   start: number;
   end: number;

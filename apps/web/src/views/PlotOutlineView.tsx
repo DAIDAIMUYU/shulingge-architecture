@@ -12,7 +12,7 @@ import {
   Trash2,
 } from "lucide-react";
 
-import { api, ApiError, type ChapterSummary, type NovelSummary, type ProjectSummary, type VolumeInput, type VolumeRecord, type VolumeStatus } from "../api/client.js";
+import { api, ApiError, type ChapterPlanInput, type ChapterPlanRecord, type NovelSummary, type ProjectSummary, type VolumeInput, type VolumeRecord, type VolumeStatus } from "../api/client.js";
 import { ConfirmModal } from "../app/Modals.js";
 import { ProjectSelector } from "./ProjectSelector.js";
 import { Select } from "./Select.js";
@@ -31,9 +31,10 @@ interface VolumeDraft {
   notes: string;
 }
 
-interface ChapterDraft {
+interface ChapterPlanDraft {
   title: string;
   volumeId: string;
+  summary: string;
 }
 
 const PROJECT_STORAGE_KEY = "shulingge.web.plotOutline.projectId";
@@ -99,6 +100,22 @@ function toPayload(draft: VolumeDraft): VolumeInput {
   };
 }
 
+function createChapterPlanDraft(chapterPlan?: ChapterPlanRecord, fallbackVolumeId = NO_VOLUME): ChapterPlanDraft {
+  return {
+    title: chapterPlan?.title ?? "",
+    volumeId: chapterPlan?.volumeId ?? fallbackVolumeId,
+    summary: chapterPlan?.summary ?? "",
+  };
+}
+
+function toChapterPlanPayload(draft: ChapterPlanDraft): ChapterPlanInput {
+  return {
+    title: draft.title.trim(),
+    volumeId: draft.volumeId === NO_VOLUME ? null : draft.volumeId,
+    summary: draft.summary.trim(),
+  };
+}
+
 function compactText(value: string | undefined, fallback = "未填写摘要"): string {
   const normalized = (value ?? "").split(/\n+/).map((line) => line.trim()).filter(Boolean).join(" / ");
   return normalized || fallback;
@@ -106,6 +123,10 @@ function compactText(value: string | undefined, fallback = "未填写摘要"): s
 
 function volumeSummary(volume: VolumeRecord): string {
   return compactText(volume.positioning || volume.themes || volume.keyPoints);
+}
+
+function chapterPlanSummary(chapterPlan: ChapterPlanRecord): string {
+  return compactText(chapterPlan.summary, "未填写梗概");
 }
 
 function VolumeEditorModal({
@@ -220,7 +241,7 @@ function VolumeEditorModal({
   );
 }
 
-function ChapterEditorModal({
+function ChapterPlanEditorModal({
   draft,
   editing,
   volumes,
@@ -230,12 +251,12 @@ function ChapterEditorModal({
   onCancel,
   onSubmit,
 }: {
-  draft: ChapterDraft;
+  draft: ChapterPlanDraft;
   editing: boolean;
   volumes: VolumeRecord[];
   saving: boolean;
   error?: string | null;
-  onChange(patch: Partial<ChapterDraft>): void;
+  onChange(patch: Partial<ChapterPlanDraft>): void;
   onCancel(): void;
   onSubmit(): void;
 }) {
@@ -251,17 +272,17 @@ function ChapterEditorModal({
 
   return (
     <div className="vault-modal-backdrop" onMouseDown={onCancel}>
-      <form className="vault-modal input-modal plot-chapter-modal" onSubmit={submit} onMouseDown={(event) => event.stopPropagation()}>
-        <h2>{editing ? "编辑章节" : "新建章节"}</h2>
+      <form className="vault-modal input-modal plot-chapter-plan-modal" onSubmit={submit} onMouseDown={(event) => event.stopPropagation()}>
+        <h2>{editing ? "编辑章节规划" : "新建章节规划"}</h2>
         <div className="plot-modal-body">
           <label className="form-block">
-            <span>章节名</span>
+            <span>章节规划标题</span>
             <input
               className="input"
               value={draft.title}
               autoFocus
               onChange={(event) => onChange({ title: event.target.value })}
-              placeholder="例如 第一章 破局"
+              placeholder="例如 第一章 破局规划"
             />
           </label>
           <label className="form-block">
@@ -273,6 +294,15 @@ function ChapterEditorModal({
               ariaLabel="归属分卷"
             />
           </label>
+          <label className="form-block">
+            <span>章节梗概</span>
+            <textarea
+              className="textarea plot-textarea-lg"
+              value={draft.summary}
+              onChange={(event) => onChange({ summary: event.target.value })}
+              placeholder="自由写这一章打算写什么、涉及谁、要点和节奏。"
+            />
+          </label>
         </div>
         {error ? (
           <div className="model-feedback model-feedback-error">
@@ -282,7 +312,7 @@ function ChapterEditorModal({
         ) : null}
         <div className="vault-modal-actions">
           <button type="button" className="btn btn-ghost" disabled={saving} onClick={onCancel}>取消</button>
-          <button type="submit" className="btn btn-primary" disabled={saving}>{saving ? "保存中..." : editing ? "保存章节" : "创建章节"}</button>
+          <button type="submit" className="btn btn-primary" disabled={saving}>{saving ? "保存中..." : editing ? "保存章节规划" : "创建章节规划"}</button>
         </div>
       </form>
     </div>
@@ -295,23 +325,23 @@ export function PlotOutlineView() {
   const [projectId, setProjectId] = useState(readStoredProjectId);
   const [novelId, setNovelId] = useState("");
   const [volumes, setVolumes] = useState<VolumeRecord[]>([]);
-  const [chapters, setChapters] = useState<ChapterSummary[]>([]);
+  const [chapterPlans, setChapterPlans] = useState<ChapterPlanRecord[]>([]);
   const [selectedVolumeId, setSelectedVolumeId] = useState<string | null>(null);
   const [draft, setDraft] = useState<VolumeDraft>(() => createDraft());
-  const [chapterDraft, setChapterDraft] = useState<ChapterDraft>({ title: "", volumeId: NO_VOLUME });
+  const [chapterPlanDraft, setChapterPlanDraft] = useState<ChapterPlanDraft>(() => createChapterPlanDraft());
   const [viewMode, setViewMode] = useState<PlotViewMode>(readStoredViewMode);
   const [newMenuOpen, setNewMenuOpen] = useState(false);
   const [volumeModalOpen, setVolumeModalOpen] = useState(false);
-  const [chapterModalOpen, setChapterModalOpen] = useState(false);
-  const [editingChapter, setEditingChapter] = useState<ChapterSummary | null>(null);
+  const [chapterPlanModalOpen, setChapterPlanModalOpen] = useState(false);
+  const [editingChapterPlan, setEditingChapterPlan] = useState<ChapterPlanRecord | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [creatingChapter, setCreatingChapter] = useState(false);
+  const [savingChapterPlan, setSavingChapterPlan] = useState(false);
   const [feedback, setFeedback] = useState<FeedbackState | null>(null);
   const [volumeModalError, setVolumeModalError] = useState<string | null>(null);
-  const [chapterModalError, setChapterModalError] = useState<string | null>(null);
+  const [chapterPlanModalError, setChapterPlanModalError] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<VolumeRecord | null>(null);
-  const [deleteChapterTarget, setDeleteChapterTarget] = useState<ChapterSummary | null>(null);
+  const [deleteChapterPlanTarget, setDeleteChapterPlanTarget] = useState<ChapterPlanRecord | null>(null);
   const newMenuRef = useRef<HTMLDivElement | null>(null);
 
   const selectedVolume = useMemo(
@@ -322,18 +352,18 @@ export function PlotOutlineView() {
     () => [...volumes].sort((left, right) => left.order - right.order || left.title.localeCompare(right.title)),
     [volumes],
   );
-  const sortedChapters = useMemo(
-    () => [...chapters].sort((left, right) => left.chapterId.localeCompare(right.chapterId)),
-    [chapters],
+  const sortedChapterPlans = useMemo(
+    () => [...chapterPlans].sort((left, right) => left.order - right.order || left.title.localeCompare(right.title)),
+    [chapterPlans],
   );
-  const chaptersByVolume = useMemo(() => {
-    const groups = new Map<string, ChapterSummary[]>();
-    for (const chapter of sortedChapters) {
-      const key = chapter.volumeId ?? NO_VOLUME;
-      groups.set(key, [...(groups.get(key) ?? []), chapter]);
+  const chapterPlansByVolume = useMemo(() => {
+    const groups = new Map<string, ChapterPlanRecord[]>();
+    for (const chapterPlan of sortedChapterPlans) {
+      const key = chapterPlan.volumeId ?? NO_VOLUME;
+      groups.set(key, [...(groups.get(key) ?? []), chapterPlan]);
     }
     return groups;
-  }, [sortedChapters]);
+  }, [sortedChapterPlans]);
 
   useEffect(() => {
     if (!newMenuOpen) {
@@ -384,7 +414,7 @@ export function PlotOutlineView() {
       setNovels([]);
       setNovelId("");
       setVolumes([]);
-      setChapters([]);
+      setChapterPlans([]);
       return;
     }
     try {
@@ -401,7 +431,7 @@ export function PlotOutlineView() {
   async function loadVolumes(nextProjectId = projectId, nextNovelId = novelId) {
     if (!nextProjectId || !nextNovelId) {
       setVolumes([]);
-      setChapters([]);
+      setChapterPlans([]);
       setSelectedVolumeId(null);
       setDraft(createDraft());
       return;
@@ -410,14 +440,14 @@ export function PlotOutlineView() {
     try {
       const [volumeList, chapterList] = await Promise.all([
         api.listVolumes(nextProjectId, nextNovelId),
-        api.listChapters(nextProjectId, nextNovelId),
+        api.listChapterPlans(nextProjectId, nextNovelId),
       ]);
       setVolumes(volumeList);
-      setChapters(chapterList);
+      setChapterPlans(chapterList);
       setSelectedVolumeId((current) => current && volumeList.some((volume) => volume.id === current) ? current : volumeList[0]?.id ?? null);
     } catch (error) {
       setVolumes([]);
-      setChapters([]);
+      setChapterPlans([]);
       setSelectedVolumeId(null);
       setFeedback({ kind: "error", message: error instanceof ApiError ? error.message : "分卷大纲加载失败" });
     } finally {
@@ -463,29 +493,29 @@ export function PlotOutlineView() {
     setFeedback(null);
   }
 
-  function startCreateChapter() {
+  function startCreateChapterPlan() {
     setNewMenuOpen(false);
-    setEditingChapter(null);
-    setChapterDraft({ title: "", volumeId: selectedVolumeId ?? NO_VOLUME });
-    setChapterModalOpen(true);
-    setChapterModalError(null);
+    setEditingChapterPlan(null);
+    setChapterPlanDraft(createChapterPlanDraft(undefined, selectedVolumeId ?? NO_VOLUME));
+    setChapterPlanModalOpen(true);
+    setChapterPlanModalError(null);
     setFeedback(null);
   }
 
-  function startEditChapter(chapter: ChapterSummary) {
-    setEditingChapter(chapter);
-    setChapterDraft({ title: chapter.title, volumeId: chapter.volumeId ?? NO_VOLUME });
-    setChapterModalOpen(true);
-    setChapterModalError(null);
+  function startEditChapterPlan(chapterPlan: ChapterPlanRecord) {
+    setEditingChapterPlan(chapterPlan);
+    setChapterPlanDraft(createChapterPlanDraft(chapterPlan));
+    setChapterPlanModalOpen(true);
+    setChapterPlanModalError(null);
     setFeedback(null);
   }
 
-  async function refreshChapters() {
+  async function refreshChapterPlans() {
     if (!projectId || !novelId) {
-      setChapters([]);
+      setChapterPlans([]);
       return;
     }
-    setChapters(await api.listChapters(projectId, novelId));
+    setChapterPlans(await api.listChapterPlans(projectId, novelId));
   }
 
   async function saveVolume() {
@@ -519,48 +549,46 @@ export function PlotOutlineView() {
     }
   }
 
-  async function saveChapter() {
+  async function saveChapterPlan() {
     if (!projectId || !novelId) {
       setFeedback({ kind: "error", message: "请先选择项目和小说" });
       return;
     }
-    const title = chapterDraft.title.trim();
-    if (!title) {
-      setChapterModalError("请填写章节标题");
-      setFeedback({ kind: "error", message: "请填写章节名" });
+    const payload = toChapterPlanPayload(chapterPlanDraft);
+    if (!payload.title) {
+      setChapterPlanModalError("请填写章节规划标题");
+      setFeedback({ kind: "error", message: "请填写章节规划标题" });
       return;
     }
 
-    setCreatingChapter(true);
-    setChapterModalError(null);
+    setSavingChapterPlan(true);
+    setChapterPlanModalError(null);
     try {
-      const volumeId = chapterDraft.volumeId === NO_VOLUME ? undefined : chapterDraft.volumeId;
-      const nextVolumeId = chapterDraft.volumeId === NO_VOLUME ? null : chapterDraft.volumeId;
-      const chapter = editingChapter
-        ? await api.renameChapter(projectId, novelId, editingChapter.chapterId, title, nextVolumeId)
-        : await api.createChapter(projectId, novelId, title, volumeId);
-      await refreshChapters();
-      setChapterModalOpen(false);
-      setEditingChapter(null);
-      setFeedback({ kind: "success", message: editingChapter ? `章节「${chapter.title}」已保存` : `章节「${chapter.title}」已创建` });
+      const saved = editingChapterPlan
+        ? await api.updateChapterPlan(projectId, novelId, editingChapterPlan.id, payload)
+        : await api.createChapterPlan(projectId, novelId, payload);
+      await refreshChapterPlans();
+      setChapterPlanModalOpen(false);
+      setEditingChapterPlan(null);
+      setFeedback({ kind: "success", message: editingChapterPlan ? `章节规划「${saved.title}」已保存` : `章节规划「${saved.title}」已创建` });
     } catch (error) {
-      setFeedback({ kind: "error", message: error instanceof ApiError ? error.message : "章节保存失败" });
+      setFeedback({ kind: "error", message: error instanceof ApiError ? error.message : "章节规划保存失败" });
     } finally {
-      setCreatingChapter(false);
+      setSavingChapterPlan(false);
     }
   }
 
-  async function deleteChapter(chapter: ChapterSummary) {
+  async function deleteChapterPlan(chapterPlan: ChapterPlanRecord) {
     if (!projectId || !novelId) {
       return;
     }
-    setDeleteChapterTarget(null);
+    setDeleteChapterPlanTarget(null);
     try {
-      await api.deleteChapter(projectId, novelId, chapter.chapterId);
-      await refreshChapters();
-      setFeedback({ kind: "success", message: `章节「${chapter.title}」已删除` });
+      await api.deleteChapterPlan(projectId, novelId, chapterPlan.id);
+      await refreshChapterPlans();
+      setFeedback({ kind: "success", message: `章节规划「${chapterPlan.title}」已删除` });
     } catch (error) {
-      setFeedback({ kind: "error", message: error instanceof ApiError ? error.message : "章节删除失败" });
+      setFeedback({ kind: "error", message: error instanceof ApiError ? error.message : "章节规划删除失败" });
     }
   }
 
@@ -573,10 +601,10 @@ export function PlotOutlineView() {
       await api.deleteVolume(projectId, novelId, volume.id);
       const [list, chapterList] = await Promise.all([
         api.listVolumes(projectId, novelId),
-        api.listChapters(projectId, novelId),
+        api.listChapterPlans(projectId, novelId),
       ]);
       setVolumes(list);
-      setChapters(chapterList);
+      setChapterPlans(chapterList);
       setSelectedVolumeId(list[0]?.id ?? null);
       setFeedback({ kind: "success", message: `分卷「${volume.title}」已删除` });
     } catch (error) {
@@ -602,6 +630,26 @@ export function PlotOutlineView() {
       setSelectedVolumeId(volume.id);
     } catch (error) {
       setFeedback({ kind: "error", message: error instanceof ApiError ? error.message : "分卷排序失败" });
+    }
+  }
+
+  async function moveChapterPlan(chapterPlan: ChapterPlanRecord, direction: -1 | 1) {
+    if (!projectId || !novelId) {
+      return;
+    }
+    const index = sortedChapterPlans.findIndex((item) => item.id === chapterPlan.id);
+    const targetIndex = index + direction;
+    if (index < 0 || targetIndex < 0 || targetIndex >= sortedChapterPlans.length) {
+      return;
+    }
+    const next = [...sortedChapterPlans];
+    const [removed] = next.splice(index, 1);
+    next.splice(targetIndex, 0, removed);
+    try {
+      const updated = await api.reorderChapterPlans(projectId, novelId, next.map((item) => item.id));
+      setChapterPlans(updated);
+    } catch (error) {
+      setFeedback({ kind: "error", message: error instanceof ApiError ? error.message : "章节规划排序失败" });
     }
   }
 
@@ -636,18 +684,25 @@ export function PlotOutlineView() {
     );
   }
 
-  function renderChapterRow(chapter: ChapterSummary) {
+  function renderChapterPlanRow(chapterPlan: ChapterPlanRecord) {
+    const index = sortedChapterPlans.findIndex((item) => item.id === chapterPlan.id);
     return (
-      <article className="plot-chapter-row" key={chapter.chapterId}>
+      <article className="plot-chapter-row" key={chapterPlan.id}>
         <div className="plot-chapter-main">
-          <span className="plot-chapter-title">{chapter.title}</span>
-          <span className="plot-chapter-meta">{chapter.wordCount ?? 0} 字</span>
+          <span className="plot-chapter-title">{chapterPlan.title}</span>
+          <span className="plot-chapter-meta">{chapterPlanSummary(chapterPlan)}</span>
         </div>
         <div className="plot-volume-actions">
-          <button type="button" className="btn-icon" title="编辑章节" onClick={() => startEditChapter(chapter)}>
+          <button type="button" className="btn-icon" title="上移" disabled={index === 0} onClick={() => void moveChapterPlan(chapterPlan, -1)}>
+            <ArrowUp size={15} />
+          </button>
+          <button type="button" className="btn-icon" title="下移" disabled={index === sortedChapterPlans.length - 1} onClick={() => void moveChapterPlan(chapterPlan, 1)}>
+            <ArrowDown size={15} />
+          </button>
+          <button type="button" className="btn-icon" title="编辑章节规划" onClick={() => startEditChapterPlan(chapterPlan)}>
             <Pencil size={15} />
           </button>
-          <button type="button" className="btn-icon danger" title="删除章节" onClick={() => setDeleteChapterTarget(chapter)}>
+          <button type="button" className="btn-icon danger" title="删除章节规划" onClick={() => setDeleteChapterPlanTarget(chapterPlan)}>
             <Trash2 size={15} />
           </button>
         </div>
@@ -685,9 +740,9 @@ export function PlotOutlineView() {
                       <Plus size={14} />
                       新建分卷
                     </button>
-                    <button type="button" role="menuitem" onClick={startCreateChapter}>
+                    <button type="button" role="menuitem" onClick={startCreateChapterPlan}>
                       <FilePlus2 size={14} />
-                      新建章节
+                      新建章节规划
                     </button>
                   </div>
                 ) : null}
@@ -782,33 +837,33 @@ export function PlotOutlineView() {
           <section className="plot-chapter-section">
             <div className="editor-card-head plot-chapter-section-head">
               <div>
-                <h3>章节</h3>
-                <p className="view-sub">当前小说共 {chapters.length} 章，可在这里调整章节标题和归属分卷。</p>
+                <h3>章节规划</h3>
+                <p className="view-sub">当前小说共 {chapterPlans.length} 条章节规划，可在这里调整标题、归属分卷和梗概。</p>
               </div>
             </div>
-            {sortedChapters.length ? (
+            {sortedChapterPlans.length ? (
               <div className="plot-chapter-groups">
                 {sortedVolumes.map((volume) => {
-                  const volumeChapters = chaptersByVolume.get(volume.id) ?? [];
-                  if (!volumeChapters.length) {
+                  const volumeChapterPlans = chapterPlansByVolume.get(volume.id) ?? [];
+                  if (!volumeChapterPlans.length) {
                     return null;
                   }
                   return (
                     <div className="plot-chapter-group" key={volume.id}>
                       <div className="plot-chapter-group-title">{volume.title}</div>
-                      <div className="plot-chapter-list">{volumeChapters.map(renderChapterRow)}</div>
+                      <div className="plot-chapter-list">{volumeChapterPlans.map(renderChapterPlanRow)}</div>
                     </div>
                   );
                 })}
-                {(chaptersByVolume.get(NO_VOLUME) ?? []).length ? (
+                {(chapterPlansByVolume.get(NO_VOLUME) ?? []).length ? (
                   <div className="plot-chapter-group">
                     <div className="plot-chapter-group-title">未归属分卷</div>
-                    <div className="plot-chapter-list">{(chaptersByVolume.get(NO_VOLUME) ?? []).map(renderChapterRow)}</div>
+                    <div className="plot-chapter-list">{(chapterPlansByVolume.get(NO_VOLUME) ?? []).map(renderChapterPlanRow)}</div>
                   </div>
                 ) : null}
               </div>
             ) : (
-              <div className="empty-card">还没有章节。点击“新建”选择“新建章节”即可直接开始。</div>
+              <div className="empty-card">还没有章节规划。可以只写分卷大纲，也可以点击“新建”选择“新建章节规划”。</div>
             )}
           </section>
         </section>
@@ -834,22 +889,22 @@ export function PlotOutlineView() {
         />
       ) : null}
 
-      {chapterModalOpen ? (
-        <ChapterEditorModal
-          draft={chapterDraft}
-          editing={Boolean(editingChapter)}
+      {chapterPlanModalOpen ? (
+        <ChapterPlanEditorModal
+          draft={chapterPlanDraft}
+          editing={Boolean(editingChapterPlan)}
           volumes={sortedVolumes}
-          saving={creatingChapter}
-          error={chapterModalError}
-          onChange={(patch) => setChapterDraft((current) => ({ ...current, ...patch }))}
+          saving={savingChapterPlan}
+          error={chapterPlanModalError}
+          onChange={(patch) => setChapterPlanDraft((current) => ({ ...current, ...patch }))}
           onCancel={() => {
-            if (!creatingChapter) {
-              setChapterModalOpen(false);
-              setEditingChapter(null);
-              setChapterModalError(null);
+            if (!savingChapterPlan) {
+              setChapterPlanModalOpen(false);
+              setEditingChapterPlan(null);
+              setChapterPlanModalError(null);
             }
           }}
-          onSubmit={() => void saveChapter()}
+          onSubmit={() => void saveChapterPlan()}
         />
       ) : null}
 
@@ -864,14 +919,14 @@ export function PlotOutlineView() {
         />
       ) : null}
 
-      {deleteChapterTarget ? (
+      {deleteChapterPlanTarget ? (
         <ConfirmModal
-          title="删除章节"
-          message={`确定删除章节「${deleteChapterTarget.title}」吗？此操作不可恢复。`}
+          title="删除章节规划"
+          message={`确定删除章节规划「${deleteChapterPlanTarget.title}」吗？此操作不可恢复。`}
           confirmText="删除"
           danger
-          onCancel={() => setDeleteChapterTarget(null)}
-          onConfirm={() => void deleteChapter(deleteChapterTarget)}
+          onCancel={() => setDeleteChapterPlanTarget(null)}
+          onConfirm={() => void deleteChapterPlan(deleteChapterPlanTarget)}
         />
       ) : null}
     </ViewShell>

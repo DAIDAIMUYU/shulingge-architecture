@@ -199,12 +199,27 @@ export interface VolumeInput {
   keyPoints?: string;
   notes?: string;
 }
+export interface ChapterPlanRecord {
+  id: string;
+  projectId: string;
+  novelId: string;
+  volumeId?: string;
+  title: string;
+  order: number;
+  summary: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+export interface ChapterPlanInput {
+  title: string;
+  volumeId?: string | null;
+  summary?: string;
+}
 export interface ChapterSummary {
   chapterId: string;
   title: string;
   status: string;
   wordCount: number;
-  volumeId?: string;
 }
 export interface SearchQuery {
   text?: string;
@@ -1052,10 +1067,10 @@ export const api = {
       `/projects/${encodeURIComponent(projectId)}/novels/${encodeURIComponent(novelId)}/chapters`,
       { title, volumeId },
     ),
-  renameChapter: async (projectId: string, novelId: string, chapterId: string, title: string, volumeId?: string | null): Promise<ChapterSummary> =>
+  renameChapter: async (projectId: string, novelId: string, chapterId: string, title: string): Promise<ChapterSummary> =>
     patch<ChapterSummary>(
       `/projects/${encodeURIComponent(projectId)}/novels/${encodeURIComponent(novelId)}/chapters/${encodeURIComponent(chapterId)}`,
-      { title, volumeId },
+      { title },
     ),
   setChapterStatus: async (projectId: string, novelId: string, chapterId: string, status: string): Promise<ChapterSummary> =>
     patch<ChapterSummary>(
@@ -1113,6 +1128,40 @@ export const api = {
         },
       ),
       "volumes",
+    ),
+  listChapterPlans: async (projectId: string, novelId: string): Promise<ChapterPlanRecord[]> =>
+    unwrapList<ChapterPlanRecord>(
+      await get(`/projects/${encodeURIComponent(projectId)}/novels/${encodeURIComponent(novelId)}/chapter-plans`),
+      "chapterPlans",
+    ),
+  createChapterPlan: async (projectId: string, novelId: string, payload: ChapterPlanInput): Promise<ChapterPlanRecord> =>
+    post<ChapterPlanRecord>(`/projects/${encodeURIComponent(projectId)}/novels/${encodeURIComponent(novelId)}/chapter-plans`, payload),
+  updateChapterPlan: async (
+    projectId: string,
+    novelId: string,
+    chapterPlanId: string,
+    payload: Partial<ChapterPlanInput>,
+  ): Promise<ChapterPlanRecord> =>
+    patch<ChapterPlanRecord>(
+      `/projects/${encodeURIComponent(projectId)}/novels/${encodeURIComponent(novelId)}/chapter-plans/${encodeURIComponent(chapterPlanId)}`,
+      payload,
+    ),
+  deleteChapterPlan: async (projectId: string, novelId: string, chapterPlanId: string): Promise<{ id: string; deleted: true }> =>
+    request<{ id: string; deleted: true }>(
+      `/projects/${encodeURIComponent(projectId)}/novels/${encodeURIComponent(novelId)}/chapter-plans/${encodeURIComponent(chapterPlanId)}`,
+      { method: "DELETE" },
+    ),
+  reorderChapterPlans: async (projectId: string, novelId: string, orderedIds: string[]): Promise<ChapterPlanRecord[]> =>
+    unwrapList<ChapterPlanRecord>(
+      await request<{ chapterPlans: ChapterPlanRecord[] }>(
+        `/projects/${encodeURIComponent(projectId)}/novels/${encodeURIComponent(novelId)}/chapter-plans/reorder`,
+        {
+          method: "PUT",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ orderedIds }),
+        },
+      ),
+      "chapterPlans",
     ),
 
   loadChapter: (chapterId: string, projectId: string, novelId: string) =>

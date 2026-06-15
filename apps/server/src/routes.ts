@@ -1,11 +1,14 @@
 import {
   createChapter,
+  createChapterPlan,
   createNovel,
   createProject,
   createVolume,
   deleteChapter,
+  deleteChapterPlan,
   deleteNovel,
   deleteVolume,
+  listChapterPlans,
   listChapters,
   loadEditorChapter,
   listNovels,
@@ -14,10 +17,12 @@ import {
   moveChapter,
   renameChapter,
   renameNovel,
+  reorderChapterPlans,
   reorderVolumes,
   saveEditorAnnotations,
   saveEditorChapter,
   saveEditorLocks,
+  updateChapterPlan,
   updateProjectCover,
   updateVolume,
 } from "./editor.js";
@@ -1583,6 +1588,57 @@ export const routeDefinitions: RouteDefinition[] = [
   },
   {
     method: "GET",
+    path: "/api/v1/projects/:projectId/novels/:novelId/chapter-plans",
+    async handler(request, context) {
+      const vaultRoot = requireVaultRoot(context);
+      return {
+        chapterPlans: await listChapterPlans(vaultRoot, request.params.projectId, request.params.novelId),
+      };
+    },
+  },
+  {
+    method: "POST",
+    path: "/api/v1/projects/:projectId/novels/:novelId/chapter-plans",
+    async handler(request, context) {
+      const vaultRoot = requireVaultRoot(context);
+      return await createChapterPlan(vaultRoot, request.params.projectId, request.params.novelId, request.body as never);
+    },
+  },
+  {
+    method: "PUT",
+    path: "/api/v1/projects/:projectId/novels/:novelId/chapter-plans/reorder",
+    async handler(request, context) {
+      const vaultRoot = requireVaultRoot(context);
+      const body = request.body as { orderedIds?: unknown } | undefined;
+      return {
+        chapterPlans: await reorderChapterPlans(vaultRoot, request.params.projectId, request.params.novelId, body?.orderedIds),
+      };
+    },
+  },
+  {
+    method: "PATCH",
+    path: "/api/v1/projects/:projectId/novels/:novelId/chapter-plans/:chapterPlanId",
+    async handler(request, context) {
+      const vaultRoot = requireVaultRoot(context);
+      return await updateChapterPlan(
+        vaultRoot,
+        request.params.projectId,
+        request.params.novelId,
+        request.params.chapterPlanId,
+        request.body as never,
+      );
+    },
+  },
+  {
+    method: "DELETE",
+    path: "/api/v1/projects/:projectId/novels/:novelId/chapter-plans/:chapterPlanId",
+    async handler(request, context) {
+      const vaultRoot = requireVaultRoot(context);
+      return await deleteChapterPlan(vaultRoot, request.params.projectId, request.params.novelId, request.params.chapterPlanId);
+    },
+  },
+  {
+    method: "GET",
     path: "/api/v1/projects/:projectId/novels/:novelId/chapters",
     async handler(request, context) {
       const vaultRoot = requireVaultRoot(context);
@@ -1610,14 +1666,13 @@ export const routeDefinitions: RouteDefinition[] = [
     path: "/api/v1/projects/:projectId/novels/:novelId/chapters/:chapterId",
     async handler(request, context) {
       const vaultRoot = requireVaultRoot(context);
-      const body = request.body as { title?: unknown; status?: unknown; volumeId?: unknown } | undefined;
+      const body = request.body as { title?: unknown; status?: unknown } | undefined;
       return await renameChapter(vaultRoot, {
         projectId: request.params.projectId,
         novelId: request.params.novelId,
         chapterId: request.params.chapterId,
         title: body?.title as never,
         status: body?.status as never,
-        volumeId: body?.volumeId,
       });
     },
   },
