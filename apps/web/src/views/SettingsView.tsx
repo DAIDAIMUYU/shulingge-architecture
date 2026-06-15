@@ -39,7 +39,7 @@ import { ConfirmModal } from "../app/Modals.js";
 import { Select } from "./Select.js";
 import { ViewShell } from "./common.js";
 
-const SECTIONS = ["外观", "模型与 API", "联网查资料", "远程访问", "通用", "智能体", "快捷键", "关于"] as const;
+const SECTIONS = ["资料库", "外观", "模型与 API", "联网查资料", "远程访问", "通用", "智能体", "快捷键", "关于"] as const;
 type Section = (typeof SECTIONS)[number];
 
 type ResearchConfigSource = "google" | "bing" | "custom";
@@ -764,7 +764,7 @@ interface SettingsViewProps {
 }
 
 export function SettingsView({ vaultPath, onSetVault, onClearVault }: SettingsViewProps = {}) {
-  const [sec, setSec] = useState<Section>("外观");
+  const [sec, setSec] = useState<Section>("资料库");
   const [preferences, setPreferences] = useState<WebPreferences>(() => readWebPreferences());
   const [preferencesFeedback, setPreferencesFeedback] = useState<string | null>(null);
   const [vaultDraft, setVaultDraft] = useState(vaultPath ?? "");
@@ -1129,7 +1129,7 @@ export function SettingsView({ vaultPath, onSetVault, onClearVault }: SettingsVi
         </div>
 
         <div>
-          {sec === "外观" ? (
+          {sec === "资料库" ? (
           <section className="editor-card">
             <div className="editor-card-head">
               <div>
