@@ -699,7 +699,11 @@ function AgentImportModal({
   );
 }
 
-export function AgentsView() {
+interface AgentsViewProps {
+  embedded?: boolean;
+}
+
+export function AgentsView({ embedded = false }: AgentsViewProps = {}) {
   const [agents, setAgents] = useState<AgentConfig[]>([]);
   const [models, setModels] = useState<ModelConfig[]>([]);
   const [skills, setSkills] = useState<SkillRegistryRecord[]>([]);
@@ -882,8 +886,8 @@ export function AgentsView() {
       speak: { ...current.speak, ...patch },
     }));
 
-  return (
-    <ViewShell title="智能体管理" subtitle="管理写作流程中的智能体、模型绑定、技能、权限与发言配置">
+  const content = (
+    <>
       <div className="stack-list">
         <section className="editor-card">
           <div className="editor-card-head">
@@ -1049,6 +1053,16 @@ export function AgentsView() {
           onCancel={() => setAgentToDelete(null)}
         />
       ) : null}
+    </>
+  );
+
+  if (embedded) {
+    return content;
+  }
+
+  return (
+    <ViewShell title="智能体管理" subtitle="管理写作流程中的智能体、模型绑定、技能、权限与发言配置">
+      {content}
     </ViewShell>
   );
 }

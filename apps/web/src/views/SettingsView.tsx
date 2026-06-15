@@ -36,6 +36,7 @@ import {
   type SearchSourceState,
 } from "../api/client.js";
 import { ConfirmModal } from "../app/Modals.js";
+import { AgentsView } from "./AgentsView.js";
 import { Select } from "./Select.js";
 import { ViewShell } from "./common.js";
 
@@ -1623,14 +1624,17 @@ export function SettingsView({ vaultPath, onSetVault, onClearVault }: SettingsVi
           ) : null}
 
           {sec === "智能体" ? (
-            <AgentPanel
-              agents={agents}
-              loading={agentsLoading}
-              preferences={preferences}
-              setPreferences={setPreferences}
-              feedback={preferencesFeedback}
-              setFeedback={setPreferencesFeedback}
-            />
+            <div className="stack-list">
+              <AgentsView embedded />
+              <AgentPanel
+                agents={agents}
+                loading={agentsLoading}
+                preferences={preferences}
+                setPreferences={setPreferences}
+                feedback={preferencesFeedback}
+                setFeedback={setPreferencesFeedback}
+              />
+            </div>
           ) : null}
 
           {sec === "快捷键" ? (

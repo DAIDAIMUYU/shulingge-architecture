@@ -1,6 +1,5 @@
 import { useState, type ReactNode } from "react";
 import {
-  Bot,
   Clock,
   Globe,
   Library,
@@ -13,7 +12,6 @@ import {
   type LucideIcon,
 } from "lucide-react";
 
-import { AgentsView } from "../views/AgentsView.js";
 import { CharactersView } from "../views/CharactersView.js";
 import { ProjectsView } from "../views/ProjectsView.js";
 import { RelationsView } from "../views/RelationsView.js";
@@ -39,7 +37,6 @@ const PRIMARY_NAV: NavItem[] = [
   { id: "relations", icon: Network, label: "关系" },
   { id: "timeline", icon: Clock, label: "时间线" },
   { id: "worldbook", icon: Globe, label: "世界大纲" },
-  { id: "agents", icon: Bot, label: "智能体" },
   { id: "skills", icon: Sparkles, label: "技能" },
   { id: "rules", icon: Scale, label: "规则" },
 ];
@@ -65,7 +62,6 @@ const VIEWS: Record<string, (props: AppViewProps) => ReactNode> = {
   relations: () => <RelationsView />,
   timeline: () => <TimelineView />,
   worldbook: () => <WorldbookView />,
-  agents: () => <AgentsView />,
   skills: () => <SkillsView />,
   rules: () => <RulesView />,
   settings: ({ vaultPath, onSetVault, onClearVault }) => (
