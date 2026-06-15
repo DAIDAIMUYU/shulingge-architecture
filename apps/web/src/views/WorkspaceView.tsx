@@ -135,7 +135,6 @@ const TOOLS = [
   { kind: "heading" as const, Icon: Heading2, label: "二级标题" },
   { kind: "quote" as const, Icon: Quote, label: "引用" },
   { kind: "list-menu" as const, Icon: ListOrdered, label: "列表" },
-  { kind: "horizontal-rule" as const, Icon: Minus, label: "分割线" },
   { kind: "more-format" as const, Icon: MoreHorizontal, label: "更多格式" },
   { sep: true as const },
   { kind: "body-align-left" as const, Icon: AlignLeft, label: "正文居左", align: "left" as const },
@@ -143,11 +142,11 @@ const TOOLS = [
   { kind: "body-align-right" as const, Icon: AlignRight, label: "正文居右", align: "right" as const },
 ];
 
-const FOCUS_TOOL_KINDS: readonly string[] = ["undo", "redo", "bold", "italic", "heading", "quote", "list-menu", "horizontal-rule", "more-format", "body-align-left", "body-align-center", "body-align-right"];
+const FOCUS_TOOL_KINDS: readonly string[] = ["undo", "redo", "bold", "italic", "heading", "quote", "list-menu", "more-format", "body-align-left", "body-align-center", "body-align-right"];
 type ToolbarTool = Exclude<(typeof TOOLS)[number], { sep: true }>;
 type BodyAlignTool = ToolbarTool & { align: BodyAlignPreference };
 type ListStyleKind = "ordered-decimal" | "ordered-paren" | "ordered-circle" | "bullet-disc" | "bullet-circle" | "bullet-square";
-type MoreFormatKind = "strike" | "code";
+type MoreFormatKind = "strike" | "code" | "horizontal-rule";
 
 interface ToolbarMenuPosition {
   top: number;
@@ -170,6 +169,7 @@ const LIST_STYLE_OPTIONS: Array<{ kind: ListStyleKind; group: "有序" | "无序
 const MORE_FORMAT_OPTIONS: Array<{ kind: MoreFormatKind; label: string; Icon: LucideIcon }> = [
   { kind: "strike", label: "删除线", Icon: Strikethrough },
   { kind: "code", label: "行内代码", Icon: Code2 },
+  { kind: "horizontal-rule", label: "分割线", Icon: Minus },
 ];
 
 const CHAPTER_STATUS_LABELS: Record<ChapterStatus, string> = {
@@ -1123,6 +1123,10 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
     setMoreMenuPosition(null);
     if (kind === "strike") {
       runEditorCommand((activeEditor) => activeEditor.chain().focus().toggleStrike().run());
+      return;
+    }
+    if (kind === "horizontal-rule") {
+      runEditorCommand((activeEditor) => activeEditor.chain().focus().setHorizontalRule().run());
       return;
     }
     runEditorCommand((activeEditor) => activeEditor.chain().focus().toggleCode().run());
@@ -2353,7 +2357,7 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
                   }
                   const disabled =
                     (!hasValidActiveChapter && tool.kind !== "undo" && tool.kind !== "redo") ||
-                    (editorMode === "source" && ["bold", "italic", "heading", "quote", "list-menu", "horizontal-rule", "more-format"].includes(tool.kind));
+                    (editorMode === "source" && ["bold", "italic", "heading", "quote", "list-menu", "more-format"].includes(tool.kind));
                   const active =
                     (editorMode === "rich" && tool.kind === "bold" && editor?.isActive("bold")) ||
                     (editorMode === "rich" && tool.kind === "italic" && editor?.isActive("italic")) ||
@@ -2424,10 +2428,6 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
                         }
                         if (tool.kind === "quote") {
                           runEditorCommand((activeEditor) => activeEditor.chain().focus().toggleBlockquote().run());
-                          return;
-                        }
-                        if (tool.kind === "horizontal-rule") {
-                          runEditorCommand((activeEditor) => activeEditor.chain().focus().setHorizontalRule().run());
                           return;
                         }
                         if (tool.kind === "more-format") {
