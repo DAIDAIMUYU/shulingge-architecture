@@ -13,6 +13,7 @@ test("normalizeWebPreferences keeps supported values and falls back for invalid 
       defaultInspectorTab: "annotations",
       sendShortcut: "mod-enter",
       watchedAgentIds: ["writer", "", "director"],
+      titleAlign: "right",
       bodyFont: {
         id: "preset-kaiti",
         label: "楷体 KaiTi",
@@ -36,6 +37,7 @@ test("normalizeWebPreferences keeps supported values and falls back for invalid 
         source: "preset",
         fallback: undefined,
       },
+      titleAlign: "right",
     },
   );
 

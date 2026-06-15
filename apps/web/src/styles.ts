@@ -41,6 +41,7 @@ export const globalCss = `
   --font-sans: "Noto Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif;
   --font-serif: "Noto Serif SC", "Source Han Serif SC", "宋体", serif;
   --body-font-family: var(--font-serif);
+  --chapter-title-align: center;
   --font-mono: "JetBrains Mono", "Consolas", monospace;
 
   --radius-sm: 6px;
@@ -441,7 +442,7 @@ body.app-focus .main { padding-bottom: 0; }
 .quick-lookup-field p { margin: 0; color: var(--text-secondary); font-size: 12px; line-height: 1.7; overflow-wrap: anywhere; }
 .quick-lookup-field.multiline { grid-template-columns: 1fr; gap: 3px; }
 .paper-body { padding: 64px clamp(48px, 8vw, 96px) 78px; flex: 1; min-height: 0; overflow: auto; display: flex; flex-direction: column; position: relative; z-index: 1; }
-.chapter-title { font-family: var(--body-font-family); font-size: 36px; font-weight: 600; letter-spacing: .06em; line-height: 1.25; color: var(--primary-ink); text-align: center; }
+.chapter-title { font-family: var(--body-font-family); font-size: 36px; font-weight: 600; letter-spacing: .06em; line-height: 1.25; color: var(--primary-ink); text-align: var(--chapter-title-align); }
 .chapter-title-input { width: 100%; padding: 0 0 4px; border: 0; border-bottom: 1px solid transparent; outline: none; background: transparent; color: var(--text-primary); }
 .chapter-title-input:focus { border-bottom-color: var(--border-strong); }
 .title-rule { width: 72px; height: 2px; background: linear-gradient(90deg, transparent, var(--accent-cinnabar) 0 16%, var(--primary) 16% 84%, transparent); margin: 20px auto 36px; border-radius: 2px; box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent-cinnabar) 7%, transparent); }

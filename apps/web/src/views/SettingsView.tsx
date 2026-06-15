@@ -21,11 +21,13 @@ import {
   DEFAULT_BODY_FONT,
   DEFAULT_UI_FONT,
   applyBodyFontPreference,
+  applyTitleAlignPreference,
   applyUiFontPreference,
   mergeWebPreferences,
   readWebPreferences,
   writeWebPreferences,
   type FontPreference,
+  type TitleAlignPreference,
   type WebThemeMode,
   type WebPreferences,
 } from "../app/preferences.js";
@@ -69,6 +71,12 @@ const BODY_FONT_PRESETS: FontOption[] = [
   { id: "preset-kaiti", label: "楷体 KaiTi", family: '"KaiTi", "楷体", serif', source: "preset" },
   { id: "preset-fangsong", label: "仿宋 FangSong", family: '"FangSong", "仿宋", serif', source: "preset" },
   { id: "preset-source-han-sans-body", label: "思源黑体", family: '"Noto Sans SC", "Source Han Sans SC", "Microsoft YaHei", sans-serif', source: "preset" },
+];
+
+const TITLE_ALIGN_OPTIONS: Array<{ value: TitleAlignPreference; label: string; description: string }> = [
+  { value: "left", label: "居左", description: "章节标题靠左显示" },
+  { value: "center", label: "居中", description: "章节标题居中显示" },
+  { value: "right", label: "居右", description: "章节标题靠右显示" },
 ];
 
 const FONT_IMPORT_ACCEPT = ".ttf,.otf,.woff,.woff2";
@@ -1079,6 +1087,10 @@ export function SettingsView({ vaultPath, onSetVault, onClearVault }: SettingsVi
   }, [preferences.bodyFont]);
 
   useEffect(() => {
+    applyTitleAlignPreference(preferences.titleAlign);
+  }, [preferences.titleAlign]);
+
+  useEffect(() => {
     applyUiFontPreference(preferences.uiFont);
   }, [preferences.uiFont]);
 
@@ -1256,6 +1268,25 @@ export function SettingsView({ vaultPath, onSetVault, onClearVault }: SettingsVi
                   }))}
                   ariaLabel="选择正文字体"
                 />
+              </div>
+              <div className="form-row">
+                <div>
+                  <div className="fr-label">章节标题对齐</div>
+                  <div className="fr-desc">只影响写作页章节标题，不改变正文段落对齐。</div>
+                </div>
+                <div className="segmented">
+                  {TITLE_ALIGN_OPTIONS.map((option) => (
+                    <button
+                      key={option.value}
+                      type="button"
+                      className={preferences.titleAlign === option.value ? "on" : ""}
+                      title={option.description}
+                      onClick={() => savePreferencePatch({ titleAlign: option.value }, setPreferences, setPreferencesFeedback)}
+                    >
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
               </div>
               <div className="form-row">
                 <div>
