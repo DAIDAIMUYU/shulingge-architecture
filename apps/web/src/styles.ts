@@ -438,6 +438,10 @@ body.app-focus .main { padding-bottom: 0; }
 .toolbar-popover-option:hover { background: var(--bg-hover); color: var(--text-primary); }
 .toolbar-popover-option.active { background: linear-gradient(180deg, var(--primary-soft), var(--primary-light)); color: var(--primary); }
 .toolbar-popover-sample { width: 28px; flex: none; display: inline-flex; justify-content: center; color: var(--primary); font-weight: 700; }
+.selection-toolbar { position: fixed; z-index: 1000; display: inline-flex; align-items: center; gap: 3px; padding: 5px; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--bg-card); box-shadow: var(--shadow-popover); font-family: var(--font-sans); }
+.selection-toolbar button { height: 30px; display: inline-flex; align-items: center; gap: 5px; padding: 0 8px; border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--text-secondary); font-size: 12px; cursor: pointer; transition: background .16s ease, color .16s ease; white-space: nowrap; }
+.selection-toolbar button:hover { background: var(--bg-hover); color: var(--text-primary); }
+.selection-toolbar button:disabled { opacity: .48; cursor: not-allowed; }
 .outline-popover { position: absolute; top: 58px; right: 14px; z-index: 30; width: min(320px, calc(100% - 28px)); max-height: min(420px, calc(100% - 84px)); overflow: hidden; display: flex; flex-direction: column; background: var(--bg-card); background-image: none; border: 1px solid var(--border); border-radius: var(--radius-md); box-shadow: var(--shadow-popover); }
 .outline-popover-head { height: 42px; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 0 10px 0 14px; border-bottom: 1px solid var(--border); font-weight: 600; font-size: 13px; }
 .outline-popover-list { overflow: auto; padding: 8px; }

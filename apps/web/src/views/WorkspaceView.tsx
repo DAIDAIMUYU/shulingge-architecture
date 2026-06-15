@@ -180,6 +180,11 @@ interface ContextMenuPosition {
   top: number;
 }
 
+interface SelectionToolbarPosition {
+  left: number;
+  top: number;
+}
+
 function isBodyAlignTool(tool: ToolbarTool): tool is BodyAlignTool {
   return "align" in tool;
 }
@@ -484,6 +489,8 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
   const [listStyle, setListStyle] = useState<ListStyleKind>("ordered-decimal");
   const [listMenuPosition, setListMenuPosition] = useState<ToolbarMenuPosition | null>(null);
   const [moreMenuPosition, setMoreMenuPosition] = useState<ToolbarMenuPosition | null>(null);
+  const [activeEditorSelection, setActiveEditorSelection] = useState<SelectedEditorText | null>(null);
+  const [selectionToolbarPosition, setSelectionToolbarPosition] = useState<SelectionToolbarPosition | null>(null);
   const [selectedEditorText, setSelectedEditorText] = useState<SelectedEditorText | null>(null);
   const [selectionRange, setSelectionRange] = useState({ start: 0, end: 0 });
   const [history, setHistory] = useState<string[]>([]);
@@ -498,11 +505,13 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
   const createMenuRef = useRef<HTMLDivElement | null>(null);
   const treeContextMenuRef = useRef<HTMLDivElement | null>(null);
   const editorContextMenuRef = useRef<HTMLDivElement | null>(null);
+  const selectionToolbarRef = useRef<HTMLDivElement | null>(null);
   const listMenuRef = useRef<HTMLDivElement | null>(null);
   const listMenuButtonRef = useRef<HTMLButtonElement | null>(null);
   const moreMenuRef = useRef<HTMLDivElement | null>(null);
   const moreMenuButtonRef = useRef<HTMLButtonElement | null>(null);
   const conversationSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const selectionToolbarTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const editorSyncingFromDraft = useRef(false);
   const nextId = () => idRef.current++;
 
@@ -749,6 +758,41 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
   }, [editorContextMenu]);
 
   useEffect(() => {
+    if (!activeEditorSelection || !selectionToolbarPosition) {
+      return;
+    }
+
+    const closeOnOutsidePointer = (event: MouseEvent) => {
+      if (selectionToolbarRef.current?.contains(event.target as Node)) {
+        return;
+      }
+      const target = event.target instanceof HTMLElement ? event.target : null;
+      if (target?.closest(".rich-editor-shell, .source-manuscript")) {
+        return;
+      }
+      clearActiveEditorSelection();
+    };
+    const closeOnEscape = (event: globalThis.KeyboardEvent) => {
+      if (event.key === "Escape") {
+        clearActiveEditorSelection();
+      }
+    };
+
+    document.addEventListener("mousedown", closeOnOutsidePointer);
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.removeEventListener("mousedown", closeOnOutsidePointer);
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [activeEditorSelection, selectionToolbarPosition]);
+
+  useEffect(() => () => {
+    if (selectionToolbarTimer.current) {
+      clearTimeout(selectionToolbarTimer.current);
+    }
+  }, []);
+
+  useEffect(() => {
     const query = searchText.trim();
     if (!query) {
       setSearchResults([]);
@@ -985,6 +1029,52 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
     }
   };
 
+  const getSelectionToolbarPosition = (mode: EditorMode): SelectionToolbarPosition | null => {
+    const gap = 10;
+    const width = 220;
+    let rect: DOMRect | null = null;
+    if (mode === "rich") {
+      const selection = window.getSelection();
+      if (selection && selection.rangeCount > 0 && !selection.isCollapsed) {
+        rect = selection.getRangeAt(0).getBoundingClientRect();
+      }
+    } else {
+      rect = sourceTextareaRef.current?.getBoundingClientRect() ?? null;
+    }
+    if (!rect || rect.width === 0 && rect.height === 0) {
+      return null;
+    }
+    return {
+      left: Math.min(Math.max(gap, rect.left + rect.width / 2 - width / 2), Math.max(gap, window.innerWidth - width - gap)),
+      top: Math.max(gap, rect.top - 44),
+    };
+  };
+
+  const clearActiveEditorSelection = () => {
+    if (selectionToolbarTimer.current) {
+      clearTimeout(selectionToolbarTimer.current);
+      selectionToolbarTimer.current = null;
+    }
+    setActiveEditorSelection(null);
+    setSelectionToolbarPosition(null);
+  };
+
+  const updateActiveEditorSelection = (selection: SelectedEditorText | null) => {
+    if (selectionToolbarTimer.current) {
+      clearTimeout(selectionToolbarTimer.current);
+      selectionToolbarTimer.current = null;
+    }
+    if (!selection) {
+      clearActiveEditorSelection();
+      return;
+    }
+    setActiveEditorSelection(selection);
+    selectionToolbarTimer.current = setTimeout(() => {
+      const position = getSelectionToolbarPosition(selection.mode);
+      setSelectionToolbarPosition(position);
+    }, 120);
+  };
+
   const syncSourceSelection = () => {
     const node = sourceTextareaRef.current;
     if (!node) {
@@ -997,14 +1087,14 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
       end,
     });
     const text = start === end ? "" : node.value.slice(start, end);
-    setSelectedEditorText(text ? { mode: "source", start, end, text } : null);
+    updateActiveEditorSelection(text ? { mode: "source", start, end, text } : null);
   };
 
   const syncRichSelection = (activeEditor: Editor) => {
     const { from, to } = activeEditor.state.selection;
     setSelectionRange({ start: from, end: to });
     const text = from === to ? "" : activeEditor.state.doc.textBetween(from, to, "\n").trim();
-    setSelectedEditorText(text ? { mode: "rich", start: from, end: to, text } : null);
+    updateActiveEditorSelection(text ? { mode: "rich", start: from, end: to, text } : null);
   };
 
   const editor = useEditor({
@@ -1208,6 +1298,7 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
       const next = `${draft.slice(0, selection.start)}${replacement}${draft.slice(selection.end)}`;
       onEdit(next);
       setSelectedEditorText(null);
+      clearActiveEditorSelection();
       requestAnimationFrame(() => {
         const node = sourceTextareaRef.current;
         if (!node) {
@@ -1225,6 +1316,45 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
     }
     editor.chain().focus().setTextSelection({ from: selection.start, to: selection.end }).insertContent(replacement).run();
     setSelectedEditorText(null);
+    clearActiveEditorSelection();
+  };
+
+  const insertAfterTrackedSelection = (selection: SelectedEditorText, insertion: string) => {
+    if (!insertion || !hasValidActiveChapter) {
+      return;
+    }
+    pushHistory(draft);
+    if (selection.mode === "source") {
+      const prefix = /\n$/.test(draft.slice(0, selection.end)) ? "" : "\n";
+      const next = `${draft.slice(0, selection.end)}${prefix}${insertion}${draft.slice(selection.end)}`;
+      onEdit(next);
+      clearActiveEditorSelection();
+      requestAnimationFrame(() => {
+        const node = sourceTextareaRef.current;
+        if (!node) {
+          return;
+        }
+        const caret = selection.end + prefix.length + insertion.length;
+        node.focus();
+        node.setSelectionRange(caret, caret);
+        setSelectionRange({ start: caret, end: caret });
+      });
+      return;
+    }
+    if (!editor) {
+      return;
+    }
+    editor.chain().focus().setTextSelection({ from: selection.end, to: selection.end }).insertContent(`\n${insertion}`).run();
+    clearActiveEditorSelection();
+  };
+
+  const activateSelectionRewrite = (selection: SelectedEditorText | null) => {
+    if (!selection) {
+      return;
+    }
+    setSelectedEditorText(selection);
+    clearActiveEditorSelection();
+    setMobilePanel("chat");
   };
 
   const getSourceSelectedText = () => {
@@ -1337,13 +1467,12 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
     if (!selectedText) {
       return;
     }
-    setSelectedEditorText({
+    activateSelectionRewrite({
       mode: menu.mode,
       start: menu.start,
       end: menu.end,
       text: selectedText,
     });
-    setMobilePanel("chat");
   };
 
   const closeEditorContextMenu = () => setEditorContextMenu(null);
@@ -1351,6 +1480,91 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
   const runEditorContextAction = (action: () => void | Promise<void>) => {
     closeEditorContextMenu();
     void action();
+  };
+
+  const requestSelectionRewriteText = async (selection: SelectedEditorText, instruction: string) => {
+    const reply = await api.chatWithDirector({
+      messages: [
+        {
+          role: "user",
+          content: [
+            "请只根据下面的选中正文进行局部写作处理。",
+            "必须返回 mode=chat 的 JSON，且 reply 字段只能包含处理后的正文文本。",
+            "不要解释，不要加标题，不要把整章正文放进 reply，不要返回 task。",
+            "",
+            "【选中正文】",
+            selection.text,
+            "",
+            "【用户指令】",
+            instruction,
+          ].join("\n"),
+        },
+      ],
+      projectId: locator.projectId || undefined,
+      novelId: locator.novelId || undefined,
+      chapterId: locator.chapterId || undefined,
+    });
+    const text = (reply.reply ?? "").trim();
+    if (!text || reply.mode === "task") {
+      throw new Error("AI 没有返回可用于替换选区的文本");
+    }
+    return text;
+  };
+
+  const runSelectionQuickAction = async (kind: "polish" | "continue") => {
+    const selection = activeEditorSelection;
+    if (!selection || chatSending) {
+      return;
+    }
+    clearActiveEditorSelection();
+    const loadingMessageId = nextId();
+    setChatSending(true);
+    setMessages((items) => [
+      ...items,
+      {
+        id: loadingMessageId,
+        kind: "text",
+        role: "ai",
+        text: kind === "polish" ? "正在润色选中正文…" : "正在基于选中正文续写…",
+      },
+    ]);
+    try {
+      const result = await requestSelectionRewriteText(
+        selection,
+        kind === "polish"
+          ? "润色这段文字，保持原意，让表达更顺、更有小说感。"
+          : "基于这段文字继续往后续写一小段，保持语气、人物和叙事节奏一致。",
+      );
+      if (kind === "polish") {
+        replaceTrackedSelection(selection, result);
+      } else {
+        insertAfterTrackedSelection(selection, result);
+      }
+      setMessages((items) =>
+        items.map((message) =>
+          message.id === loadingMessageId && message.kind === "text"
+            ? {
+                id: loadingMessageId,
+                kind: "ai-result" as const,
+                agentName: kind === "polish" ? "选区润色" : "选区续写",
+                text: kind === "polish"
+                  ? "已润色选中正文并替换到原位置。可用编辑器撤销恢复。"
+                  : "已基于选中正文续写，并插入到选区后方。可用编辑器撤销恢复。",
+              }
+            : message,
+        ),
+      );
+    } catch (err) {
+      setMessages((items) =>
+        items.map((message) =>
+          message.id === loadingMessageId && message.kind === "text"
+            ? { ...message, text: err instanceof ApiError ? err.message : err instanceof Error ? err.message : "选区处理失败，请稍后再试" }
+            : message,
+        ),
+      );
+    } finally {
+      setChatSending(false);
+    }
   };
 
   const applyListStyle = (kind: ListStyleKind) => {
@@ -2104,24 +2318,11 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
     setChatInput("");
     const userText = text || "请改写这段文字";
     const userMessage: ChatMessage = { id: nextId(), kind: "text", role: "user", text: userText, selectionText: activeSelection?.text };
-    const modelUserContent = activeSelection
-      ? [
-          "请只根据下面的选中正文进行局部改写。",
-          "必须返回 mode=chat 的 JSON，且 reply 字段只能包含改写后的正文文本。",
-          "不要解释，不要加标题，不要把整章正文放进 reply，不要返回 task。",
-          "",
-          "【选中正文】",
-          activeSelection.text,
-          "",
-          "【用户指令】",
-          userText,
-        ].join("\n")
-      : userText;
     const historyMessages: DirectorChatMessage[] = [...messages, userMessage]
       .filter((message): message is Extract<ChatMessage, { kind: "text" }> => message.kind === "text" && message.id !== 0)
       .map((message) => ({
         role: message.role === "ai" ? "assistant" : "user",
-        content: message.id === userMessage.id ? modelUserContent : message.text,
+        content: message.text,
       }));
     setMessages((items) => [...items, userMessage]);
 
@@ -2133,17 +2334,8 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
     setChatSending(true);
     setError(null);
     try {
-      const reply = await api.chatWithDirector({
-        messages: historyMessages,
-        projectId: locator.projectId || undefined,
-        novelId: locator.novelId || undefined,
-        chapterId: locator.chapterId || undefined,
-      });
       if (activeSelection) {
-        const rewritten = (reply.reply ?? "").trim();
-        if (!rewritten || reply.mode === "task") {
-          throw new Error("AI 没有返回可用于替换选区的改写文本");
-        }
+        const rewritten = await requestSelectionRewriteText(activeSelection, userText);
         replaceTrackedSelection(activeSelection, rewritten);
         setMessages((items) =>
           items.map((message) =>
@@ -2159,6 +2351,12 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
         );
         return;
       }
+      const reply = await api.chatWithDirector({
+        messages: historyMessages,
+        projectId: locator.projectId || undefined,
+        novelId: locator.novelId || undefined,
+        chapterId: locator.chapterId || undefined,
+      });
       setMessages((items) =>
         items.map((message) =>
           message.id === thinkingMessageId && message.kind === "text"
@@ -2418,6 +2616,32 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
               </button>
             </>
           )}
+        </div>,
+        document.body,
+      )
+    : null;
+
+  const selectionToolbarPortal = activeEditorSelection && selectionToolbarPosition
+    ? createPortal(
+        <div
+          ref={selectionToolbarRef}
+          className="selection-toolbar"
+          style={{ left: selectionToolbarPosition.left, top: selectionToolbarPosition.top } satisfies CSSProperties}
+          role="toolbar"
+          aria-label="选区快捷操作"
+        >
+          <button type="button" onClick={() => activateSelectionRewrite(activeEditorSelection)}>
+            <Wand2 size={14} strokeWidth={1.9} />
+            <span>AI改写</span>
+          </button>
+          <button type="button" onClick={() => void runSelectionQuickAction("polish")} disabled={chatSending}>
+            <Sparkles size={14} strokeWidth={1.9} />
+            <span>润色</span>
+          </button>
+          <button type="button" onClick={() => void runSelectionQuickAction("continue")} disabled={chatSending}>
+            <PenLine size={14} strokeWidth={1.9} />
+            <span>续写</span>
+          </button>
         </div>,
         document.body,
       )
@@ -3168,6 +3392,7 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
     {listMenuPortal}
     {moreFormatPortal}
     {editorContextMenuPortal}
+    {selectionToolbarPortal}
     </>
   );
 }
