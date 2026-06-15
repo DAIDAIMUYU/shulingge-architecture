@@ -329,7 +329,19 @@ export interface SearchSourceInfo {
   requiresKey: boolean;
   implemented: boolean;
   configured?: boolean;
+  enabled?: boolean;
+  health?: SearchSourceHealth;
   networkNote: string;
+}
+export type SearchSourceHealthStatus = "verified" | "untested" | "failed";
+export interface SearchSourceHealth {
+  status: SearchSourceHealthStatus;
+  testedAt?: string;
+  message?: string;
+}
+export interface SearchSourceState {
+  enabled?: boolean;
+  health?: SearchSourceHealth;
 }
 export interface ResearchSettings {
   defaultSource: string;
@@ -338,6 +350,7 @@ export interface ResearchSettings {
     name: string;
     baseUrl: string;
   }>;
+  sourceStates?: Record<string, SearchSourceState>;
   customSource?: {
     name?: string;
     baseUrl?: string;

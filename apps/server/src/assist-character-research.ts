@@ -62,6 +62,8 @@ export interface SearchSourceInfo {
   requiresKey: boolean;
   implemented: boolean;
   configured?: boolean;
+  enabled?: boolean;
+  health?: SearchSourceHealth;
   networkNote: string;
 }
 
@@ -71,6 +73,19 @@ export interface CustomResearchSource {
   baseUrl: string;
 }
 
+export type SearchSourceHealthStatus = "verified" | "untested" | "failed";
+
+export interface SearchSourceHealth {
+  status: SearchSourceHealthStatus;
+  testedAt?: string;
+  message?: string;
+}
+
+export interface SearchSourceState {
+  enabled?: boolean;
+  health?: SearchSourceHealth;
+}
+
 export interface ResearchSettings {
   defaultSource: string;
   customSources?: CustomResearchSource[];
@@ -78,6 +93,7 @@ export interface ResearchSettings {
     name?: string;
     baseUrl?: string;
   };
+  sourceStates?: Record<string, SearchSourceState>;
   google?: {
     cx?: string;
     keyRef?: string;
@@ -360,6 +376,49 @@ function parseCustomSearchSourceId(value: string): string | null {
   return value.startsWith("custom:") ? value.slice("custom:".length) : null;
 }
 
+function normalizeSourceHealth(input: unknown): SearchSourceHealth | undefined {
+  if (!input || typeof input !== "object") {
+    return undefined;
+  }
+  const record = input as Record<string, unknown>;
+  const status = record.status === "verified" || record.status === "failed" || record.status === "untested"
+    ? record.status
+    : undefined;
+  if (!status) {
+    return undefined;
+  }
+  return {
+    status,
+    testedAt: cleanOptionalString(record.testedAt),
+    message: cleanOptionalString(record.message),
+  };
+}
+
+function normalizeSourceStates(input: unknown): Record<string, SearchSourceState> | undefined {
+  if (!input || typeof input !== "object") {
+    return undefined;
+  }
+  const normalized: Record<string, SearchSourceState> = {};
+  for (const [sourceId, value] of Object.entries(input as Record<string, unknown>)) {
+    if (!sourceId || !value || typeof value !== "object") {
+      continue;
+    }
+    const record = value as Record<string, unknown>;
+    const state: SearchSourceState = {};
+    if (typeof record.enabled === "boolean") {
+      state.enabled = record.enabled;
+    }
+    const health = normalizeSourceHealth(record.health);
+    if (health) {
+      state.health = health;
+    }
+    if (Object.keys(state).length > 0) {
+      normalized[sourceId] = state;
+    }
+  }
+  return Object.keys(normalized).length ? normalized : undefined;
+}
+
 function normalizeResearchSettings(input: Partial<ResearchSettings>): ResearchSettings {
   const customSources = normalizeCustomSources((input as { customSources?: unknown }).customSources, input.customSource);
   const googleCx = cleanOptionalString(input.google?.cx);
@@ -373,6 +432,7 @@ function normalizeResearchSettings(input: Partial<ResearchSettings>): ResearchSe
   return {
     defaultSource,
     customSources: customSources.length > 0 ? customSources : undefined,
+    sourceStates: normalizeSourceStates(input.sourceStates),
     google: googleCx || input.google?.keyRef ? { cx: googleCx, keyRef: input.google?.keyRef } : undefined,
     bing: input.bing?.keyRef ? { keyRef: input.bing.keyRef } : undefined,
   };
@@ -408,8 +468,29 @@ function isSourceConfigured(source: SearchSourceInfo, settings: ResearchSettings
   return false;
 }
 
+function getSourceState(settings: ResearchSettings, sourceId: string): SearchSourceState {
+  return settings.sourceStates?.[sourceId] ?? {};
+}
+
+function isSourceEnabled(settings: ResearchSettings, sourceId: string): boolean {
+  return getSourceState(settings, sourceId).enabled !== false;
+}
+
+function getSourceHealth(settings: ResearchSettings, sourceId: string): SearchSourceHealth {
+  return getSourceState(settings, sourceId).health ?? { status: "untested" };
+}
+
+function decorateSearchSource(source: SearchSourceInfo, settings: ResearchSettings): SearchSourceInfo {
+  return {
+    ...source,
+    configured: isSourceConfigured(source, settings),
+    enabled: isSourceEnabled(settings, source.id),
+    health: getSourceHealth(settings, source.id),
+  };
+}
+
 export async function listSearchSources(vaultRoot?: string, credentialService?: CredentialService): Promise<{ sources: SearchSourceInfo[] }> {
-  const settings = vaultRoot
+  const settings: ResearchSettings = vaultRoot
     ? await withCredentialStatus(await getResearchSettings(vaultRoot), credentialService)
     : { defaultSource: DEFAULT_RESEARCH_SOURCE };
   const customTemplate = SEARCH_SOURCES.find((source) => source.id === "custom")!;
@@ -417,13 +498,11 @@ export async function listSearchSources(vaultRoot?: string, credentialService?: 
     ...customTemplate,
     id: customSearchSourceId(source.id),
     name: source.name,
-    configured: Boolean(source.baseUrl),
-  }));
+  })).map((source) => decorateSearchSource(source, settings));
   return {
-    sources: SEARCH_SOURCES.filter((source) => source.id !== "custom").map((source) => ({
-      ...source,
-      configured: isSourceConfigured(source, settings),
-    })).concat(customSources),
+    sources: SEARCH_SOURCES.filter((source) => source.id !== "custom")
+      .map((source) => decorateSearchSource(source, settings))
+      .concat(customSources),
   };
 }
 
@@ -527,26 +606,32 @@ export async function testSearchSource(
   const source = cleanOptionalString(record.source);
   const fetchImpl = options.fetchImpl ?? fetch;
   const settings = await withCredentialStatus(await getResearchSettings(vaultRoot), options.credentialService);
+  const testedAt = new Date().toISOString();
+  let testedSourceId = source;
 
   try {
     if (source === "custom") {
       const customInput = record.customSource && typeof record.customSource === "object" ? record.customSource as Record<string, unknown> : {};
       const baseUrl = cleanOptionalString(customInput.baseUrl);
       const name = cleanOptionalString(customInput.name) || "自定义源";
+      const customId = cleanOptionalString(customInput.id);
+      testedSourceId = customId ? customSearchSourceId(customId) : "custom:test";
       if (!baseUrl) {
         throw createHttpError(400, "RESEARCH_SOURCE_NOT_CONFIGURED", "请先填写自定义源 api.php base url");
       }
-      return await testMediaWikiConnection({
+      const result = await testMediaWikiConnection({
         fetchImpl,
         source: {
           ...SEARCH_SOURCES.find((item) => item.id === "custom")!,
-          id: "custom:test",
+          id: testedSourceId,
           name,
           kind: "mediawiki",
           baseUrl,
           articleBaseUrl: articleBaseUrlFromApi(baseUrl),
         },
       });
+      await updateSearchSourceHealth(vaultRoot, testedSourceId, { status: "verified", testedAt, message: result.message });
+      return result;
     }
 
     if (source === "google") {
@@ -558,7 +643,9 @@ export async function testSearchSource(
       if (!cx || !apiKey) {
         throw createHttpError(400, "RESEARCH_SOURCE_NOT_CONFIGURED", "请先填写 Google API key 和 cx");
       }
-      return await testGoogleConnection({ fetchImpl, apiKey, cx });
+      const result = await testGoogleConnection({ fetchImpl, apiKey, cx });
+      await updateSearchSourceHealth(vaultRoot, "google", { status: "verified", testedAt, message: result.message });
+      return result;
     }
 
     if (source === "bing") {
@@ -569,17 +656,37 @@ export async function testSearchSource(
       if (!apiKey) {
         throw createHttpError(400, "RESEARCH_SOURCE_NOT_CONFIGURED", "请先填写 Bing API key");
       }
-      return await testBingConnection({ fetchImpl, apiKey });
+      const result = await testBingConnection({ fetchImpl, apiKey });
+      await updateSearchSourceHealth(vaultRoot, "bing", { status: "verified", testedAt, message: result.message });
+      return result;
     }
 
     throw createHttpError(400, "RESEARCH_SOURCE_NOT_IMPLEMENTED", "请选择要测试的搜索源");
   } catch (error) {
-    if (error && typeof error === "object" && "status" in error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (testedSourceId) {
+      await updateSearchSourceHealth(vaultRoot, testedSourceId, { status: "failed", testedAt, message }).catch(() => undefined);
+    }
+    if (error && typeof error === "object" && "statusCode" in error) {
       throw error;
     }
-    const message = error instanceof Error ? error.message : String(error);
     throw createHttpError(400, "RESEARCH_SOURCE_TEST_FAILED", `测试连接失败：${message}`);
   }
+}
+
+async function updateSearchSourceHealth(vaultRoot: string, sourceId: string, health: SearchSourceHealth): Promise<void> {
+  const current = await getResearchSettings(vaultRoot);
+  const next = normalizeResearchSettings({
+    ...current,
+    sourceStates: {
+      ...(current.sourceStates ?? {}),
+      [sourceId]: {
+        ...(current.sourceStates?.[sourceId] ?? {}),
+        health,
+      },
+    },
+  });
+  await writeJsonFile(vaultRoot, RESEARCH_SETTINGS_PATH, next);
 }
 
 export async function getResearchSettings(vaultRoot: string): Promise<ResearchSettings> {
@@ -605,6 +712,7 @@ export async function updateResearchSettings(vaultRoot: string, input: unknown, 
   const next: ResearchSettings = normalizeResearchSettings({
     defaultSource: typeof record.defaultSource === "string" ? record.defaultSource : current.defaultSource,
     customSources: inputCustomSources as CustomResearchSource[] | undefined,
+    sourceStates: Object.hasOwn(record, "sourceStates") ? record.sourceStates as ResearchSettings["sourceStates"] : current.sourceStates,
     google: {
       cx: cleanOptionalString(googleInput.cx),
       keyRef: current.google?.keyRef,
@@ -1196,6 +1304,180 @@ async function fetchBingSource(input: {
   } finally {
     clearTimeout(timer);
   }
+}
+
+type FetchableResearchSource =
+  | { id: string; info: SearchSourceInfo; type: "mediawiki"; source: MediaWikiSourceConfig }
+  | { id: string; info: SearchSourceInfo; type: "google"; source: GoogleSourceConfig }
+  | { id: string; info: SearchSourceInfo; type: "bing"; source: BingSourceConfig };
+
+async function resolveFetchableSource(input: {
+  sourceId: string;
+  settings: ResearchSettings;
+  credentialService: CredentialService;
+}): Promise<FetchableResearchSource> {
+  const customSourceId = parseCustomSearchSourceId(input.sourceId);
+  if (MEDIAWIKI_SOURCES[input.sourceId]) {
+    const info = decorateSearchSource(MEDIAWIKI_SOURCES[input.sourceId], input.settings);
+    return { id: input.sourceId, info, type: "mediawiki", source: MEDIAWIKI_SOURCES[input.sourceId] };
+  }
+  if (customSourceId) {
+    const customSource = input.settings.customSources?.find((source) => source.id === customSourceId);
+    const customInfo = SEARCH_SOURCES.find((item) => item.id === "custom")!;
+    const info = decorateSearchSource({
+      ...customInfo,
+      id: input.sourceId,
+      name: customSource?.name?.trim() || customInfo.name,
+    }, input.settings);
+    const baseUrl = customSource?.baseUrl?.trim();
+    if (!baseUrl) {
+      throw createHttpError(400, "RESEARCH_SOURCE_NOT_CONFIGURED", "自定义源未配置，请先在设置页填写 MediaWiki api.php base url");
+    }
+    return {
+      id: input.sourceId,
+      info,
+      type: "mediawiki",
+      source: {
+        ...customInfo,
+        id: input.sourceId,
+        name: customSource?.name?.trim() || customInfo.name,
+        kind: "mediawiki",
+        baseUrl,
+        articleBaseUrl: articleBaseUrlFromApi(baseUrl),
+      },
+    };
+  }
+  if (input.sourceId === "google") {
+    if (!input.settings.google?.cx || !input.settings.google.keyRef || !input.settings.google.hasKey) {
+      throw createHttpError(400, "RESEARCH_SOURCE_NOT_CONFIGURED", "Google 搜索未配置，请先在设置页填写 API key 和 cx");
+    }
+    const apiKey = await input.credentialService.getApiKey(input.settings.google.keyRef);
+    if (!apiKey) {
+      throw createHttpError(400, "RESEARCH_SOURCE_NOT_CONFIGURED", "Google API key 不可用，请在设置页重新保存");
+    }
+    const googleInfo = SEARCH_SOURCES.find((item) => item.id === "google")!;
+    return {
+      id: input.sourceId,
+      info: decorateSearchSource(googleInfo, input.settings),
+      type: "google",
+      source: { ...googleInfo, kind: "search-api", apiKey, cx: input.settings.google.cx },
+    };
+  }
+  if (input.sourceId === "bing") {
+    if (!input.settings.bing?.keyRef || !input.settings.bing.hasKey) {
+      throw createHttpError(400, "RESEARCH_SOURCE_NOT_CONFIGURED", "Bing 搜索未配置，请先在设置页填写 API key");
+    }
+    const apiKey = await input.credentialService.getApiKey(input.settings.bing.keyRef);
+    if (!apiKey) {
+      throw createHttpError(400, "RESEARCH_SOURCE_NOT_CONFIGURED", "Bing API key 不可用，请在设置页重新保存");
+    }
+    const bingInfo = SEARCH_SOURCES.find((item) => item.id === "bing")!;
+    return {
+      id: input.sourceId,
+      info: decorateSearchSource(bingInfo, input.settings),
+      type: "bing",
+      source: { ...bingInfo, kind: "search-api", apiKey },
+    };
+  }
+  const sourceInfo = SEARCH_SOURCES.find((source) => source.id === input.sourceId);
+  throw createHttpError(400, "RESEARCH_SOURCE_NOT_IMPLEMENTED", `${sourceInfo?.name ?? input.sourceId} 暂未启用`);
+}
+
+function buildResearchSourceAttemptIds(requestedSourceId: string, settings: ResearchSettings): string[] {
+  const customIds = (settings.customSources ?? []).map((source) => customSearchSourceId(source.id));
+  const ordered = [requestedSourceId, "wikipedia", "moegirl", ...customIds, "google", "bing"]
+    .filter((sourceId, index, array) => sourceId && array.indexOf(sourceId) === index);
+  return ordered.filter((sourceId) => {
+    if (!isSourceEnabled(settings, sourceId)) {
+      return false;
+    }
+    const customSourceId = parseCustomSearchSourceId(sourceId);
+    if (sourceId === "wikipedia" || sourceId === "moegirl") {
+      return true;
+    }
+    if (customSourceId) {
+      return Boolean(settings.customSources?.some((source) => source.id === customSourceId && source.baseUrl.trim()));
+    }
+    if (sourceId === "google") {
+      return Boolean(settings.google?.cx && settings.google.hasKey);
+    }
+    if (sourceId === "bing") {
+      return Boolean(settings.bing?.hasKey);
+    }
+    return false;
+  });
+}
+
+function isResearchNotFoundError(error: unknown): boolean {
+  if (!error || typeof error !== "object") {
+    return false;
+  }
+  const record = error as { statusCode?: unknown; code?: unknown; appError?: { code?: unknown }; error?: { code?: unknown } };
+  const code = typeof record.code === "string"
+    ? record.code
+    : typeof record.appError?.code === "string"
+      ? record.appError.code
+      : typeof record.error?.code === "string"
+        ? record.error.code
+        : "";
+  return record.statusCode === 404 && code.includes("NOT_FOUND");
+}
+
+async function fetchResearchSourceWithFallback(input: {
+  fetchImpl: typeof fetch;
+  settings: ResearchSettings;
+  credentialService: CredentialService;
+  requestedSourceId: string;
+  subjectName: string;
+  sourceWork: string;
+  query: string;
+}): Promise<ResearchSource> {
+  const attemptIds = buildResearchSourceAttemptIds(input.requestedSourceId, input.settings);
+  let lastNotFound: unknown;
+
+  researchLog("搜索源尝试顺序", {
+    requestedSourceId: input.requestedSourceId,
+    attemptIds,
+  });
+
+  for (const sourceId of attemptIds) {
+    const resolved = await resolveFetchableSource({
+      sourceId,
+      settings: input.settings,
+      credentialService: input.credentialService,
+    });
+    if (!resolved.info.implemented || !resolved.info.configured) {
+      researchLog("跳过不可用搜索源", { sourceId, name: resolved.info.name, configured: resolved.info.configured });
+      continue;
+    }
+
+    try {
+      researchLog("尝试搜索源", { sourceId, name: resolved.info.name });
+      const source = resolved.type === "mediawiki"
+        ? await fetchMediaWikiSource({
+          fetchImpl: input.fetchImpl,
+          source: resolved.source,
+          characterName: input.subjectName,
+          sourceWork: input.sourceWork,
+        })
+        : resolved.type === "google"
+          ? await fetchGoogleSource({ fetchImpl: input.fetchImpl, source: resolved.source, query: input.query })
+          : await fetchBingSource({ fetchImpl: input.fetchImpl, source: resolved.source, query: input.query });
+      researchLog("搜索源命中", { sourceId, name: resolved.info.name, title: source.title });
+      return source;
+    } catch (error) {
+      if (!isResearchNotFoundError(error)) {
+        throw error;
+      }
+      lastNotFound = error;
+      researchLog("搜索源无结果，尝试下一个", { sourceId, name: resolved.info.name });
+    }
+  }
+
+  if (lastNotFound) {
+    throw createHttpError(404, "RESEARCH_ALL_SOURCES_NOT_FOUND", "所有已启用的源都没找到该条目");
+  }
+  throw createHttpError(400, "RESEARCH_SOURCE_NOT_CONFIGURED", "没有可用的联网查资料搜索源，请在设置页启用并配置搜索源");
 }
 
 function scoreSearchItem(item: WikipediaSearchItem, characterName: string, sourceWork: string): number {
@@ -2084,70 +2366,25 @@ async function researchStructuredEntry(
   const fields = normalizeFields(input.fields, input.fallbackFields);
   const settings = await withCredentialStatus(await getResearchSettings(vaultRoot), options.credentialService);
   const requestedSourceId = typeof input.source === "string" && input.source.trim() ? input.source.trim() : settings.defaultSource;
-  const customSourceId = parseCustomSearchSourceId(requestedSourceId);
-  const customSource = customSourceId ? settings.customSources?.find((source) => source.id === customSourceId) : undefined;
-  const sourceInfo = customSource
-    ? { ...SEARCH_SOURCES.find((source) => source.id === "custom")!, id: requestedSourceId, name: customSource.name, configured: true }
-    : SEARCH_SOURCES.find((source) => source.id === requestedSourceId);
-  if (!sourceInfo?.implemented) {
-    throw createHttpError(400, "RESEARCH_SOURCE_NOT_IMPLEMENTED", `${sourceInfo?.name ?? requestedSourceId} 暂未启用`);
+  if (!isSourceEnabled(settings, requestedSourceId)) {
+    throw createHttpError(400, "RESEARCH_SOURCE_DISABLED", "所选搜索源已停用，请在设置页启用后再使用");
   }
 
   const query = [input.subjectName, input.sourceWork].filter(Boolean).join(" ");
-  let source: ResearchSource;
-  const mediaWikiSource = MEDIAWIKI_SOURCES[requestedSourceId];
-  if (mediaWikiSource) {
-    source = await fetchMediaWikiSource({ fetchImpl, source: mediaWikiSource, characterName: input.subjectName, sourceWork: input.sourceWork });
-  } else if (customSourceId) {
-    const baseUrl = customSource?.baseUrl?.trim();
-    if (!baseUrl) {
-      throw createHttpError(400, "RESEARCH_SOURCE_NOT_CONFIGURED", "自定义源未配置，请先在设置页填写 MediaWiki api.php base url");
-    }
-    const customInfo = SEARCH_SOURCES.find((item) => item.id === "custom")!;
-    source = await fetchMediaWikiSource({
-      fetchImpl,
-      source: {
-        ...customInfo,
-        id: requestedSourceId,
-        name: customSource?.name?.trim() || customInfo.name,
-        kind: "mediawiki",
-        baseUrl,
-        articleBaseUrl: articleBaseUrlFromApi(baseUrl),
-      },
-      characterName: input.subjectName,
-      sourceWork: input.sourceWork,
-    });
-  } else if (requestedSourceId === "google") {
-    if (!settings.google?.cx || !settings.google.keyRef || !settings.google.hasKey) {
-      throw createHttpError(400, "RESEARCH_SOURCE_NOT_CONFIGURED", "Google 搜索未配置，请先在设置页填写 API key 和 cx");
-    }
-    const apiKey = await options.credentialService.getApiKey(settings.google.keyRef);
-    if (!apiKey) {
-      throw createHttpError(400, "RESEARCH_SOURCE_NOT_CONFIGURED", "Google API key 不可用，请在设置页重新保存");
-    }
-    const googleInfo = SEARCH_SOURCES.find((item) => item.id === "google")!;
-    source = await fetchGoogleSource({
-      fetchImpl,
-      source: { ...googleInfo, kind: "search-api", apiKey, cx: settings.google.cx },
-      query,
-    });
-  } else if (requestedSourceId === "bing") {
-    if (!settings.bing?.keyRef || !settings.bing.hasKey) {
-      throw createHttpError(400, "RESEARCH_SOURCE_NOT_CONFIGURED", "Bing 搜索未配置，请先在设置页填写 API key");
-    }
-    const apiKey = await options.credentialService.getApiKey(settings.bing.keyRef);
-    if (!apiKey) {
-      throw createHttpError(400, "RESEARCH_SOURCE_NOT_CONFIGURED", "Bing API key 不可用，请在设置页重新保存");
-    }
-    const bingInfo = SEARCH_SOURCES.find((item) => item.id === "bing")!;
-    source = await fetchBingSource({
-      fetchImpl,
-      source: { ...bingInfo, kind: "search-api", apiKey },
-      query,
-    });
-  } else {
-    throw createHttpError(400, "RESEARCH_SOURCE_NOT_IMPLEMENTED", `${sourceInfo?.name ?? requestedSourceId} 暂未启用`);
-  }
+  await resolveFetchableSource({
+    sourceId: requestedSourceId,
+    settings,
+    credentialService: options.credentialService,
+  });
+  const source = await fetchResearchSourceWithFallback({
+    fetchImpl,
+    settings,
+    credentialService: options.credentialService,
+    requestedSourceId,
+    subjectName: input.subjectName,
+    sourceWork: input.sourceWork,
+    query,
+  });
   const { modelId, registry } = await resolveResearchModel(vaultRoot, options);
 
   try {

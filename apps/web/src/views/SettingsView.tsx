@@ -33,6 +33,7 @@ import {
   type ModelConfigInput,
   type RemoteGatewayStatus,
   type SearchSourceInfo,
+  type SearchSourceState,
 } from "../api/client.js";
 import { ConfirmModal } from "../app/Modals.js";
 import { Select } from "./Select.js";
@@ -43,6 +44,7 @@ type Section = (typeof SECTIONS)[number];
 
 type ResearchConfigSource = "google" | "bing" | "custom";
 type CustomResearchSourceDraft = { id: string; name: string; baseUrl: string };
+type SourceStatesDraft = Record<string, SearchSourceState>;
 
 const RESEARCH_CONFIG_SOURCE_OPTIONS: Array<{ value: ResearchConfigSource; label: string; hint: string }> = [
   { value: "google", label: "谷歌 Google", hint: "API key + 搜索引擎 ID（cx）" },
@@ -55,6 +57,12 @@ function createLocalCustomSourceId(): string {
     return crypto.randomUUID().slice(0, 12);
   }
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function sourceHealthLabel(source: SearchSourceInfo): string {
+  if (source.health?.status === "verified") return "已验证可用";
+  if (source.health?.status === "failed") return "上次失败";
+  return "未测试";
 }
 
 const THEME_OPTIONS: Array<{ value: WebThemeMode; label: string; description: string }> = [
@@ -786,6 +794,7 @@ export function SettingsView({ vaultPath, onSetVault, onClearVault }: SettingsVi
   const [remoteFeedback, setRemoteFeedback] = useState<string | null>(null);
   const [searchSources, setSearchSources] = useState<SearchSourceInfo[]>([]);
   const [defaultResearchSource, setDefaultResearchSource] = useState("wikipedia");
+  const [sourceStates, setSourceStates] = useState<SourceStatesDraft>({});
   const [customSources, setCustomSources] = useState<CustomResearchSourceDraft[]>([]);
   const [customSourceDraft, setCustomSourceDraft] = useState<CustomResearchSourceDraft>(() => ({
     id: createLocalCustomSourceId(),
@@ -852,6 +861,7 @@ export function SettingsView({ vaultPath, onSetVault, onClearVault }: SettingsVi
       ]);
       setSearchSources(sources);
       setDefaultResearchSource(settings.defaultSource || "wikipedia");
+      setSourceStates(settings.sourceStates ?? {});
       const loadedCustomSources = settings.customSources?.length
         ? settings.customSources
         : settings.customSource?.baseUrl
@@ -895,6 +905,7 @@ export function SettingsView({ vaultPath, onSetVault, onClearVault }: SettingsVi
     try {
       const saved = await api.updateResearchSettings({
         defaultSource: defaultResearchSource,
+        sourceStates,
         customSources: customSources
           .map((source) => ({
             id: source.id,
@@ -911,6 +922,7 @@ export function SettingsView({ vaultPath, onSetVault, onClearVault }: SettingsVi
         },
       });
       setDefaultResearchSource(saved.defaultSource || defaultResearchSource);
+      setSourceStates(saved.sourceStates ?? {});
       setCustomSources(saved.customSources ?? []);
       setGoogleCx(saved.google?.cx ?? "");
       setGoogleHasKey(Boolean(saved.google?.hasKey));
@@ -958,12 +970,34 @@ export function SettingsView({ vaultPath, onSetVault, onClearVault }: SettingsVi
 
   function removeCustomSource(id: string): void {
     setCustomSources((current) => current.filter((source) => source.id !== id));
+    setSourceStates((current) => {
+      const next = { ...current };
+      delete next[`custom:${id}`];
+      return next;
+    });
     if (editingCustomSourceId === id) {
       resetCustomSourceDraft();
     }
     if (defaultResearchSource === `custom:${id}`) {
       setDefaultResearchSource("wikipedia");
     }
+  }
+
+  function setResearchSourceEnabled(sourceId: string, enabled: boolean): void {
+    setSourceStates((current) => ({
+      ...current,
+      [sourceId]: {
+        ...(current[sourceId] ?? {}),
+        enabled,
+      },
+    }));
+    if (!enabled && defaultResearchSource === sourceId) {
+      setResearchSettingsFeedback("当前默认源已停用，请选择一个已启用的默认源并保存。");
+    }
+  }
+
+  function isResearchSourceEnabled(source: SearchSourceInfo): boolean {
+    return sourceStates[source.id]?.enabled ?? source.enabled !== false;
   }
 
   async function testCurrentResearchSource(): Promise<void> {
@@ -992,8 +1026,10 @@ export function SettingsView({ vaultPath, onSetVault, onClearVault }: SettingsVi
           : undefined,
       });
       setResearchSettingsFeedback(result.message);
+      await loadResearchSettings();
     } catch (error) {
       setResearchSettingsFeedback(error instanceof ApiError ? error.message : "测试连接失败");
+      await loadResearchSettings();
     } finally {
       setTestingResearchSource(null);
     }
@@ -1389,17 +1425,49 @@ export function SettingsView({ vaultPath, onSetVault, onClearVault }: SettingsVi
                     options={searchSources.map((source) => ({
                       value: source.id,
                       label: source.name,
-                      hint: `${source.implemented ? (source.configured ? "已配置" : "未配置") : "占位"} · ${source.free ? "免费" : "付费/限额"}${source.requiresKey ? " · 需 key" : ""} · ${source.networkNote}`,
-                      disabled: !source.implemented || !source.configured,
+                      hint: `${isResearchSourceEnabled(source) ? "已启用" : "已停用"} · ${sourceHealthLabel(source)} · ${source.implemented ? (source.configured ? "已配置" : "未配置") : "占位"} · ${source.free ? "免费" : "付费/限额"}${source.requiresKey ? " · 需 key" : ""} · ${source.networkNote}`,
+                      disabled: !source.implemented || !source.configured || !isResearchSourceEnabled(source),
                     }))}
                     placeholder="选择默认源"
                     ariaLabel="联网查资料默认搜索源"
                   />
                 </div>
+                {searchSources.find((source) => source.id === defaultResearchSource && !isResearchSourceEnabled(source)) ? (
+                  <div className="inspector-feedback">当前默认源已停用，请选择一个已启用的默认源。</div>
+                ) : null}
               </section>
 
               <section className="info-card">
                 <h3>配置搜索源</h3>
+                <div className="list-card">
+                  <div className="list-row head">
+                    <span className="col col-grow">搜索源状态</span>
+                    <span className="col" style={{ width: 100 }}>健康</span>
+                    <span className="col" style={{ width: 110 }}>启用</span>
+                  </div>
+                  {searchSources.map((source) => (
+                    <div className="list-row model-list-row" key={source.id}>
+                      <span className="col col-grow">
+                        <div className="col-name">{source.name}</div>
+                        <div className="col-sub">
+                          {source.configured ? "已配置" : "未配置"} · {source.networkNote}
+                          {source.health?.message ? ` · ${source.health.message}` : ""}
+                        </div>
+                      </span>
+                      <span className={`tag ${source.health?.status === "verified" ? "primary" : ""}`}>
+                        {sourceHealthLabel(source)}
+                      </span>
+                      <label className="switch-row">
+                        <input
+                          type="checkbox"
+                          checked={isResearchSourceEnabled(source)}
+                          onChange={(event) => setResearchSourceEnabled(source.id, event.target.checked)}
+                        />
+                        <span>{isResearchSourceEnabled(source) ? "启用" : "停用"}</span>
+                      </label>
+                    </div>
+                  ))}
+                </div>
                 <div className="form-row">
                   <div>
                     <div className="fr-label">选择要配置的搜索源</div>
