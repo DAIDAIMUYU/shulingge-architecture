@@ -369,6 +369,14 @@ body.app-focus .main { padding-bottom: 0; }
 .tree-context-menu button.danger:hover { background: var(--bg-hover); color: var(--danger); }
 .tree-context-submenu { max-height: 180px; overflow: auto; margin: 4px 0; padding: 4px 0; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
 .tree-context-submenu-title { padding: 3px 10px 5px; color: var(--text-muted); font-size: 12px; }
+.editor-context-menu { position: fixed; z-index: 1000; width: 236px; padding: 6px; background: var(--bg-card); background-image: none; border: 1px solid var(--border); border-radius: var(--radius-sm); box-shadow: var(--shadow-popover); font-family: var(--font-sans); }
+.editor-context-menu button { width: 100%; min-height: 34px; display: grid; grid-template-columns: 18px minmax(0,1fr) auto; align-items: center; gap: 9px; padding: 0 10px; border: 0; background: transparent; color: var(--text-secondary); border-radius: var(--radius-sm); font-size: 13px; text-align: left; cursor: pointer; transition: background .16s ease, color .16s ease; }
+.editor-context-menu button:hover { background: var(--bg-hover); color: var(--text-primary); }
+.editor-context-menu button.danger { color: var(--danger); }
+.editor-context-menu button.danger:hover { background: var(--bg-hover); color: var(--danger); }
+.editor-context-menu button span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.editor-context-menu kbd { color: var(--text-muted); font-family: var(--font-sans); font-size: 11px; font-weight: 500; }
+.editor-context-sep { height: 1px; margin: 5px 4px; background: var(--border); }
 .tree-scroll { flex: 1; min-height: 0; overflow: auto; padding: 4px 12px 20px; }
 .tree-loose-drop { min-height: 12px; border-radius: var(--radius-sm); transition: background .16s ease, box-shadow .16s ease; }
 .tree-loose-drop.drag-over { background: var(--primary-light); box-shadow: inset 0 0 0 1px var(--primary); }

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
-import type { DragEvent as ReactDragEvent, KeyboardEvent as ReactKeyboardEvent } from "react";
+import type { DragEvent as ReactDragEvent, KeyboardEvent as ReactKeyboardEvent, MouseEvent as ReactMouseEvent } from "react";
 import { createPortal } from "react-dom";
 import { EditorContent, useEditor, type Editor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
@@ -17,6 +17,9 @@ import {
   ChevronRight,
   Check,
   Code2,
+  Clipboard,
+  ClipboardPaste,
+  Copy,
   FilePenLine,
   Heading2,
   Italic,
@@ -30,10 +33,14 @@ import {
   Redo2,
   RefreshCw,
   Search,
+  Scissors,
   Sparkles,
   Strikethrough,
+  TextSelect,
+  Trash2,
   type LucideIcon,
   Undo2,
+  Wand2,
   X,
 } from "lucide-react";
 
@@ -71,6 +78,13 @@ type ChatMessage =
 type TreeContextMenu =
   | { kind: "chapter"; x: number; y: number; chapter: ChapterNode; novelId: string }
   | { kind: "novel"; x: number; y: number; novel: NovelNode };
+type EditorContextMenu = {
+  x: number;
+  y: number;
+  mode: EditorMode;
+  hasSelection: boolean;
+  selectedText: string;
+};
 type PromptRequest = {
   title: string;
   placeholder?: string;
@@ -151,6 +165,11 @@ type MoreFormatKind = "strike" | "code" | "horizontal-rule";
 interface ToolbarMenuPosition {
   top: number;
   left: number;
+}
+
+interface ContextMenuPosition {
+  left: number;
+  top: number;
 }
 
 function isBodyAlignTool(tool: ToolbarTool): tool is BodyAlignTool {
@@ -404,6 +423,7 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
   const [selectedNovelId, setSelectedNovelId] = useState<string | null>(null);
   const [createMenuOpen, setCreateMenuOpen] = useState(false);
   const [treeContextMenu, setTreeContextMenu] = useState<TreeContextMenu | null>(null);
+  const [editorContextMenu, setEditorContextMenu] = useState<EditorContextMenu | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchText, setSearchText] = useState("");
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
@@ -463,6 +483,7 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
   const sourceTextareaRef = useRef<HTMLTextAreaElement | null>(null);
   const createMenuRef = useRef<HTMLDivElement | null>(null);
   const treeContextMenuRef = useRef<HTMLDivElement | null>(null);
+  const editorContextMenuRef = useRef<HTMLDivElement | null>(null);
   const listMenuRef = useRef<HTMLDivElement | null>(null);
   const listMenuButtonRef = useRef<HTMLButtonElement | null>(null);
   const moreMenuRef = useRef<HTMLDivElement | null>(null);
@@ -687,6 +708,31 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
       document.removeEventListener("keydown", closeOnEscape);
     };
   }, [treeContextMenu]);
+
+  useEffect(() => {
+    if (!editorContextMenu) {
+      return;
+    }
+
+    const closeOnOutsidePointer = (event: MouseEvent) => {
+      if (editorContextMenuRef.current?.contains(event.target as Node)) {
+        return;
+      }
+      setEditorContextMenu(null);
+    };
+    const closeOnEscape = (event: globalThis.KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setEditorContextMenu(null);
+      }
+    };
+
+    document.addEventListener("mousedown", closeOnOutsidePointer);
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.removeEventListener("mousedown", closeOnOutsidePointer);
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [editorContextMenu]);
 
   useEffect(() => {
     const query = searchText.trim();
@@ -1059,6 +1105,16 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
     setMoreMenuPosition(getToolbarMenuPosition(button));
   };
 
+  const getContextMenuPosition = (x: number, y: number): ContextMenuPosition => {
+    const width = 236;
+    const height = 330;
+    const gap = 8;
+    return {
+      left: Math.min(Math.max(gap, x), Math.max(gap, window.innerWidth - width - gap)),
+      top: Math.min(Math.max(gap, y), Math.max(gap, window.innerHeight - height - gap)),
+    };
+  };
+
   const switchEditorMode = (mode: EditorMode) => {
     if (mode === editorMode) {
       return;
@@ -1098,6 +1154,141 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
       setHistory((items) => items.slice(0, -1));
       setFuture([]);
     }
+  };
+
+  const replaceSourceSelection = (replacement: string) => {
+    const node = sourceTextareaRef.current;
+    if (!node || !hasValidActiveChapter) {
+      return;
+    }
+    const start = node.selectionStart ?? selectionRange.start;
+    const end = node.selectionEnd ?? selectionRange.end;
+    const next = `${draft.slice(0, start)}${replacement}${draft.slice(end)}`;
+    pushHistory(draft);
+    onEdit(next);
+    requestAnimationFrame(() => {
+      node.focus();
+      const caret = start + replacement.length;
+      node.setSelectionRange(caret, caret);
+      setSelectionRange({ start: caret, end: caret });
+    });
+  };
+
+  const getSourceSelectedText = () => {
+    const node = sourceTextareaRef.current;
+    if (!node) {
+      return "";
+    }
+    const start = node.selectionStart ?? selectionRange.start;
+    const end = node.selectionEnd ?? selectionRange.end;
+    return start === end ? "" : node.value.slice(start, end);
+  };
+
+  const getRichSelectedText = () => {
+    if (!editor) {
+      return "";
+    }
+    const { from, to } = editor.state.selection;
+    return from === to ? "" : editor.state.doc.textBetween(from, to, "\n").trim();
+  };
+
+  const insertPlainTextAtEditorSelection = (text: string) => {
+    if (!text || !hasValidActiveChapter) {
+      return;
+    }
+    if (editorMode === "source") {
+      replaceSourceSelection(text);
+      return;
+    }
+    runEditorCommand((activeEditor) => activeEditor.chain().focus().insertContent(text).run());
+  };
+
+  const insertRichClipboardContent = async () => {
+    if (editorMode !== "rich" || !navigator.clipboard.read) {
+      return false;
+    }
+    const items = await navigator.clipboard.read();
+    for (const item of items) {
+      if (item.types.includes("text/html")) {
+        const blob = await item.getType("text/html");
+        const html = await blob.text();
+        runEditorCommand((activeEditor) => activeEditor.chain().focus().insertContent(html).run());
+        return true;
+      }
+    }
+    return false;
+  };
+
+  const copySelectedText = async () => {
+    const selectedText = editorContextMenu?.selectedText || (editorMode === "source" ? getSourceSelectedText() : getRichSelectedText());
+    if (!selectedText) {
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(selectedText);
+    } catch {
+      document.execCommand("copy");
+    }
+  };
+
+  const cutSelectedText = async () => {
+    await copySelectedText();
+    if (editorMode === "source") {
+      replaceSourceSelection("");
+      return;
+    }
+    runEditorCommand((activeEditor) => activeEditor.chain().focus().deleteSelection().run());
+  };
+
+  const deleteSelectedText = () => {
+    if (editorMode === "source") {
+      replaceSourceSelection("");
+      return;
+    }
+    runEditorCommand((activeEditor) => activeEditor.chain().focus().deleteSelection().run());
+  };
+
+  const pasteFromClipboard = async (plainTextOnly: boolean) => {
+    try {
+      if (!plainTextOnly && await insertRichClipboardContent()) {
+        return;
+      }
+      const text = await navigator.clipboard.readText();
+      insertPlainTextAtEditorSelection(text);
+      return;
+    } catch {
+      if (plainTextOnly) {
+        return;
+      }
+      document.execCommand("paste");
+    }
+  };
+
+  const selectAllEditorText = () => {
+    if (editorMode === "source") {
+      const node = sourceTextareaRef.current;
+      node?.focus();
+      node?.select();
+      setSelectionRange({ start: 0, end: node?.value.length ?? 0 });
+      return;
+    }
+    editor?.chain().focus().selectAll().run();
+  };
+
+  const askAiRewriteSelection = () => {
+    const selectedText = editorContextMenu?.selectedText.trim();
+    if (!selectedText) {
+      return;
+    }
+    setChatInput(`请帮我改写这段文字，保持原意但让表达更自然：\n\n${selectedText}`);
+    setMobilePanel("chat");
+  };
+
+  const closeEditorContextMenu = () => setEditorContextMenu(null);
+
+  const runEditorContextAction = (action: () => void | Promise<void>) => {
+    closeEditorContextMenu();
+    void action();
   };
 
   const applyListStyle = (kind: ListStyleKind) => {
@@ -1951,6 +2142,29 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
     });
   };
 
+  const openEditorContextMenu = (event: ReactMouseEvent<HTMLElement>, mode: EditorMode) => {
+    if (!hasValidActiveChapter) {
+      return;
+    }
+    event.preventDefault();
+    event.stopPropagation();
+    setListMenuPosition(null);
+    setMoreMenuPosition(null);
+    setTreeContextMenu(null);
+    if (mode === "source") {
+      syncSourceSelection();
+    }
+    const selectedText = mode === "source" ? getSourceSelectedText() : getRichSelectedText();
+    const position = getContextMenuPosition(event.clientX, event.clientY);
+    setEditorContextMenu({
+      x: position.left,
+      y: position.top,
+      mode,
+      hasSelection: selectedText.length > 0,
+      selectedText,
+    });
+  };
+
   useEffect(() => {
     document.body.classList.toggle("app-focus", focusMode);
     return () => {
@@ -2013,6 +2227,98 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
               <span>{option.label}</span>
             </button>
           ))}
+        </div>,
+        document.body,
+      )
+    : null;
+
+  const editorContextMenuPortal = editorContextMenu
+    ? createPortal(
+        <div
+          ref={editorContextMenuRef}
+          className="editor-context-menu"
+          style={{ left: editorContextMenu.x, top: editorContextMenu.y } satisfies CSSProperties}
+          role="menu"
+        >
+          {editorContextMenu.hasSelection ? (
+            <>
+              <button type="button" role="menuitem" onClick={() => runEditorContextAction(cutSelectedText)}>
+                <Scissors size={15} strokeWidth={1.8} />
+                <span>剪切</span>
+                <kbd>Ctrl+X</kbd>
+              </button>
+              <button type="button" role="menuitem" onClick={() => runEditorContextAction(copySelectedText)}>
+                <Copy size={15} strokeWidth={1.8} />
+                <span>复制</span>
+                <kbd>Ctrl+C</kbd>
+              </button>
+              <button type="button" role="menuitem" onClick={() => runEditorContextAction(() => pasteFromClipboard(false))}>
+                <ClipboardPaste size={15} strokeWidth={1.8} />
+                <span>粘贴</span>
+                <kbd>Ctrl+V</kbd>
+              </button>
+              <button type="button" role="menuitem" onClick={() => runEditorContextAction(() => pasteFromClipboard(true))}>
+                <Clipboard size={15} strokeWidth={1.8} />
+                <span>粘贴为纯文本</span>
+              </button>
+              <button type="button" role="menuitem" className="danger" onClick={() => runEditorContextAction(deleteSelectedText)}>
+                <Trash2 size={15} strokeWidth={1.8} />
+                <span>删除</span>
+              </button>
+              {editorContextMenu.mode === "rich" ? (
+                <>
+                  <div className="editor-context-sep" role="separator" />
+                  <button type="button" role="menuitem" onClick={() => runEditorContextAction(() => runEditorCommand((activeEditor) => activeEditor.chain().focus().toggleBold().run()))}>
+                    <Bold size={15} strokeWidth={1.8} />
+                    <span>加粗</span>
+                    <kbd>Ctrl+B</kbd>
+                  </button>
+                  <button type="button" role="menuitem" onClick={() => runEditorContextAction(() => runEditorCommand((activeEditor) => activeEditor.chain().focus().toggleItalic().run()))}>
+                    <Italic size={15} strokeWidth={1.8} />
+                    <span>斜体</span>
+                    <kbd>Ctrl+I</kbd>
+                  </button>
+                  <button type="button" role="menuitem" onClick={() => runEditorContextAction(() => runEditorCommand((activeEditor) => activeEditor.chain().focus().toggleBlockquote().run()))}>
+                    <Quote size={15} strokeWidth={1.8} />
+                    <span>引用</span>
+                  </button>
+                  <div className="editor-context-sep" role="separator" />
+                  <button type="button" role="menuitem" onClick={() => runEditorContextAction(askAiRewriteSelection)}>
+                    <Wand2 size={15} strokeWidth={1.8} />
+                    <span>用 AI 改写这段</span>
+                  </button>
+                </>
+              ) : null}
+            </>
+          ) : (
+            <>
+              <button type="button" role="menuitem" onClick={() => runEditorContextAction(() => pasteFromClipboard(false))}>
+                <ClipboardPaste size={15} strokeWidth={1.8} />
+                <span>粘贴</span>
+                <kbd>Ctrl+V</kbd>
+              </button>
+              <button type="button" role="menuitem" onClick={() => runEditorContextAction(() => pasteFromClipboard(true))}>
+                <Clipboard size={15} strokeWidth={1.8} />
+                <span>粘贴为纯文本</span>
+              </button>
+              <button type="button" role="menuitem" onClick={() => runEditorContextAction(selectAllEditorText)}>
+                <TextSelect size={15} strokeWidth={1.8} />
+                <span>全选</span>
+                <kbd>Ctrl+A</kbd>
+              </button>
+              <div className="editor-context-sep" role="separator" />
+              <button type="button" role="menuitem" onClick={() => runEditorContextAction(undo)}>
+                <Undo2 size={15} strokeWidth={1.8} />
+                <span>撤销</span>
+                <kbd>Ctrl+Z</kbd>
+              </button>
+              <button type="button" role="menuitem" onClick={() => runEditorContextAction(redo)}>
+                <Redo2 size={15} strokeWidth={1.8} />
+                <span>重做</span>
+                <kbd>Ctrl+Shift+Z</kbd>
+              </button>
+            </>
+          )}
         </div>,
         document.body,
       )
@@ -2513,7 +2819,10 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
                     />
                     <div className="title-rule" />
                     {editorMode === "rich" ? (
-                      <div className={`rich-editor-shell manuscript-list-${listStyle}`}>
+                      <div
+                        className={`rich-editor-shell manuscript-list-${listStyle}`}
+                        onContextMenu={(event) => openEditorContextMenu(event, "rich")}
+                      >
                         {editor && !draft.trim() ? (
                           <div className="rich-editor-placeholder">
                             {vaultSelected ? "在此续写正文……" : "选择资料库后即可读写正文。"}
@@ -2529,6 +2838,7 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
                         spellCheck={false}
                         placeholder={vaultSelected ? "在此编辑 Markdown 源码……" : "选择资料库后即可读写正文。"}
                         onChange={(event) => onEdit(event.target.value)}
+                        onContextMenu={(event) => openEditorContextMenu(event, "source")}
                         onSelect={syncSourceSelection}
                         onKeyUp={syncSourceSelection}
                         onMouseUp={syncSourceSelection}
@@ -2739,6 +3049,7 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
     ) : null}
     {listMenuPortal}
     {moreFormatPortal}
+    {editorContextMenuPortal}
     </>
   );
 }
