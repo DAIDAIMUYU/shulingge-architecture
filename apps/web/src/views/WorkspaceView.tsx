@@ -18,9 +18,7 @@ import {
   FilePenLine,
   Heading2,
   Italic,
-  Lightbulb,
   List,
-  Lock,
   Maximize2,
   Minimize2,
   PenLine,
@@ -29,7 +27,6 @@ import {
   RefreshCw,
   Search,
   Sparkles,
-  Trash2,
   Undo2,
   X,
 } from "lucide-react";
@@ -53,14 +50,11 @@ import { applyBodyAlignPreference, mergeWebPreferences, readWebPreferences, type
 import { ConfirmModal, InputModal } from "../app/Modals.js";
 import { CHAPTER_STATUS_VALUES, type ChapterStatus } from "@shulingge/shared";
 import {
-  buildOutline,
-  createSelectionLock,
   parseChapterRef,
 } from "./workspace-utils.js";
 
 type SaveState = "idle" | "dirty" | "saving" | "saved" | "error";
-type InspectorTab = "outline" | "annotations" | "locks" | "run";
-type MobilePanel = "chapters" | "editor" | "inspector" | "chat";
+type MobilePanel = "chapters" | "editor" | "chat";
 type QuickLookupTab = "characters" | "worldbook";
 type EditorMode = "rich" | "source";
 type ChatMessage =
@@ -139,11 +133,6 @@ const TOOLS = [
   { kind: "body-align-left" as const, Icon: AlignLeft, label: "正文居左", align: "left" as const },
   { kind: "body-align-center" as const, Icon: AlignCenter, label: "正文居中", align: "center" as const },
   { kind: "body-align-right" as const, Icon: AlignRight, label: "正文居右", align: "right" as const },
-  { sep: true as const },
-  { kind: "outline" as const, Icon: Lightbulb, label: "大纲面板" },
-  { kind: "annotations" as const, Icon: FilePenLine, label: "批注面板" },
-  { kind: "locks" as const, Icon: Lock, label: "锁定面板" },
-  { kind: "run" as const, Icon: Bot, label: "运行详情" },
 ];
 
 const FOCUS_TOOL_KINDS: readonly string[] = ["undo", "redo", "bold", "italic", "heading", "quote", "list", "body-align-left", "body-align-center", "body-align-right"];
@@ -223,17 +212,6 @@ function chapterIdFromSearchResult(result: SearchResult): string | null {
 
   const idPart = result.id?.split(":").pop();
   return idPart || null;
-}
-
-function createAnnotationFromSelection(start: number, end: number): AnnotationRecord {
-  const safeStart = Math.max(0, Math.min(start, end));
-  const safeEnd = Math.max(safeStart, Math.max(start, end));
-  return {
-    id: `anno-${safeStart}-${safeEnd}-${Date.now()}`,
-    range: { start: safeStart, end: safeEnd },
-    text: "",
-    convertibleTo: [],
-  };
 }
 
 function isStoredChatMessage(value: unknown): value is StoredChatMessage {
@@ -404,7 +382,6 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
   const [searchError, setSearchError] = useState<string | null>(null);
   const [indexRefreshing, setIndexRefreshing] = useState(false);
   const [indexFeedback, setIndexFeedback] = useState<string | null>(null);
-  const [outlinePopoverOpen, setOutlinePopoverOpen] = useState(false);
   const [promptRequest, setPromptRequest] = useState<PromptRequest | null>(null);
   const [confirmRequest, setConfirmRequest] = useState<ConfirmRequest | null>(null);
   const [draggedChapter, setDraggedChapter] = useState<{ novelId: string; chapter: ChapterNode } | null>(null);
@@ -414,9 +391,6 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
   const [draft, setDraft] = useState("");
   const [saveState, setSaveState] = useState<SaveState>("idle");
   const [run, setRun] = useState<RunRecord | null>(null);
-  const [recentRuns, setRecentRuns] = useState<RunRecord[]>([]);
-  const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
-  const [runsLoading, setRunsLoading] = useState(false);
   const [running, setRunning] = useState(false);
   const [chatSending, setChatSending] = useState(false);
   const [executingTaskId, setExecutingTaskId] = useState<number | null>(null);
@@ -429,8 +403,6 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
   const [reviewReports, setReviewReports] = useState<DirectorReviewReport[] | null>(null);
   const [reviewError, setReviewError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [inspectorTab, setInspectorTab] = useState<InspectorTab>(preferences.defaultInspectorTab);
-  const [showInspector] = useState(false);
   const [focusMode, setFocusMode] = useState(preferences.startInFocusMode);
   const [bodyAlign, setBodyAlign] = useState<BodyAlignPreference>(preferences.bodyAlign);
   const [mobilePanel, setMobilePanel] = useState<MobilePanel>("editor");
@@ -452,9 +424,6 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
   const [future, setFuture] = useState<string[]>([]);
   const [annotations, setAnnotations] = useState<AnnotationRecord[]>([]);
   const [locks, setLocks] = useState<LockRecord[]>([]);
-  const [inspectorFeedback, setInspectorFeedback] = useState<string | null>(null);
-  const [annotationsSaving, setAnnotationsSaving] = useState(false);
-  const [locksSaving, setLocksSaving] = useState(false);
 
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const idRef = useRef(1);
@@ -462,8 +431,6 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
   const sourceTextareaRef = useRef<HTMLTextAreaElement | null>(null);
   const createMenuRef = useRef<HTMLDivElement | null>(null);
   const treeContextMenuRef = useRef<HTMLDivElement | null>(null);
-  const outlinePopoverRef = useRef<HTMLDivElement | null>(null);
-  const outlineButtonRef = useRef<HTMLButtonElement | null>(null);
   const conversationSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const editorSyncingFromDraft = useRef(false);
   const nextId = () => idRef.current++;
@@ -472,14 +439,9 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
   const activeTitle =
     projectTree?.novels.flatMap((novel) => novel.chapters).find((chapterItem) => chapterItem.id === activeId)?.title ??
     locator.chapterId;
-  const outline = useMemo(() => buildOutline(draft), [draft]);
   const metadataWordCount = chapter?.metadata?.wordCount ?? draft.replace(/\s/g, "").length;
   const metadataAnnotationsCount = annotations.length;
   const metadataLocksCount = locks.length;
-  const selectedRun = useMemo(
-    () => recentRuns.find((item) => item.id === selectedRunId) ?? (run?.id === selectedRunId ? run : null),
-    [recentRuns, run, selectedRunId],
-  );
   const vaultSelected = Boolean(vaultPath);
   const looseNovel = projectTree?.novels.find((novel) => novel.novelId === "main") ?? null;
   const userNovels = projectTree?.novels.filter((novel) => novel.novelId !== "main") ?? [];
@@ -691,32 +653,6 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
   }, [treeContextMenu]);
 
   useEffect(() => {
-    if (!outlinePopoverOpen) {
-      return;
-    }
-
-    const closeOnOutsidePointer = (event: MouseEvent) => {
-      const target = event.target as Node;
-      if (outlinePopoverRef.current?.contains(target) || outlineButtonRef.current?.contains(target)) {
-        return;
-      }
-      setOutlinePopoverOpen(false);
-    };
-    const closeOnEscape = (event: globalThis.KeyboardEvent) => {
-      if (event.key === "Escape") {
-        setOutlinePopoverOpen(false);
-      }
-    };
-
-    document.addEventListener("mousedown", closeOnOutsidePointer);
-    document.addEventListener("keydown", closeOnEscape);
-    return () => {
-      document.removeEventListener("mousedown", closeOnOutsidePointer);
-      document.removeEventListener("keydown", closeOnEscape);
-    };
-  }, [outlinePopoverOpen]);
-
-  useEffect(() => {
     const query = searchText.trim();
     if (!query) {
       setSearchResults([]);
@@ -786,7 +722,6 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
         setSaveState("idle");
         setHistory([]);
         setFuture([]);
-        setInspectorFeedback(null);
         setError(null);
       } catch (err) {
         if (!alive) {
@@ -877,46 +812,6 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
   }, [conversationLoadedKey, locator, messages, vaultSelected]);
 
   useEffect(() => {
-    if (!vaultSelected || !activeId) {
-      return;
-    }
-    let alive = true;
-
-    void (async () => {
-      setRunsLoading(true);
-      try {
-        const list = await api.listRuns(locator.projectId, locator.novelId, locator.chapterId);
-        if (!alive) {
-          return;
-        }
-        setRecentRuns(list);
-        setSelectedRunId((current) => current && list.some((item) => item.id === current) ? current : list[0]?.id ?? null);
-      } catch {
-        if (!alive) {
-          return;
-        }
-        setRecentRuns([]);
-      } finally {
-        if (alive) {
-          setRunsLoading(false);
-        }
-      }
-    })();
-
-    return () => {
-      alive = false;
-    };
-  }, [activeId, locator, vaultSelected]);
-
-  useEffect(() => {
-    if (!run) {
-      return;
-    }
-    setRecentRuns((items) => [run, ...items.filter((item) => item.id !== run.id)].slice(0, 8));
-    setSelectedRunId(run.id);
-  }, [run]);
-
-  useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
   }, [messages, run]);
 
@@ -945,41 +840,6 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
     }, 1000);
     return () => window.clearInterval(timer);
   }, [polishing, polishStartedAt]);
-
-  const jumpToOutlineItem = (line: number) => {
-    if (!hasValidActiveChapter) {
-      return;
-    }
-
-    const targetLine = Math.max(1, line);
-    if (editorMode === "source") {
-      const node = sourceTextareaRef.current;
-      if (!node) {
-        return;
-      }
-      const lines = draft.split("\n");
-      const offset = lines.slice(0, targetLine - 1).reduce((sum, item) => sum + item.length + 1, 0);
-      const safeOffset = Math.min(offset, draft.length);
-      node.focus();
-      node.setSelectionRange(safeOffset, safeOffset);
-      setSelectionRange({ start: safeOffset, end: safeOffset });
-      const lineHeight = Number.parseFloat(window.getComputedStyle(node).lineHeight) || 24;
-      node.scrollTop = Math.max(0, (targetLine - 1) * lineHeight - node.clientHeight * 0.25);
-      setOutlinePopoverOpen(false);
-      return;
-    }
-
-    if (!editor) {
-      return;
-    }
-
-    const markdownLine = draft.split("\n")[targetLine - 1]?.replace(/^#+\s*/, "").trim() ?? "";
-    const docText = editor.state.doc.textBetween(0, editor.state.doc.content.size, "\n", "\n");
-    const textOffset = markdownLine ? docText.indexOf(markdownLine) : -1;
-    const safePos = Math.max(1, Math.min(editor.state.doc.content.size, textOffset > -1 ? textOffset + 1 : 1));
-    editor.chain().focus().setTextSelection(safePos).run();
-    setOutlinePopoverOpen(false);
-  };
 
   const scheduleSave = useCallback(
     (content: string) => {
@@ -1947,34 +1807,6 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
     });
   };
 
-  const saveCurrentAnnotations = async () => {
-    try {
-      setAnnotationsSaving(true);
-      setInspectorFeedback(null);
-      const saved = await api.saveChapterAnnotations(locator.chapterId, locator.projectId, locator.novelId, annotations);
-      setAnnotations(saved);
-      setInspectorFeedback("批注已保存");
-    } catch (err) {
-      setInspectorFeedback(err instanceof ApiError ? err.message : "批注保存失败");
-    } finally {
-      setAnnotationsSaving(false);
-    }
-  };
-
-  const saveCurrentLocks = async () => {
-    try {
-      setLocksSaving(true);
-      setInspectorFeedback(null);
-      const saved = await api.saveChapterLocks(locator.chapterId, locator.projectId, locator.novelId, locks);
-      setLocks(saved);
-      setInspectorFeedback("锁定已保存");
-    } catch (err) {
-      setInspectorFeedback(err instanceof ApiError ? err.message : "锁定保存失败");
-    } finally {
-      setLocksSaving(false);
-    }
-  };
-
   const stepStatus = (agentId: string): string =>
     run?.nodes?.find((node) => node.agentId === agentId)?.status ??
     run?.steps?.find((step) => step.agentId === agentId)?.status ??
@@ -2020,9 +1852,6 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
             </button>
             <button type="button" className={mobilePanel === "editor" ? "on" : ""} onClick={() => setMobilePanel("editor")}>
               写作
-            </button>
-            <button type="button" className={mobilePanel === "inspector" ? "on" : ""} onClick={() => setMobilePanel("inspector")}>
-              侧栏
             </button>
             <button type="button" className={mobilePanel === "chat" ? "on" : ""} onClick={() => setMobilePanel("chat")}>
               总控
@@ -2340,9 +2169,6 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
                     <button
                       type="button"
                       className={`btn-icon ${
-                        (tool.kind === "outline" && outlinePopoverOpen) ||
-                        (tool.kind === "annotations" && inspectorTab === "annotations") ||
-                        (tool.kind === "locks" && inspectorTab === "locks") ||
                         (editorMode === "rich" && tool.kind === "bold" && editor?.isActive("bold")) ||
                         (editorMode === "rich" && tool.kind === "italic" && editor?.isActive("italic")) ||
                         (editorMode === "rich" && tool.kind === "heading" && editor?.isActive("heading", { level: 2 })) ||
@@ -2352,7 +2178,6 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
                           ? "toolbar-active"
                           : ""
                       }`}
-                      ref={tool.kind === "outline" ? outlineButtonRef : undefined}
                       key={tool.kind}
                       title={tool.label}
                       disabled={
@@ -2391,18 +2216,6 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
                         if (isBodyAlignTool(tool)) {
                           changeBodyAlign(tool.align);
                           return;
-                        }
-                        if (tool.kind === "outline") {
-                          setOutlinePopoverOpen((open) => !open);
-                          return;
-                        }
-                        if (tool.kind === "annotations" || tool.kind === "locks") {
-                          setInspectorTab(tool.kind);
-                          setMobilePanel("inspector");
-                        }
-                        if (tool.kind === "run") {
-                          setInspectorTab(tool.kind);
-                          setMobilePanel("inspector");
                         }
                       }}
                     >
@@ -2459,33 +2272,6 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
                   {focusMode ? "退出专注" : "专注模式"}
                 </button>
               </div>
-              {outlinePopoverOpen ? (
-                <div className="outline-popover" ref={outlinePopoverRef}>
-                  <div className="outline-popover-head">
-                    <span>大纲</span>
-                    <button type="button" className="btn-icon" title="关闭" onClick={() => setOutlinePopoverOpen(false)}>
-                      ×
-                    </button>
-                  </div>
-                  <div className="outline-popover-list">
-                    {outline.length === 0 ? (
-                      <div className="outline-empty">正文还没有可提取的标题。在正文中用 # 开头创建标题即可</div>
-                    ) : (
-                      outline.map((item) => (
-                        <button
-                          type="button"
-                          className="outline-popover-item"
-                          key={item.id}
-                          onClick={() => jumpToOutlineItem(item.line)}
-                        >
-                          <span className="outline-item-title">{item.label}</span>
-                          <span className="outline-item-sub">第 {item.line} 行 · {item.excerpt}</span>
-                        </button>
-                      ))
-                    )}
-                  </div>
-                </div>
-              ) : null}
               {error && <div className="err-card">{error}</div>}
 
               <div className="paper-body">
@@ -2539,341 +2325,7 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
               </div>
             </div>
 
-            {showInspector && !focusMode ? (
-              <aside className="inspector-pane">
-                <section className="info-card">
-                  <h3>工作台深化</h3>
-                  <div className="stack-list">
-                    <div className="field">
-                      <span className="k">当前章节</span>
-                      <span className="v stack-align-start">{locator.chapterId}</span>
-                    </div>
-                    <div className="field">
-                      <span className="k">选区范围</span>
-                      <span className="v">{selectionRange.start} - {selectionRange.end}</span>
-                    </div>
-                    <div className="field">
-                      <span className="k">专注模式</span>
-                      <span className="v">{focusMode ? "已开启" : "关闭"}</span>
-                    </div>
-                  </div>
-                </section>
 
-                <section className="info-card">
-                  <div className="tab-strip">
-                    <button
-                      type="button"
-                      className={inspectorTab === "outline" ? "active" : ""}
-                      onClick={() => setInspectorTab("outline")}
-                    >
-                      大纲
-                    </button>
-                    <button
-                      type="button"
-                      className={inspectorTab === "annotations" ? "active" : ""}
-                      onClick={() => setInspectorTab("annotations")}
-                    >
-                      批注
-                    </button>
-                    <button
-                      type="button"
-                      className={inspectorTab === "locks" ? "active" : ""}
-                      onClick={() => setInspectorTab("locks")}
-                    >
-                      锁定
-                    </button>
-                    <button
-                      type="button"
-                      className={inspectorTab === "run" ? "active" : ""}
-                      onClick={() => setInspectorTab("run")}
-                    >
-                      运行
-                    </button>
-                  </div>
-
-                  {inspectorFeedback ? <div className="inspector-feedback">{inspectorFeedback}</div> : null}
-
-                  {inspectorTab === "outline" ? (
-                    <div className="stack-list" style={{ marginTop: 16 }}>
-                      {outline.length === 0 ? (
-                        <div className="faint">正文还没有可提取的大纲结构。</div>
-                      ) : (
-                        outline.map((item) => (
-                          <div key={item.id} className="mini-card">
-                            <div className="mini-card-title">{item.label}</div>
-                            <div className="mini-card-sub">第 {item.line} 行 · {item.excerpt}</div>
-                          </div>
-                        ))
-                      )}
-                    </div>
-                  ) : null}
-
-                  {inspectorTab === "annotations" ? (
-                    <div className="stack-list" style={{ marginTop: 16 }}>
-                      <div className="skill-actions" style={{ marginTop: 0 }}>
-                        <button
-                          type="button"
-                          className="btn"
-                          onClick={() => {
-                            setAnnotations((items) => [...items, createAnnotationFromSelection(selectionRange.start, selectionRange.end)]);
-                            setInspectorFeedback("已从当前选区新建批注草稿");
-                          }}
-                        >
-                          <FilePenLine size={15} strokeWidth={2} />
-                          取当前选区
-                        </button>
-                        <button
-                          type="button"
-                          className="btn btn-primary"
-                          disabled={annotationsSaving}
-                          onClick={() => void saveCurrentAnnotations()}
-                        >
-                          {annotationsSaving ? "保存中" : "保存批注"}
-                        </button>
-                      </div>
-
-                      {annotations.length === 0 ? (
-                        <div className="faint">还没有批注。</div>
-                      ) : (
-                        annotations.map((annotation) => (
-                          <div key={annotation.id} className="mini-card">
-                            <div className="mini-card-title">{annotation.id}</div>
-                            <div className="mini-card-sub">范围 {annotation.range.start} - {annotation.range.end}</div>
-                            <label className="form-block" style={{ marginTop: 10 }}>
-                              <span>批注文本</span>
-                              <textarea
-                                className="textarea"
-                                value={annotation.text}
-                                onChange={(event) =>
-                                  setAnnotations((items) =>
-                                    items.map((item) => item.id === annotation.id ? { ...item, text: event.target.value } : item),
-                                  )
-                                }
-                              />
-                            </label>
-                            <label className="form-block" style={{ marginTop: 10 }}>
-                              <span>可转标签（逗号分隔）</span>
-                              <input
-                                className="input"
-                                value={(annotation.convertibleTo ?? []).join(", ")}
-                                onChange={(event) =>
-                                  setAnnotations((items) =>
-                                    items.map((item) => item.id === annotation.id ? {
-                                      ...item,
-                                      convertibleTo: event.target.value.split(",").map((value) => value.trim()).filter(Boolean),
-                                    } : item),
-                                  )
-                                }
-                              />
-                            </label>
-                            <div className="skill-actions">
-                              <button
-                                type="button"
-                                className="btn"
-                                onClick={() => setAnnotations((items) => items.filter((item) => item.id !== annotation.id))}
-                              >
-                                <Trash2 size={15} strokeWidth={2} />
-                                删除
-                              </button>
-                            </div>
-                          </div>
-                        ))
-                      )}
-                    </div>
-                  ) : null}
-
-                  {inspectorTab === "locks" ? (
-                    <div className="stack-list" style={{ marginTop: 16 }}>
-                      <div className="skill-actions" style={{ marginTop: 0 }}>
-                        <button
-                          type="button"
-                          className="btn"
-                          onClick={() => {
-                            setLocks((items) => [...items, createSelectionLock(selectionRange.start, selectionRange.end)]);
-                            setInspectorFeedback("已从当前选区新建锁定草稿");
-                          }}
-                        >
-                          <Lock size={15} strokeWidth={2} />
-                          取当前选区
-                        </button>
-                        <button
-                          type="button"
-                          className="btn btn-primary"
-                          disabled={locksSaving}
-                          onClick={() => void saveCurrentLocks()}
-                        >
-                          {locksSaving ? "保存中" : "保存锁定"}
-                        </button>
-                      </div>
-
-                      {locks.length === 0 ? (
-                        <div className="faint">还没有锁定。</div>
-                      ) : (
-                        locks.map((lockItem) => (
-                          <div key={lockItem.id} className="mini-card">
-                            <div className="mini-card-title">{lockItem.id}</div>
-                            <div className="form-grid form-grid-2" style={{ marginTop: 10 }}>
-                              <label className="form-block">
-                                <span>起点</span>
-                                <input
-                                  className="input"
-                                  value={String(lockItem.range.start)}
-                                  onChange={(event) =>
-                                    setLocks((items) =>
-                                      items.map((item) => item.id === lockItem.id ? {
-                                        ...item,
-                                        range: {
-                                          ...item.range,
-                                          start: Number(event.target.value) || 0,
-                                        },
-                                      } : item),
-                                    )
-                                  }
-                                />
-                              </label>
-                              <label className="form-block">
-                                <span>终点</span>
-                                <input
-                                  className="input"
-                                  value={String(lockItem.range.end)}
-                                  onChange={(event) =>
-                                    setLocks((items) =>
-                                      items.map((item) => item.id === lockItem.id ? {
-                                        ...item,
-                                        range: {
-                                          ...item.range,
-                                          end: Number(event.target.value) || 0,
-                                        },
-                                      } : item),
-                                    )
-                                  }
-                                />
-                              </label>
-                            </div>
-                            <div className="form-grid form-grid-2">
-                              <label className="form-block">
-                                <span>范围类型</span>
-                                <input
-                                  className="input"
-                                  value={lockItem.scope ?? "paragraph"}
-                                  onChange={(event) =>
-                                    setLocks((items) =>
-                                      items.map((item) => item.id === lockItem.id ? { ...item, scope: event.target.value } : item),
-                                    )
-                                  }
-                                />
-                              </label>
-                              <label className="form-block">
-                                <span>锁定级别</span>
-                                <input
-                                  className="input"
-                                  value={lockItem.level ?? "full"}
-                                  onChange={(event) =>
-                                    setLocks((items) =>
-                                      items.map((item) => item.id === lockItem.id ? { ...item, level: event.target.value } : item),
-                                    )
-                                  }
-                                />
-                              </label>
-                            </div>
-                            <div className="skill-actions">
-                              <button
-                                type="button"
-                                className="btn"
-                                onClick={() => setLocks((items) => items.filter((item) => item.id !== lockItem.id))}
-                              >
-                                <Trash2 size={15} strokeWidth={2} />
-                                删除
-                              </button>
-                            </div>
-                          </div>
-                        ))
-                      )}
-                    </div>
-                  ) : null}
-
-                  {inspectorTab === "run" ? (
-                    <div className="stack-list" style={{ marginTop: 16 }}>
-                      {runsLoading ? (
-                        <div className="faint">运行记录加载中…</div>
-                      ) : null}
-
-                      {recentRuns.length === 0 && !runsLoading ? (
-                        <div className="faint">当前章节还没有运行记录。</div>
-                      ) : null}
-
-                      {recentRuns.length > 0 ? (
-                        <div className="list-card">
-                          <div className="list-row head">
-                            <span className="col col-grow">运行</span>
-                            <span className="col" style={{ width: 86 }}>状态</span>
-                          </div>
-                          {recentRuns.map((item) => (
-                            <button
-                              type="button"
-                              key={item.id}
-                              className={`list-row ${selectedRun?.id === item.id ? "active" : ""}`}
-                              onClick={() => setSelectedRunId(item.id)}
-                            >
-                              <span className="col col-grow">
-                                <div className="col-name">{item.id}</div>
-                                <div className="col-sub">{item.startedAt ?? item.createdAt ?? "未记录时间"}</div>
-                              </span>
-                              <span className="col" style={{ width: 86 }}>
-                                <span className={`tag ${item.status === "done" || item.status === "succeeded" ? "primary" : ""}`}>
-                                  {item.status}
-                                </span>
-                              </span>
-                            </button>
-                          ))}
-                        </div>
-                      ) : null}
-
-                      {selectedRun ? (
-                        <div className="stack-list">
-                          <section className="mini-card">
-                            <div className="mini-card-title">运行摘要</div>
-                            <div className="field">
-                              <span className="k">工作流</span>
-                              <span className="v">{selectedRun.workflowId ?? "默认"}</span>
-                            </div>
-                            <div className="field">
-                              <span className="k">Token</span>
-                              <span className="v">{selectedRun.tokens ? `${selectedRun.tokens.in} / ${selectedRun.tokens.out}` : "未记录"}</span>
-                            </div>
-                            <div className="field">
-                              <span className="k">成本</span>
-                              <span className="v">{selectedRun.cost === undefined ? "未记录" : selectedRun.cost}</span>
-                            </div>
-                            <div className="field">
-                              <span className="k">上下文源</span>
-                              <span className="v">{selectedRun.contextSources?.length ?? 0}</span>
-                            </div>
-                          </section>
-
-                          <section className="mini-card">
-                            <div className="mini-card-title">智能体节点</div>
-                            <div className="stack-list" style={{ marginTop: 10 }}>
-                              {(selectedRun.nodes ?? selectedRun.steps ?? []).map((node) => (
-                                <div key={`${selectedRun.id}-${node.agentId}`} className="quote-line">
-                                  <div className="mini-card-title">{node.agentName ?? node.agentId}</div>
-                                  <div className="mini-card-sub">
-                                    状态 {node.status}
-                                    {node.mustRewrite ? " · 触发重写" : ""}
-                                    {node.hardViolations ? ` · 硬违规 ${node.hardViolations}` : ""}
-                                    {node.softViolations ? ` · 软违规 ${node.softViolations}` : ""}
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                          </section>
-                        </div>
-                      ) : null}
-                    </div>
-                  ) : null}
-                </section>
-              </aside>
-            ) : null}
           </div>
         </div>
 

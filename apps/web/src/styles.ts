@@ -402,8 +402,8 @@ body.app-focus .main { padding-bottom: 0; }
 .paper::before { content: ""; position: absolute; inset: 10px; border: 1px solid color-mix(in srgb, var(--border) 58%, transparent); border-radius: calc(var(--radius-lg) - 5px); pointer-events: none; }
 .editor-workbench { width: 100%; max-width: 940px; height: 100%; min-height: 0; display: grid; grid-template-columns: minmax(0,1fr); gap: 28px; justify-content: center; align-items: stretch; }
 .editor-workbench.focus-mode { grid-template-columns: minmax(0, 900px); max-width: 900px; }
-.paper-toolbar { display: flex; align-items: center; gap: 2px; height: 52px; padding: 0 16px; border-bottom: 1px solid var(--border); background: color-mix(in srgb, var(--bg-panel) 62%, transparent); position: relative; z-index: 1; flex: none; }
-.paper-toolbar .sep { width: 1px; height: 20px; background: var(--border); margin: 0 8px; }
+.paper-toolbar { display: flex; align-items: center; gap: 4px; min-height: 52px; padding: 8px 16px; border-bottom: 1px solid var(--border); background: color-mix(in srgb, var(--bg-panel) 62%, transparent); position: relative; z-index: 1; flex: none; flex-wrap: wrap; }
+.paper-toolbar .sep { width: 1px; height: 22px; background: var(--border); margin: 0 10px; }
 .paper-toolbar .grow { flex: 1; }
 .editor-mode-switch { margin-left: 8px; flex: none; }
 .editor-mode-switch button { padding: 0 10px; white-space: nowrap; }
