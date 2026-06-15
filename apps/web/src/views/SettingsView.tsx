@@ -1129,6 +1129,7 @@ export function SettingsView({ vaultPath, onSetVault, onClearVault }: SettingsVi
         </div>
 
         <div>
+          {sec === "外观" ? (
           <section className="editor-card">
             <div className="editor-card-head">
               <div>
@@ -1157,6 +1158,7 @@ export function SettingsView({ vaultPath, onSetVault, onClearVault }: SettingsVi
             </div>
             {vaultFeedback ? <div className="inspector-feedback">{vaultFeedback}</div> : null}
           </section>
+          ) : null}
 
           {sec === "外观" ? (
             <div className="info-card">
