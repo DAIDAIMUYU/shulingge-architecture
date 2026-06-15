@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
 import {
-  Bot,
   AlertCircle,
   CheckCircle2,
   ChevronDown,
@@ -28,7 +27,6 @@ import {
 import {
   api,
   ApiError,
-  type AgentInfo,
   type ModelConfig,
   type ModelConfigInput,
   type RemoteGatewayStatus,
@@ -596,97 +594,6 @@ function GeneralPanel({
   );
 }
 
-function AgentPanel({
-  agents,
-  loading,
-  preferences,
-  setPreferences,
-  feedback,
-  setFeedback,
-}: {
-  agents: AgentInfo[];
-  loading: boolean;
-  preferences: WebPreferences;
-  setPreferences: (value: WebPreferences) => void;
-  feedback: string | null;
-  setFeedback: (value: string | null) => void;
-}) {
-  const watchedIds = new Set(preferences.watchedAgentIds);
-  const sortedAgents = [...agents].sort((left, right) => (left.order ?? 0) - (right.order ?? 0));
-  const enabledCount = sortedAgents.filter((agent) => agent.enabled !== false).length;
-
-  return (
-    <div className="stack-list">
-      <section className="info-card">
-        <h3>智能体工作流观察</h3>
-        <div className="signal-list">
-          <div className="signal-item">
-            <Bot size={16} />
-            <div>
-              <div className="mini-card-title">当前可见智能体</div>
-              <div className="mini-card-sub">{enabledCount} / {sortedAgents.length} 处于启用状态</div>
-            </div>
-          </div>
-          <div className="signal-item">
-            <CheckCircle2 size={16} />
-            <div>
-              <div className="mini-card-title">关注智能体</div>
-              <div className="mini-card-sub">{preferences.watchedAgentIds.length} 个会在工作台运行卡里重点高亮</div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {feedback ? <div className="inspector-feedback">{feedback}</div> : null}
-
-      <section className="list-card">
-        <div className="list-row head">
-          <span className="col" style={{ width: 36 }}>#</span>
-          <span className="col col-grow">智能体</span>
-          <span className="col" style={{ width: 90 }}>状态</span>
-          <span className="col" style={{ width: 96 }}>关注</span>
-        </div>
-        {loading ? (
-          <div className="center-state" style={{ minHeight: 220 }}>
-            <div className="spinner" />
-            <span>正在加载智能体</span>
-          </div>
-        ) : (
-          sortedAgents.map((agent, index) => {
-            const watched = watchedIds.has(agent.id);
-            return (
-              <div className="list-row" key={agent.id} style={{ cursor: "default" }}>
-                <span className="faint" style={{ width: 36 }}>{agent.order ?? index + 1}</span>
-                <span className="col col-grow">
-                  <div className="col-name">{agent.name}</div>
-                  <div className="col-sub">{agent.role ?? agent.description ?? "暂无说明"}</div>
-                </span>
-                <span className="col" style={{ width: 90 }}>
-                  <span className={`tag ${agent.enabled === false ? "" : "primary"}`}>{agent.enabled === false ? "停用" : "启用"}</span>
-                </span>
-                <span className="col" style={{ width: 96 }}>
-                  <button
-                    type="button"
-                    className={`btn ${watched ? "btn-primary" : ""}`}
-                    onClick={() => {
-                      const nextIds = watched
-                        ? preferences.watchedAgentIds.filter((id) => id !== agent.id)
-                        : [...preferences.watchedAgentIds, agent.id];
-                      savePreferencePatch({ watchedAgentIds: nextIds }, setPreferences, setFeedback);
-                    }}
-                  >
-                    {watched ? "已关注" : "关注"}
-                  </button>
-                </span>
-              </div>
-            );
-          })
-        )}
-      </section>
-    </div>
-  );
-}
-
 function ShortcutsPanel({
   preferences,
   setPreferences,
@@ -786,9 +693,6 @@ export function SettingsView({ vaultPath, onSetVault, onClearVault }: SettingsVi
   const [testingModel, setTestingModel] = useState(false);
   const [modelToDelete, setModelToDelete] = useState<ModelConfig | null>(null);
 
-  const [agents, setAgents] = useState<AgentInfo[]>([]);
-  const [agentsLoading, setAgentsLoading] = useState(false);
-
   const [remoteStatus, setRemoteStatus] = useState<RemoteGatewayStatus | null>(null);
   const [remotePassword, setRemotePassword] = useState("");
   const [remotePort, setRemotePort] = useState("3000");
@@ -833,18 +737,6 @@ export function SettingsView({ vaultPath, onSetVault, onClearVault }: SettingsVi
     }
   }
 
-  async function loadAgents() {
-    setAgentsLoading(true);
-    try {
-      const list = await api.listAgents();
-      setAgents(list);
-    } catch (error) {
-      setPreferencesFeedback(error instanceof ApiError ? error.message : "智能体列表加载失败");
-    } finally {
-      setAgentsLoading(false);
-    }
-  }
-
   async function loadRemoteStatus() {
     try {
       const status = await api.remoteStatus();
@@ -885,7 +777,6 @@ export function SettingsView({ vaultPath, onSetVault, onClearVault }: SettingsVi
 
   useEffect(() => {
     void loadModels();
-    void loadAgents();
     void loadRemoteStatus();
     void loadResearchSettings();
   }, []);
@@ -1624,17 +1515,7 @@ export function SettingsView({ vaultPath, onSetVault, onClearVault }: SettingsVi
           ) : null}
 
           {sec === "智能体" ? (
-            <div className="stack-list">
-              <AgentsView embedded />
-              <AgentPanel
-                agents={agents}
-                loading={agentsLoading}
-                preferences={preferences}
-                setPreferences={setPreferences}
-                feedback={preferencesFeedback}
-                setFeedback={setPreferencesFeedback}
-              />
-            </div>
+            <AgentsView embedded />
           ) : null}
 
           {sec === "快捷键" ? (
