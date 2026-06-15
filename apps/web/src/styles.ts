@@ -554,12 +554,13 @@ body.app-focus .main { padding-bottom: 0; }
 .conversation-menu-row { display: grid; grid-template-columns: minmax(0, 1fr) 30px; gap: 4px; align-items: stretch; border-radius: var(--radius-sm); }
 .conversation-menu-row.active { background: var(--bg-active); }
 .conversation-menu-main { min-width: 0; display: grid; gap: 2px; padding: 8px 10px; border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--text-secondary); text-align: left; cursor: pointer; }
-.conversation-menu-main:hover { background: var(--bg-hover); color: var(--text-primary); }
+.conversation-menu-main:hover,
+.conversation-menu-delete:hover { background: var(--bg-hover); color: var(--text-primary); }
 .conversation-menu-row.active .conversation-menu-main { color: var(--primary); }
 .conversation-menu-main span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
 .conversation-menu-main small { color: var(--text-muted); font-size: 11px; }
-.conversation-menu-delete { width: 30px; border: 1px solid color-mix(in srgb, var(--danger) 28%, transparent); border-radius: var(--radius-sm); background: color-mix(in srgb, var(--danger) 10%, transparent); color: var(--danger); display: grid; place-items: center; cursor: pointer; }
-.conversation-menu-delete:hover { background: color-mix(in srgb, var(--danger) 18%, transparent); color: var(--danger); }
+.conversation-menu-delete { width: 30px; border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--text-muted); display: grid; place-items: center; cursor: pointer; }
+.conversation-menu-delete:hover { color: var(--danger); }
 .conversation-menu-empty { padding: 10px; color: var(--text-muted); font-size: 12px; }
 .chat-scroll { flex: 1; min-height: 0; overflow: auto; padding: 20px 18px; display: flex; flex-direction: column; gap: 16px; }
 .msg { display: flex; gap: 10px; max-width: 100%; }
@@ -1320,6 +1321,22 @@ body.app-focus .main { padding-bottom: 0; }
 .btn.btn-primary:active {
   background-color: var(--primary-hover);
   color: var(--text-on-primary);
+}
+
+.btn.btn-danger {
+  background-color: var(--danger);
+  background-image: none;
+  border-color: var(--danger);
+  color: #fff;
+  box-shadow: 0 1px 0 color-mix(in srgb, #fff 32%, transparent) inset, 0 8px 18px color-mix(in srgb, var(--danger) 18%, transparent);
+}
+
+.btn.btn-danger:hover {
+  background-color: var(--danger);
+  background-image: none;
+  border-color: var(--danger);
+  color: #fff;
+  filter: brightness(.95);
 }
 
 .paper-toolbar,
