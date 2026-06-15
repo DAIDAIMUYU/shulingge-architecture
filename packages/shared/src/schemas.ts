@@ -133,6 +133,27 @@ export const chapterPlanSchema = entitySchema.extend({
   summary: z.string(),
 });
 
+export const keyEventCustomFieldSchema = z.object({
+  title: z.string(),
+  content: z.string(),
+});
+
+export const keyEventSchema = entitySchema.extend({
+  projectId: z.string().min(1),
+  novelId: z.string().min(1),
+  title: z.string().min(1),
+  order: z.number().int().nonnegative(),
+  positioning: z.string(),
+  prerequisites: z.string(),
+  flow: z.string(),
+  relationChanges: z.string(),
+  forbidden: z.string(),
+  customFields: z.array(keyEventCustomFieldSchema),
+  volumeId: z.string().min(1).optional(),
+  chapterPlanId: z.string().min(1).optional(),
+  timelineId: z.string().min(1).optional(),
+});
+
 export const chapterSourceSchema = z.object({
   lastWrittenBy: z.string().min(1).optional(),
   lastRunId: z.string().min(1).optional(),

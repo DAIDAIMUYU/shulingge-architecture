@@ -989,8 +989,10 @@ body.app-focus .main { padding-bottom: 0; }
 .plot-textarea-lg { min-height: 172px; }
 .plot-chapter-modal,
 .plot-chapter-plan-modal,
+.plot-key-event-modal,
 .plot-volume-modal { display: grid; gap: 16px; max-height: 85vh; overflow: hidden; }
 .plot-volume-modal { width: min(760px, 100%); }
+.plot-key-event-modal { width: min(820px, 100%); }
 .plot-modal-body { min-height: 0; max-height: calc(85vh - 170px); display: grid; gap: 16px; overflow-y: auto; padding-right: 4px; }
 .plot-chapter-section { margin-top: 22px; padding-top: 20px; border-top: 1px solid var(--border); }
 .plot-chapter-section-head { margin-bottom: 12px; }

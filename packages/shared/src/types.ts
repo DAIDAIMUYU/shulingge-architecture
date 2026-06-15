@@ -129,6 +129,27 @@ export interface ChapterPlan extends Entity {
   summary: string;
 }
 
+export interface KeyEventCustomField {
+  title: string;
+  content: string;
+}
+
+export interface KeyEvent extends Entity {
+  projectId: string;
+  novelId: string;
+  title: string;
+  order: number;
+  positioning: string;
+  prerequisites: string;
+  flow: string;
+  relationChanges: string;
+  forbidden: string;
+  customFields: KeyEventCustomField[];
+  volumeId?: string;
+  chapterPlanId?: string;
+  timelineId?: string;
+}
+
 export interface TextRange {
   start: number;
   end: number;

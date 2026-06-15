@@ -12,7 +12,21 @@ import {
   Trash2,
 } from "lucide-react";
 
-import { api, ApiError, type ChapterPlanInput, type ChapterPlanRecord, type NovelSummary, type ProjectSummary, type VolumeInput, type VolumeRecord, type VolumeStatus } from "../api/client.js";
+import {
+  api,
+  ApiError,
+  type ChapterPlanInput,
+  type ChapterPlanRecord,
+  type KeyEventCustomField,
+  type KeyEventInput,
+  type KeyEventRecord,
+  type NovelSummary,
+  type ProjectSummary,
+  type TimelineEvent,
+  type VolumeInput,
+  type VolumeRecord,
+  type VolumeStatus,
+} from "../api/client.js";
 import { ConfirmModal } from "../app/Modals.js";
 import { ProjectSelector } from "./ProjectSelector.js";
 import { Select } from "./Select.js";
@@ -37,9 +51,23 @@ interface ChapterPlanDraft {
   summary: string;
 }
 
+interface KeyEventDraft {
+  title: string;
+  positioning: string;
+  prerequisites: string;
+  flow: string;
+  relationChanges: string;
+  forbidden: string;
+  customFields: KeyEventCustomField[];
+  volumeId: string;
+  chapterPlanId: string;
+  timelineId: string;
+}
+
 const PROJECT_STORAGE_KEY = "shulingge.web.plotOutline.projectId";
 const VIEW_STORAGE_KEY = "shulingge.web.plotOutline.viewMode";
 const NO_VOLUME = "__none__";
+const NO_REFERENCE = "__none__";
 
 const STATUS_OPTIONS: Array<{ value: VolumeStatus; label: string; hint: string }> = [
   { value: "draft", label: "草稿", hint: "还在构思和调整" },
@@ -116,6 +144,38 @@ function toChapterPlanPayload(draft: ChapterPlanDraft): ChapterPlanInput {
   };
 }
 
+function createKeyEventDraft(keyEvent?: KeyEventRecord): KeyEventDraft {
+  return {
+    title: keyEvent?.title ?? "",
+    positioning: keyEvent?.positioning ?? "",
+    prerequisites: keyEvent?.prerequisites ?? "",
+    flow: keyEvent?.flow ?? "",
+    relationChanges: keyEvent?.relationChanges ?? "",
+    forbidden: keyEvent?.forbidden ?? "",
+    customFields: keyEvent?.customFields?.map((field) => ({ title: field.title, content: field.content })) ?? [],
+    volumeId: keyEvent?.volumeId ?? NO_REFERENCE,
+    chapterPlanId: keyEvent?.chapterPlanId ?? NO_REFERENCE,
+    timelineId: keyEvent?.timelineId ?? NO_REFERENCE,
+  };
+}
+
+function toKeyEventPayload(draft: KeyEventDraft): KeyEventInput {
+  return {
+    title: draft.title.trim(),
+    positioning: draft.positioning.trim(),
+    prerequisites: draft.prerequisites.trim(),
+    flow: draft.flow.trim(),
+    relationChanges: draft.relationChanges.trim(),
+    forbidden: draft.forbidden.trim(),
+    customFields: draft.customFields
+      .map((field) => ({ title: field.title.trim(), content: field.content.trim() }))
+      .filter((field) => field.title || field.content),
+    volumeId: draft.volumeId === NO_REFERENCE ? null : draft.volumeId,
+    chapterPlanId: draft.chapterPlanId === NO_REFERENCE ? null : draft.chapterPlanId,
+    timelineId: draft.timelineId === NO_REFERENCE ? null : draft.timelineId,
+  };
+}
+
 function compactText(value: string | undefined, fallback = "未填写摘要"): string {
   const normalized = (value ?? "").split(/\n+/).map((line) => line.trim()).filter(Boolean).join(" / ");
   return normalized || fallback;
@@ -127,6 +187,10 @@ function volumeSummary(volume: VolumeRecord): string {
 
 function chapterPlanSummary(chapterPlan: ChapterPlanRecord): string {
   return compactText(chapterPlan.summary, "未填写梗概");
+}
+
+function keyEventSummary(keyEvent: KeyEventRecord): string {
+  return compactText(keyEvent.positioning, "未填写事件定位");
 }
 
 function VolumeEditorModal({
@@ -319,6 +383,135 @@ function ChapterPlanEditorModal({
   );
 }
 
+function KeyEventEditorModal({
+  draft,
+  editing,
+  volumes,
+  chapterPlans,
+  timelineEvents,
+  saving,
+  error,
+  onChange,
+  onCancel,
+  onSubmit,
+}: {
+  draft: KeyEventDraft;
+  editing: boolean;
+  volumes: VolumeRecord[];
+  chapterPlans: ChapterPlanRecord[];
+  timelineEvents: TimelineEvent[];
+  saving: boolean;
+  error?: string | null;
+  onChange(patch: Partial<KeyEventDraft>): void;
+  onCancel(): void;
+  onSubmit(): void;
+}) {
+  const volumeOptions = [
+    { value: NO_REFERENCE, label: "不关联分卷" },
+    ...volumes.map((volume) => ({ value: volume.id, label: volume.title, hint: statusLabel(volume.status) })),
+  ];
+  const chapterPlanOptions = [
+    { value: NO_REFERENCE, label: "不关联章节规划" },
+    ...chapterPlans.map((chapterPlan) => ({ value: chapterPlan.id, label: chapterPlan.title, hint: chapterPlanSummary(chapterPlan) })),
+  ];
+  const timelineOptions = [
+    { value: NO_REFERENCE, label: "不关联时间线" },
+    ...timelineEvents.map((event) => ({ value: event.id, label: event.title, hint: compactText(event.description) })),
+  ];
+
+  const updateCustomField = (index: number, patch: Partial<KeyEventCustomField>) => {
+    const next = [...draft.customFields];
+    next[index] = { ...next[index], ...patch };
+    onChange({ customFields: next });
+  };
+  const removeCustomField = (index: number) => {
+    onChange({ customFields: draft.customFields.filter((_, rowIndex) => rowIndex !== index) });
+  };
+  const submit = (event: FormEvent) => {
+    event.preventDefault();
+    onSubmit();
+  };
+
+  return (
+    <div className="vault-modal-backdrop" onMouseDown={onCancel}>
+      <form className="vault-modal input-modal plot-key-event-modal" onSubmit={submit} onMouseDown={(event) => event.stopPropagation()}>
+        <h2>{editing ? "编辑关键事件" : "新建关键事件"}</h2>
+        <div className="plot-modal-body">
+          <label className="form-block">
+            <span>事件名</span>
+            <input
+              className="input"
+              value={draft.title}
+              autoFocus
+              onChange={(event) => onChange({ title: event.target.value })}
+              placeholder="例如 蝶屋初入"
+            />
+          </label>
+          <div className="form-grid form-grid-3">
+            <label className="form-block">
+              <span>关联分卷</span>
+              <Select value={draft.volumeId} options={volumeOptions} onChange={(value) => onChange({ volumeId: value })} ariaLabel="关联分卷" />
+            </label>
+            <label className="form-block">
+              <span>关联章节规划</span>
+              <Select value={draft.chapterPlanId} options={chapterPlanOptions} onChange={(value) => onChange({ chapterPlanId: value })} ariaLabel="关联章节规划" />
+            </label>
+            <label className="form-block">
+              <span>关联时间线</span>
+              <Select value={draft.timelineId} options={timelineOptions} onChange={(value) => onChange({ timelineId: value })} ariaLabel="关联时间线" />
+            </label>
+          </div>
+          <label className="form-block">
+            <span>事件定位</span>
+            <textarea className="textarea plot-textarea" value={draft.positioning} onChange={(event) => onChange({ positioning: event.target.value })} placeholder="这个事件是什么、不是什么" />
+          </label>
+          <label className="form-block">
+            <span>前置条件</span>
+            <textarea className="textarea plot-textarea" value={draft.prerequisites} onChange={(event) => onChange({ prerequisites: event.target.value })} />
+          </label>
+          <label className="form-block">
+            <span>事件流程</span>
+            <textarea className="textarea plot-textarea-lg" value={draft.flow} onChange={(event) => onChange({ flow: event.target.value })} placeholder="事件经过、关键动作、转折和落点" />
+          </label>
+          <label className="form-block">
+            <span>关系变化</span>
+            <textarea className="textarea plot-textarea" value={draft.relationChanges} onChange={(event) => onChange({ relationChanges: event.target.value })} />
+          </label>
+          <label className="form-block">
+            <span>禁止写法</span>
+            <textarea className="textarea plot-textarea" value={draft.forbidden} onChange={(event) => onChange({ forbidden: event.target.value })} />
+          </label>
+          <div className="character-custom-fields">
+            {draft.customFields.map((field, index) => (
+              <div className="character-custom-row" key={index}>
+                <input className="input" value={field.title} placeholder="自定义标题" onChange={(event) => updateCustomField(index, { title: event.target.value })} />
+                <input className="input" value={field.content} placeholder="内容" onChange={(event) => updateCustomField(index, { content: event.target.value })} />
+                <button type="button" className="btn-icon danger" onClick={() => removeCustomField(index)} aria-label="删除自定义字段">
+                  <Trash2 size={15} />
+                </button>
+              </div>
+            ))}
+            <button type="button" className="btn btn-ghost character-add-custom" onClick={() => onChange({ customFields: [...draft.customFields, { title: "", content: "" }] })}>
+              <Plus size={14} />
+              添加自定义字段
+            </button>
+          </div>
+        </div>
+        {error ? (
+          <div className="model-feedback model-feedback-error">
+            <AlertCircle size={16} />
+            <span>{error}</span>
+          </div>
+        ) : null}
+        <div className="vault-modal-actions">
+          <button type="button" className="btn btn-ghost" disabled={saving} onClick={onCancel}>取消</button>
+          <button type="submit" className="btn btn-primary" disabled={saving}>{saving ? "保存中..." : editing ? "保存关键事件" : "创建关键事件"}</button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
 export function PlotOutlineView() {
   const [projects, setProjects] = useState<ProjectSummary[]>([]);
   const [novels, setNovels] = useState<NovelSummary[]>([]);
@@ -326,22 +519,30 @@ export function PlotOutlineView() {
   const [novelId, setNovelId] = useState("");
   const [volumes, setVolumes] = useState<VolumeRecord[]>([]);
   const [chapterPlans, setChapterPlans] = useState<ChapterPlanRecord[]>([]);
+  const [keyEvents, setKeyEvents] = useState<KeyEventRecord[]>([]);
+  const [timelineEvents, setTimelineEvents] = useState<TimelineEvent[]>([]);
   const [selectedVolumeId, setSelectedVolumeId] = useState<string | null>(null);
   const [draft, setDraft] = useState<VolumeDraft>(() => createDraft());
   const [chapterPlanDraft, setChapterPlanDraft] = useState<ChapterPlanDraft>(() => createChapterPlanDraft());
+  const [keyEventDraft, setKeyEventDraft] = useState<KeyEventDraft>(() => createKeyEventDraft());
   const [viewMode, setViewMode] = useState<PlotViewMode>(readStoredViewMode);
   const [newMenuOpen, setNewMenuOpen] = useState(false);
   const [volumeModalOpen, setVolumeModalOpen] = useState(false);
   const [chapterPlanModalOpen, setChapterPlanModalOpen] = useState(false);
+  const [keyEventModalOpen, setKeyEventModalOpen] = useState(false);
   const [editingChapterPlan, setEditingChapterPlan] = useState<ChapterPlanRecord | null>(null);
+  const [editingKeyEvent, setEditingKeyEvent] = useState<KeyEventRecord | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [savingChapterPlan, setSavingChapterPlan] = useState(false);
+  const [savingKeyEvent, setSavingKeyEvent] = useState(false);
   const [feedback, setFeedback] = useState<FeedbackState | null>(null);
   const [volumeModalError, setVolumeModalError] = useState<string | null>(null);
   const [chapterPlanModalError, setChapterPlanModalError] = useState<string | null>(null);
+  const [keyEventModalError, setKeyEventModalError] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<VolumeRecord | null>(null);
   const [deleteChapterPlanTarget, setDeleteChapterPlanTarget] = useState<ChapterPlanRecord | null>(null);
+  const [deleteKeyEventTarget, setDeleteKeyEventTarget] = useState<KeyEventRecord | null>(null);
   const newMenuRef = useRef<HTMLDivElement | null>(null);
 
   const selectedVolume = useMemo(
@@ -355,6 +556,10 @@ export function PlotOutlineView() {
   const sortedChapterPlans = useMemo(
     () => [...chapterPlans].sort((left, right) => left.order - right.order || left.title.localeCompare(right.title)),
     [chapterPlans],
+  );
+  const sortedKeyEvents = useMemo(
+    () => [...keyEvents].sort((left, right) => left.order - right.order || left.title.localeCompare(right.title)),
+    [keyEvents],
   );
   const chapterPlansByVolume = useMemo(() => {
     const groups = new Map<string, ChapterPlanRecord[]>();
@@ -415,6 +620,8 @@ export function PlotOutlineView() {
       setNovelId("");
       setVolumes([]);
       setChapterPlans([]);
+      setKeyEvents([]);
+      setTimelineEvents([]);
       return;
     }
     try {
@@ -432,22 +639,30 @@ export function PlotOutlineView() {
     if (!nextProjectId || !nextNovelId) {
       setVolumes([]);
       setChapterPlans([]);
+      setKeyEvents([]);
+      setTimelineEvents([]);
       setSelectedVolumeId(null);
       setDraft(createDraft());
       return;
     }
     setLoading(true);
     try {
-      const [volumeList, chapterList] = await Promise.all([
+      const [volumeList, chapterList, keyEventList, timelineList] = await Promise.all([
         api.listVolumes(nextProjectId, nextNovelId),
         api.listChapterPlans(nextProjectId, nextNovelId),
+        api.listKeyEvents(nextProjectId, nextNovelId),
+        api.listTimelineByProject(nextProjectId),
       ]);
       setVolumes(volumeList);
       setChapterPlans(chapterList);
+      setKeyEvents(keyEventList);
+      setTimelineEvents(timelineList);
       setSelectedVolumeId((current) => current && volumeList.some((volume) => volume.id === current) ? current : volumeList[0]?.id ?? null);
     } catch (error) {
       setVolumes([]);
       setChapterPlans([]);
+      setKeyEvents([]);
+      setTimelineEvents([]);
       setSelectedVolumeId(null);
       setFeedback({ kind: "error", message: error instanceof ApiError ? error.message : "分卷大纲加载失败" });
     } finally {
@@ -510,12 +725,37 @@ export function PlotOutlineView() {
     setFeedback(null);
   }
 
+  function startCreateKeyEvent() {
+    setNewMenuOpen(false);
+    setEditingKeyEvent(null);
+    setKeyEventDraft(createKeyEventDraft());
+    setKeyEventModalOpen(true);
+    setKeyEventModalError(null);
+    setFeedback(null);
+  }
+
+  function startEditKeyEvent(keyEvent: KeyEventRecord) {
+    setEditingKeyEvent(keyEvent);
+    setKeyEventDraft(createKeyEventDraft(keyEvent));
+    setKeyEventModalOpen(true);
+    setKeyEventModalError(null);
+    setFeedback(null);
+  }
+
   async function refreshChapterPlans() {
     if (!projectId || !novelId) {
       setChapterPlans([]);
       return;
     }
     setChapterPlans(await api.listChapterPlans(projectId, novelId));
+  }
+
+  async function refreshKeyEvents() {
+    if (!projectId || !novelId) {
+      setKeyEvents([]);
+      return;
+    }
+    setKeyEvents(await api.listKeyEvents(projectId, novelId));
   }
 
   async function saveVolume() {
@@ -578,6 +818,35 @@ export function PlotOutlineView() {
     }
   }
 
+  async function saveKeyEvent() {
+    if (!projectId || !novelId) {
+      setFeedback({ kind: "error", message: "请先选择项目和小说" });
+      return;
+    }
+    const payload = toKeyEventPayload(keyEventDraft);
+    if (!payload.title) {
+      setKeyEventModalError("请填写事件名");
+      setFeedback({ kind: "error", message: "请填写事件名" });
+      return;
+    }
+
+    setSavingKeyEvent(true);
+    setKeyEventModalError(null);
+    try {
+      const saved = editingKeyEvent
+        ? await api.updateKeyEvent(projectId, novelId, editingKeyEvent.id, payload)
+        : await api.createKeyEvent(projectId, novelId, payload);
+      await refreshKeyEvents();
+      setKeyEventModalOpen(false);
+      setEditingKeyEvent(null);
+      setFeedback({ kind: "success", message: editingKeyEvent ? `关键事件「${saved.title}」已保存` : `关键事件「${saved.title}」已创建` });
+    } catch (error) {
+      setFeedback({ kind: "error", message: error instanceof ApiError ? error.message : "关键事件保存失败" });
+    } finally {
+      setSavingKeyEvent(false);
+    }
+  }
+
   async function deleteChapterPlan(chapterPlan: ChapterPlanRecord) {
     if (!projectId || !novelId) {
       return;
@@ -592,6 +861,20 @@ export function PlotOutlineView() {
     }
   }
 
+  async function deleteKeyEvent(keyEvent: KeyEventRecord) {
+    if (!projectId || !novelId) {
+      return;
+    }
+    setDeleteKeyEventTarget(null);
+    try {
+      await api.deleteKeyEvent(projectId, novelId, keyEvent.id);
+      await refreshKeyEvents();
+      setFeedback({ kind: "success", message: `关键事件「${keyEvent.title}」已删除` });
+    } catch (error) {
+      setFeedback({ kind: "error", message: error instanceof ApiError ? error.message : "关键事件删除失败" });
+    }
+  }
+
   async function deleteVolume(volume: VolumeRecord) {
     if (!projectId || !novelId) {
       return;
@@ -599,12 +882,14 @@ export function PlotOutlineView() {
     setDeleteTarget(null);
     try {
       await api.deleteVolume(projectId, novelId, volume.id);
-      const [list, chapterList] = await Promise.all([
+      const [list, chapterList, keyEventList] = await Promise.all([
         api.listVolumes(projectId, novelId),
         api.listChapterPlans(projectId, novelId),
+        api.listKeyEvents(projectId, novelId),
       ]);
       setVolumes(list);
       setChapterPlans(chapterList);
+      setKeyEvents(keyEventList);
       setSelectedVolumeId(list[0]?.id ?? null);
       setFeedback({ kind: "success", message: `分卷「${volume.title}」已删除` });
     } catch (error) {
@@ -650,6 +935,26 @@ export function PlotOutlineView() {
       setChapterPlans(updated);
     } catch (error) {
       setFeedback({ kind: "error", message: error instanceof ApiError ? error.message : "章节规划排序失败" });
+    }
+  }
+
+  async function moveKeyEvent(keyEvent: KeyEventRecord, direction: -1 | 1) {
+    if (!projectId || !novelId) {
+      return;
+    }
+    const index = sortedKeyEvents.findIndex((item) => item.id === keyEvent.id);
+    const targetIndex = index + direction;
+    if (index < 0 || targetIndex < 0 || targetIndex >= sortedKeyEvents.length) {
+      return;
+    }
+    const next = [...sortedKeyEvents];
+    const [removed] = next.splice(index, 1);
+    next.splice(targetIndex, 0, removed);
+    try {
+      const updated = await api.reorderKeyEvents(projectId, novelId, next.map((item) => item.id));
+      setKeyEvents(updated);
+    } catch (error) {
+      setFeedback({ kind: "error", message: error instanceof ApiError ? error.message : "关键事件排序失败" });
     }
   }
 
@@ -710,6 +1015,42 @@ export function PlotOutlineView() {
     );
   }
 
+  function keyEventRelationLabel(keyEvent: KeyEventRecord): string {
+    const labels = [
+      keyEvent.volumeId ? sortedVolumes.find((volume) => volume.id === keyEvent.volumeId)?.title : "",
+      keyEvent.chapterPlanId ? sortedChapterPlans.find((chapterPlan) => chapterPlan.id === keyEvent.chapterPlanId)?.title : "",
+      keyEvent.timelineId ? timelineEvents.find((event) => event.id === keyEvent.timelineId)?.title : "",
+    ].filter(Boolean);
+    return labels.length ? `关联：${labels.join(" · ")}` : "未关联";
+  }
+
+  function renderKeyEventRow(keyEvent: KeyEventRecord) {
+    const index = sortedKeyEvents.findIndex((item) => item.id === keyEvent.id);
+    return (
+      <article className="plot-chapter-row" key={keyEvent.id}>
+        <div className="plot-chapter-main">
+          <span className="plot-chapter-title">{keyEvent.title}</span>
+          <span className="plot-chapter-meta">{keyEventSummary(keyEvent)}</span>
+          <span className="plot-chapter-meta">{keyEventRelationLabel(keyEvent)}</span>
+        </div>
+        <div className="plot-volume-actions">
+          <button type="button" className="btn-icon" title="上移" disabled={index === 0} onClick={() => void moveKeyEvent(keyEvent, -1)}>
+            <ArrowUp size={15} />
+          </button>
+          <button type="button" className="btn-icon" title="下移" disabled={index === sortedKeyEvents.length - 1} onClick={() => void moveKeyEvent(keyEvent, 1)}>
+            <ArrowDown size={15} />
+          </button>
+          <button type="button" className="btn-icon" title="编辑关键事件" onClick={() => startEditKeyEvent(keyEvent)}>
+            <Pencil size={15} />
+          </button>
+          <button type="button" className="btn-icon danger" title="删除关键事件" onClick={() => setDeleteKeyEventTarget(keyEvent)}>
+            <Trash2 size={15} />
+          </button>
+        </div>
+      </article>
+    );
+  }
+
   return (
     <ViewShell title="剧情大纲" subtitle="先搭好分卷大纲：明确每卷定位、主题和重点；也可以不分卷，直接新建章节开始写">
       <div className="plot-layout">
@@ -743,6 +1084,10 @@ export function PlotOutlineView() {
                     <button type="button" role="menuitem" onClick={startCreateChapterPlan}>
                       <FilePlus2 size={14} />
                       新建章节规划
+                    </button>
+                    <button type="button" role="menuitem" onClick={startCreateKeyEvent}>
+                      <FilePlus2 size={14} />
+                      新建关键事件
                     </button>
                   </div>
                 ) : null}
@@ -866,6 +1211,20 @@ export function PlotOutlineView() {
               <div className="empty-card">还没有章节规划。可以只写分卷大纲，也可以点击“新建”选择“新建章节规划”。</div>
             )}
           </section>
+
+          <section className="plot-chapter-section">
+            <div className="editor-card-head plot-chapter-section-head">
+              <div>
+                <h3>关键事件</h3>
+                <p className="view-sub">当前小说共 {keyEvents.length} 个关键事件，可记录事件定位、流程、关系变化和禁止写法。</p>
+              </div>
+            </div>
+            {sortedKeyEvents.length ? (
+              <div className="plot-chapter-list">{sortedKeyEvents.map(renderKeyEventRow)}</div>
+            ) : (
+              <div className="empty-card">还没有关键事件。点击“新建”选择“新建关键事件”来设计重要剧情节点。</div>
+            )}
+          </section>
         </section>
 
       </div>
@@ -908,6 +1267,27 @@ export function PlotOutlineView() {
         />
       ) : null}
 
+      {keyEventModalOpen ? (
+        <KeyEventEditorModal
+          draft={keyEventDraft}
+          editing={Boolean(editingKeyEvent)}
+          volumes={sortedVolumes}
+          chapterPlans={sortedChapterPlans}
+          timelineEvents={timelineEvents}
+          saving={savingKeyEvent}
+          error={keyEventModalError}
+          onChange={(patch) => setKeyEventDraft((current) => ({ ...current, ...patch }))}
+          onCancel={() => {
+            if (!savingKeyEvent) {
+              setKeyEventModalOpen(false);
+              setEditingKeyEvent(null);
+              setKeyEventModalError(null);
+            }
+          }}
+          onSubmit={() => void saveKeyEvent()}
+        />
+      ) : null}
+
       {deleteTarget ? (
         <ConfirmModal
           title="删除分卷"
@@ -927,6 +1307,17 @@ export function PlotOutlineView() {
           danger
           onCancel={() => setDeleteChapterPlanTarget(null)}
           onConfirm={() => void deleteChapterPlan(deleteChapterPlanTarget)}
+        />
+      ) : null}
+
+      {deleteKeyEventTarget ? (
+        <ConfirmModal
+          title="删除关键事件"
+          message={`确定删除关键事件「${deleteKeyEventTarget.title}」吗？此操作不可恢复。`}
+          confirmText="删除"
+          danger
+          onCancel={() => setDeleteKeyEventTarget(null)}
+          onConfirm={() => void deleteKeyEvent(deleteKeyEventTarget)}
         />
       ) : null}
     </ViewShell>

@@ -2621,6 +2621,77 @@ test("project create route initializes project and default novel skeleton", asyn
       ok: true;
       data: { chapterPlans: Array<{ id: string; title: string; volumeId?: string; summary: string; order: number }> };
     };
+    const createKeyEventResponse = await fetch(`${server.baseUrl}/api/v1/projects/${createdPayload.data.projectId}/novels/main/key-events`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        title: "蝶屋初入",
+        volumeId: createdVolumePayload.data.id,
+        chapterPlanId: createChapterPlanPayload.data.id,
+        timelineId: "timeline-a",
+        positioning: "初入蝶屋的关系转折",
+        prerequisites: "前置条件",
+        flow: "事件流程",
+        relationChanges: "关系变化",
+        forbidden: "禁止写法",
+        customFields: [{ title: "镜头", content: "从紧张到缓和" }],
+      }),
+    });
+    const createKeyEventPayload = (await createKeyEventResponse.json()) as {
+      ok: true;
+      data: { id: string; title: string; volumeId?: string; chapterPlanId?: string; timelineId?: string; positioning: string; customFields: Array<{ title: string; content: string }>; order: number };
+    };
+    const createLooseKeyEventResponse = await fetch(`${server.baseUrl}/api/v1/projects/${createdPayload.data.projectId}/novels/main/key-events`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ title: "散事件", positioning: "不关联任何规划" }),
+    });
+    const createLooseKeyEventPayload = (await createLooseKeyEventResponse.json()) as {
+      ok: true;
+      data: { id: string; title: string; order: number };
+    };
+    const listKeyEventsResponse = await fetch(`${server.baseUrl}/api/v1/projects/${createdPayload.data.projectId}/novels/main/key-events`);
+    const listKeyEventsPayload = (await listKeyEventsResponse.json()) as {
+      ok: true;
+      data: { keyEvents: Array<{ id: string; title: string; volumeId?: string; chapterPlanId?: string; timelineId?: string; order: number }> };
+    };
+    const updateKeyEventResponse = await fetch(
+      `${server.baseUrl}/api/v1/projects/${createdPayload.data.projectId}/novels/main/key-events/${createKeyEventPayload.data.id}`,
+      {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          title: "蝶屋初入改",
+          volumeId: null,
+          chapterPlanId: null,
+          timelineId: null,
+          positioning: "改后的事件定位",
+          customFields: [{ title: "伏笔", content: "保留药味线索" }],
+        }),
+      },
+    );
+    const updateKeyEventPayload = (await updateKeyEventResponse.json()) as {
+      ok: true;
+      data: { id: string; title: string; volumeId?: string; chapterPlanId?: string; timelineId?: string; positioning: string; customFields: Array<{ title: string; content: string }> };
+    };
+    const reorderKeyEventsResponse = await fetch(`${server.baseUrl}/api/v1/projects/${createdPayload.data.projectId}/novels/main/key-events/reorder`, {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ orderedIds: [createLooseKeyEventPayload.data.id, createKeyEventPayload.data.id] }),
+    });
+    const reorderKeyEventsPayload = (await reorderKeyEventsResponse.json()) as {
+      ok: true;
+      data: { keyEvents: Array<{ id: string; order: number }> };
+    };
+    const deleteKeyEventResponse = await fetch(
+      `${server.baseUrl}/api/v1/projects/${createdPayload.data.projectId}/novels/main/key-events/${createLooseKeyEventPayload.data.id}`,
+      { method: "DELETE" },
+    );
+    const listKeyEventsAfterDeleteResponse = await fetch(`${server.baseUrl}/api/v1/projects/${createdPayload.data.projectId}/novels/main/key-events`);
+    const listKeyEventsAfterDeletePayload = (await listKeyEventsAfterDeleteResponse.json()) as {
+      ok: true;
+      data: { keyEvents: Array<{ id: string; title: string; order: number }> };
+    };
 
     const emptyProjectsPayload = (await emptyProjectsResponse.json()) as {
       ok: true;
@@ -2708,6 +2779,48 @@ test("project create route initializes project and default novel skeleton", asyn
     assert.equal(chapterPlanJson.title, "第一章规划改");
     assert.equal(chapterPlanJson.summary, "改成散章梗概");
     assert.equal(chapterPlanJson.volumeId, undefined);
+    assert.equal(createKeyEventResponse.status, 200);
+    assert.equal(createKeyEventPayload.data.title, "蝶屋初入");
+    assert.equal(createKeyEventPayload.data.volumeId, createdVolumePayload.data.id);
+    assert.equal(createKeyEventPayload.data.chapterPlanId, createChapterPlanPayload.data.id);
+    assert.equal(createKeyEventPayload.data.timelineId, "timeline-a");
+    assert.equal(createKeyEventPayload.data.positioning, "初入蝶屋的关系转折");
+    assert.deepEqual(createKeyEventPayload.data.customFields, [{ title: "镜头", content: "从紧张到缓和" }]);
+    assert.equal(createLooseKeyEventResponse.status, 200);
+    assert.equal(listKeyEventsResponse.status, 200);
+    assert.equal(listKeyEventsPayload.data.keyEvents.length, 2);
+    assert.equal(updateKeyEventResponse.status, 200);
+    assert.equal(updateKeyEventPayload.data.title, "蝶屋初入改");
+    assert.equal(updateKeyEventPayload.data.volumeId, undefined);
+    assert.equal(updateKeyEventPayload.data.chapterPlanId, undefined);
+    assert.equal(updateKeyEventPayload.data.timelineId, undefined);
+    assert.equal(updateKeyEventPayload.data.positioning, "改后的事件定位");
+    assert.deepEqual(updateKeyEventPayload.data.customFields, [{ title: "伏笔", content: "保留药味线索" }]);
+    assert.equal(reorderKeyEventsResponse.status, 200);
+    assert.equal(reorderKeyEventsPayload.data.keyEvents[0]?.id, createLooseKeyEventPayload.data.id);
+    assert.equal(deleteKeyEventResponse.status, 200);
+    assert.deepEqual(listKeyEventsAfterDeletePayload.data.keyEvents.map((keyEvent) => keyEvent.order), [0]);
+    const keyEventJson = await readJsonFile<{
+      projectId: string;
+      novelId: string;
+      title: string;
+      positioning: string;
+      volumeId?: string;
+      chapterPlanId?: string;
+      timelineId?: string;
+      customFields: Array<{ title: string; content: string }>;
+    }>(
+      vaultRoot,
+      `projects/${createdPayload.data.projectId}/novels/main/key-events/${createKeyEventPayload.data.id}.json`,
+    );
+    assert.equal(keyEventJson.projectId, createdPayload.data.projectId);
+    assert.equal(keyEventJson.novelId, "main");
+    assert.equal(keyEventJson.title, "蝶屋初入改");
+    assert.equal(keyEventJson.positioning, "改后的事件定位");
+    assert.equal(keyEventJson.volumeId, undefined);
+    assert.equal(keyEventJson.chapterPlanId, undefined);
+    assert.equal(keyEventJson.timelineId, undefined);
+    assert.deepEqual(keyEventJson.customFields, [{ title: "伏笔", content: "保留药味线索" }]);
     const volumeChapterMetadata = await readJsonFile<{ volumeId?: string }>(
       vaultRoot,
       `projects/${createdPayload.data.projectId}/novels/main/metadata/chapters/${createVolumeChapterPayload.data.chapterId}.json`,

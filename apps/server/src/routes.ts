@@ -1,13 +1,16 @@
 import {
   createChapter,
   createChapterPlan,
+  createKeyEvent,
   createNovel,
   createProject,
   createVolume,
   deleteChapter,
   deleteChapterPlan,
+  deleteKeyEvent,
   deleteNovel,
   deleteVolume,
+  listKeyEvents,
   listChapterPlans,
   listChapters,
   loadEditorChapter,
@@ -18,11 +21,13 @@ import {
   renameChapter,
   renameNovel,
   reorderChapterPlans,
+  reorderKeyEvents,
   reorderVolumes,
   saveEditorAnnotations,
   saveEditorChapter,
   saveEditorLocks,
   updateChapterPlan,
+  updateKeyEvent,
   updateProjectCover,
   updateVolume,
 } from "./editor.js";
@@ -1635,6 +1640,57 @@ export const routeDefinitions: RouteDefinition[] = [
     async handler(request, context) {
       const vaultRoot = requireVaultRoot(context);
       return await deleteChapterPlan(vaultRoot, request.params.projectId, request.params.novelId, request.params.chapterPlanId);
+    },
+  },
+  {
+    method: "GET",
+    path: "/api/v1/projects/:projectId/novels/:novelId/key-events",
+    async handler(request, context) {
+      const vaultRoot = requireVaultRoot(context);
+      return {
+        keyEvents: await listKeyEvents(vaultRoot, request.params.projectId, request.params.novelId),
+      };
+    },
+  },
+  {
+    method: "POST",
+    path: "/api/v1/projects/:projectId/novels/:novelId/key-events",
+    async handler(request, context) {
+      const vaultRoot = requireVaultRoot(context);
+      return await createKeyEvent(vaultRoot, request.params.projectId, request.params.novelId, request.body as never);
+    },
+  },
+  {
+    method: "PUT",
+    path: "/api/v1/projects/:projectId/novels/:novelId/key-events/reorder",
+    async handler(request, context) {
+      const vaultRoot = requireVaultRoot(context);
+      const body = request.body as { orderedIds?: unknown } | undefined;
+      return {
+        keyEvents: await reorderKeyEvents(vaultRoot, request.params.projectId, request.params.novelId, body?.orderedIds),
+      };
+    },
+  },
+  {
+    method: "PATCH",
+    path: "/api/v1/projects/:projectId/novels/:novelId/key-events/:keyEventId",
+    async handler(request, context) {
+      const vaultRoot = requireVaultRoot(context);
+      return await updateKeyEvent(
+        vaultRoot,
+        request.params.projectId,
+        request.params.novelId,
+        request.params.keyEventId,
+        request.body as never,
+      );
+    },
+  },
+  {
+    method: "DELETE",
+    path: "/api/v1/projects/:projectId/novels/:novelId/key-events/:keyEventId",
+    async handler(request, context) {
+      const vaultRoot = requireVaultRoot(context);
+      return await deleteKeyEvent(vaultRoot, request.params.projectId, request.params.novelId, request.params.keyEventId);
     },
   },
   {

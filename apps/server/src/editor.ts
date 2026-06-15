@@ -1,7 +1,7 @@
 import { mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 
-import { CHAPTER_STATUS_VALUES, type Annotation, type Chapter, type ChapterPlan, type ChapterStatus, type Lock, type Volume } from "@shulingge/shared";
+import { CHAPTER_STATUS_VALUES, type Annotation, type Chapter, type ChapterPlan, type ChapterStatus, type KeyEvent, type KeyEventCustomField, type Lock, type Volume } from "@shulingge/shared";
 import { readJsonFile, readManuscriptFile, resolveSafePath, writeJsonFile, writeManuscriptFile } from "@shulingge/vault-core";
 
 import { createHttpError } from "./errors.js";
@@ -62,6 +62,19 @@ export interface ChapterPlanInput {
   summary?: unknown;
 }
 
+export interface KeyEventInput {
+  title?: unknown;
+  positioning?: unknown;
+  prerequisites?: unknown;
+  flow?: unknown;
+  relationChanges?: unknown;
+  forbidden?: unknown;
+  customFields?: unknown;
+  volumeId?: unknown;
+  chapterPlanId?: unknown;
+  timelineId?: unknown;
+}
+
 interface SaveChapterInput extends EditorChapterLocator {
   content: string;
 }
@@ -103,6 +116,14 @@ function getChapterPlanRelativePath(projectId: string, novelId: string, chapterP
   return path.posix.join(getChapterPlansRootPath(projectId, novelId), `${chapterPlanId}.json`);
 }
 
+function getKeyEventsRootPath(projectId: string, novelId: string): string {
+  return path.posix.join(getNovelRootPathFor(projectId, novelId), "key-events");
+}
+
+function getKeyEventRelativePath(projectId: string, novelId: string, keyEventId: string): string {
+  return path.posix.join(getKeyEventsRootPath(projectId, novelId), `${keyEventId}.json`);
+}
+
 function getProjectRelativePath(projectId: string): string {
   return path.posix.join("projects", projectId);
 }
@@ -128,6 +149,12 @@ function assertVolumeId(volumeId: string | undefined): asserts volumeId is strin
 function assertChapterPlanId(chapterPlanId: string | undefined): asserts chapterPlanId is string {
   if (!chapterPlanId) {
     throw createHttpError(400, "EDITOR_INVALID_CHAPTER_PLAN", "chapterPlanId is required");
+  }
+}
+
+function assertKeyEventId(keyEventId: string | undefined): asserts keyEventId is string {
+  if (!keyEventId) {
+    throw createHttpError(400, "EDITOR_INVALID_KEY_EVENT", "keyEventId is required");
   }
 }
 
@@ -556,6 +583,58 @@ function normalizeChapterPlanPayload(input: ChapterPlanInput, current?: ChapterP
   };
 }
 
+function readOptionalId(input: unknown, fieldName: string): string | undefined {
+  if (input === undefined) {
+    return undefined;
+  }
+  if (input === null) {
+    return "";
+  }
+  if (typeof input !== "string") {
+    throw createHttpError(400, "EDITOR_INVALID_REFERENCE", `${fieldName} is invalid`);
+  }
+  return input.trim();
+}
+
+function normalizeKeyEventCustomFields(input: unknown, current?: KeyEventCustomField[]): KeyEventCustomField[] {
+  if (input === undefined) {
+    return current ?? [];
+  }
+  if (!Array.isArray(input)) {
+    throw createHttpError(400, "EDITOR_INVALID_KEY_EVENT_CUSTOM_FIELDS", "customFields must be an array");
+  }
+  return input
+    .map((item) => item && typeof item === "object" ? item as Record<string, unknown> : null)
+    .filter((item): item is Record<string, unknown> => Boolean(item))
+    .map((item) => ({
+      title: readOptionalText(item.title),
+      content: readOptionalText(item.content),
+    }))
+    .filter((item) => item.title || item.content);
+}
+
+function normalizeKeyEventPayload(input: KeyEventInput, current?: KeyEvent): Omit<KeyEvent, "id" | "projectId" | "novelId" | "order" | "schemaVersion" | "createdAt" | "updatedAt"> {
+  if (!current || input.title !== undefined) {
+    assertTitle(input.title);
+  }
+  const volumeId = input.volumeId !== undefined ? readOptionalId(input.volumeId, "volumeId") : current?.volumeId;
+  const chapterPlanId = input.chapterPlanId !== undefined ? readOptionalId(input.chapterPlanId, "chapterPlanId") : current?.chapterPlanId;
+  const timelineId = input.timelineId !== undefined ? readOptionalId(input.timelineId, "timelineId") : current?.timelineId;
+
+  return {
+    title: input.title !== undefined ? String(input.title).trim() : current?.title ?? "",
+    positioning: input.positioning !== undefined ? readOptionalText(input.positioning) : current?.positioning ?? "",
+    prerequisites: input.prerequisites !== undefined ? readOptionalText(input.prerequisites) : current?.prerequisites ?? "",
+    flow: input.flow !== undefined ? readOptionalText(input.flow) : current?.flow ?? "",
+    relationChanges: input.relationChanges !== undefined ? readOptionalText(input.relationChanges) : current?.relationChanges ?? "",
+    forbidden: input.forbidden !== undefined ? readOptionalText(input.forbidden) : current?.forbidden ?? "",
+    customFields: normalizeKeyEventCustomFields(input.customFields, current?.customFields),
+    ...(volumeId ? { volumeId } : {}),
+    ...(chapterPlanId ? { chapterPlanId } : {}),
+    ...(timelineId ? { timelineId } : {}),
+  };
+}
+
 async function ensureNovelExists(vaultRoot: string, projectId: string, novelId: string): Promise<void> {
   const novelPath = path.posix.join(getNovelRootPathFor(projectId, novelId), "novel.json");
   const metadata = await readOptionalJson<unknown>(vaultRoot, novelPath);
@@ -578,6 +657,14 @@ async function readChapterPlan(vaultRoot: string, projectId: string, novelId: st
     throw createHttpError(404, "EDITOR_CHAPTER_PLAN_NOT_FOUND", "chapter plan not found");
   }
   return chapterPlan;
+}
+
+async function readKeyEvent(vaultRoot: string, projectId: string, novelId: string, keyEventId: string): Promise<KeyEvent> {
+  const keyEvent = await readOptionalJson<KeyEvent>(vaultRoot, getKeyEventRelativePath(projectId, novelId, keyEventId));
+  if (!keyEvent) {
+    throw createHttpError(404, "EDITOR_KEY_EVENT_NOT_FOUND", "key event not found");
+  }
+  return keyEvent;
 }
 
 export async function listVolumes(vaultRoot: string, projectId: string, novelId: string): Promise<Volume[]> {
@@ -796,6 +883,144 @@ export async function reorderChapterPlans(vaultRoot: string, projectId: string, 
     });
   }));
   return await listChapterPlans(vaultRoot, projectId, novelId);
+}
+
+export async function listKeyEvents(vaultRoot: string, projectId: string, novelId: string): Promise<KeyEvent[]> {
+  assertProjectId(projectId);
+  assertNovelId(novelId);
+  await ensureNovelExists(vaultRoot, projectId, novelId);
+  const keyEventIds = await listJsonBaseNames(vaultRoot, getKeyEventsRootPath(projectId, novelId));
+  const keyEvents = await Promise.all(
+    keyEventIds.map((keyEventId) => readKeyEvent(vaultRoot, projectId, novelId, keyEventId).catch(() => null)),
+  );
+  return keyEvents
+    .filter((keyEvent): keyEvent is KeyEvent => Boolean(keyEvent))
+    .sort((left, right) => left.order - right.order || left.title.localeCompare(right.title));
+}
+
+async function validateKeyEventReferences(vaultRoot: string, projectId: string, novelId: string, payload: ReturnType<typeof normalizeKeyEventPayload>): Promise<void> {
+  if (payload.volumeId) {
+    await readVolume(vaultRoot, projectId, novelId, payload.volumeId);
+  }
+  if (payload.chapterPlanId) {
+    await readChapterPlan(vaultRoot, projectId, novelId, payload.chapterPlanId);
+  }
+}
+
+export async function createKeyEvent(vaultRoot: string, projectId: string, novelId: string, input: KeyEventInput): Promise<KeyEvent> {
+  assertProjectId(projectId);
+  assertNovelId(novelId);
+  await ensureNovelExists(vaultRoot, projectId, novelId);
+  const payload = normalizeKeyEventPayload(input);
+  await validateKeyEventReferences(vaultRoot, projectId, novelId, payload);
+  const existingKeyEvents = await listKeyEvents(vaultRoot, projectId, novelId);
+  const existingIds = existingKeyEvents.map((keyEvent) => keyEvent.id);
+  const baseId = slugifyTitle(payload.title) || "key-event";
+  const keyEventId = existingIds.includes(baseId) ? nextNumberedId(baseId, existingIds) : baseId;
+  const now = new Date().toISOString();
+  const keyEvent: KeyEvent = {
+    id: keyEventId,
+    projectId,
+    novelId,
+    order: existingKeyEvents.length,
+    ...payload,
+    schemaVersion: 1,
+    createdAt: now,
+    updatedAt: now,
+  };
+
+  await mkdir(resolveSafePath(vaultRoot, getKeyEventsRootPath(projectId, novelId)), { recursive: true });
+  await writeJsonFile(vaultRoot, getKeyEventRelativePath(projectId, novelId, keyEventId), keyEvent);
+  return keyEvent;
+}
+
+export async function updateKeyEvent(
+  vaultRoot: string,
+  projectId: string,
+  novelId: string,
+  keyEventId: string,
+  input: KeyEventInput,
+): Promise<KeyEvent> {
+  assertProjectId(projectId);
+  assertNovelId(novelId);
+  assertKeyEventId(keyEventId);
+  const current = await readKeyEvent(vaultRoot, projectId, novelId, keyEventId);
+  const payload = normalizeKeyEventPayload(input, current);
+  await validateKeyEventReferences(vaultRoot, projectId, novelId, payload);
+  const next: KeyEvent = {
+    ...current,
+    title: payload.title,
+    positioning: payload.positioning,
+    prerequisites: payload.prerequisites,
+    flow: payload.flow,
+    relationChanges: payload.relationChanges,
+    forbidden: payload.forbidden,
+    customFields: payload.customFields,
+    updatedAt: new Date().toISOString(),
+  };
+  if (payload.volumeId) {
+    next.volumeId = payload.volumeId;
+  } else {
+    delete next.volumeId;
+  }
+  if (payload.chapterPlanId) {
+    next.chapterPlanId = payload.chapterPlanId;
+  } else {
+    delete next.chapterPlanId;
+  }
+  if (payload.timelineId) {
+    next.timelineId = payload.timelineId;
+  } else {
+    delete next.timelineId;
+  }
+  await writeJsonFile(vaultRoot, getKeyEventRelativePath(projectId, novelId, keyEventId), next);
+  return next;
+}
+
+export async function deleteKeyEvent(
+  vaultRoot: string,
+  projectId: string,
+  novelId: string,
+  keyEventId: string,
+): Promise<{ id: string; deleted: true }> {
+  assertProjectId(projectId);
+  assertNovelId(novelId);
+  assertKeyEventId(keyEventId);
+  await rm(resolveSafePath(vaultRoot, getKeyEventRelativePath(projectId, novelId, keyEventId)), { force: true });
+  const remaining = await listKeyEvents(vaultRoot, projectId, novelId);
+  await Promise.all(remaining.map((keyEvent, index) => {
+    const next = { ...keyEvent, order: index, updatedAt: new Date().toISOString() };
+    return writeJsonFile(vaultRoot, getKeyEventRelativePath(projectId, novelId, keyEvent.id), next);
+  }));
+  return { id: keyEventId, deleted: true };
+}
+
+export async function reorderKeyEvents(vaultRoot: string, projectId: string, novelId: string, orderedIds: unknown): Promise<KeyEvent[]> {
+  assertProjectId(projectId);
+  assertNovelId(novelId);
+  if (!Array.isArray(orderedIds) || orderedIds.some((id) => typeof id !== "string")) {
+    throw createHttpError(400, "EDITOR_INVALID_KEY_EVENT_ORDER", "orderedIds is required");
+  }
+  const keyEvents = await listKeyEvents(vaultRoot, projectId, novelId);
+  const knownIds = new Set(keyEvents.map((keyEvent) => keyEvent.id));
+  const requestedIds = orderedIds as string[];
+  if (requestedIds.some((id) => !knownIds.has(id))) {
+    throw createHttpError(400, "EDITOR_INVALID_KEY_EVENT_ORDER", "key event order contains unknown id");
+  }
+  const finalOrder = [...requestedIds, ...keyEvents.map((keyEvent) => keyEvent.id).filter((id) => !requestedIds.includes(id))];
+  const byId = new Map(keyEvents.map((keyEvent) => [keyEvent.id, keyEvent]));
+  await Promise.all(finalOrder.map((id, index) => {
+    const keyEvent = byId.get(id);
+    if (!keyEvent) {
+      return Promise.resolve();
+    }
+    return writeJsonFile(vaultRoot, getKeyEventRelativePath(projectId, novelId, id), {
+      ...keyEvent,
+      order: index,
+      updatedAt: new Date().toISOString(),
+    });
+  }));
+  return await listKeyEvents(vaultRoot, projectId, novelId);
 }
 
 export async function updateProjectCover(vaultRoot: string, projectId: string, input: unknown): Promise<ProjectSummary> {

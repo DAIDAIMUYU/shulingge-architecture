@@ -215,6 +215,40 @@ export interface ChapterPlanInput {
   volumeId?: string | null;
   summary?: string;
 }
+export interface KeyEventCustomField {
+  title: string;
+  content: string;
+}
+export interface KeyEventRecord {
+  id: string;
+  projectId: string;
+  novelId: string;
+  title: string;
+  order: number;
+  positioning: string;
+  prerequisites: string;
+  flow: string;
+  relationChanges: string;
+  forbidden: string;
+  customFields: KeyEventCustomField[];
+  volumeId?: string;
+  chapterPlanId?: string;
+  timelineId?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+export interface KeyEventInput {
+  title: string;
+  positioning?: string;
+  prerequisites?: string;
+  flow?: string;
+  relationChanges?: string;
+  forbidden?: string;
+  customFields?: KeyEventCustomField[];
+  volumeId?: string | null;
+  chapterPlanId?: string | null;
+  timelineId?: string | null;
+}
 export interface ChapterSummary {
   chapterId: string;
   title: string;
@@ -1162,6 +1196,40 @@ export const api = {
         },
       ),
       "chapterPlans",
+    ),
+  listKeyEvents: async (projectId: string, novelId: string): Promise<KeyEventRecord[]> =>
+    unwrapList<KeyEventRecord>(
+      await get(`/projects/${encodeURIComponent(projectId)}/novels/${encodeURIComponent(novelId)}/key-events`),
+      "keyEvents",
+    ),
+  createKeyEvent: async (projectId: string, novelId: string, payload: KeyEventInput): Promise<KeyEventRecord> =>
+    post<KeyEventRecord>(`/projects/${encodeURIComponent(projectId)}/novels/${encodeURIComponent(novelId)}/key-events`, payload),
+  updateKeyEvent: async (
+    projectId: string,
+    novelId: string,
+    keyEventId: string,
+    payload: Partial<KeyEventInput>,
+  ): Promise<KeyEventRecord> =>
+    patch<KeyEventRecord>(
+      `/projects/${encodeURIComponent(projectId)}/novels/${encodeURIComponent(novelId)}/key-events/${encodeURIComponent(keyEventId)}`,
+      payload,
+    ),
+  deleteKeyEvent: async (projectId: string, novelId: string, keyEventId: string): Promise<{ id: string; deleted: true }> =>
+    request<{ id: string; deleted: true }>(
+      `/projects/${encodeURIComponent(projectId)}/novels/${encodeURIComponent(novelId)}/key-events/${encodeURIComponent(keyEventId)}`,
+      { method: "DELETE" },
+    ),
+  reorderKeyEvents: async (projectId: string, novelId: string, orderedIds: string[]): Promise<KeyEventRecord[]> =>
+    unwrapList<KeyEventRecord>(
+      await request<{ keyEvents: KeyEventRecord[] }>(
+        `/projects/${encodeURIComponent(projectId)}/novels/${encodeURIComponent(novelId)}/key-events/reorder`,
+        {
+          method: "PUT",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ orderedIds }),
+        },
+      ),
+      "keyEvents",
     ),
 
   loadChapter: (chapterId: string, projectId: string, novelId: string) =>
