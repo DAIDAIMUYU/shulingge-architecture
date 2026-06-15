@@ -554,13 +554,12 @@ body.app-focus .main { padding-bottom: 0; }
 .conversation-menu-row { display: grid; grid-template-columns: minmax(0, 1fr) 30px; gap: 4px; align-items: stretch; border-radius: var(--radius-sm); }
 .conversation-menu-row.active { background: var(--bg-active); }
 .conversation-menu-main { min-width: 0; display: grid; gap: 2px; padding: 8px 10px; border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--text-secondary); text-align: left; cursor: pointer; }
-.conversation-menu-main:hover,
-.conversation-menu-delete:hover { background: var(--bg-hover); color: var(--text-primary); }
+.conversation-menu-main:hover { background: var(--bg-hover); color: var(--text-primary); }
 .conversation-menu-row.active .conversation-menu-main { color: var(--primary); }
 .conversation-menu-main span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
 .conversation-menu-main small { color: var(--text-muted); font-size: 11px; }
-.conversation-menu-delete { width: 30px; border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--text-muted); display: grid; place-items: center; cursor: pointer; }
-.conversation-menu-delete:hover { color: var(--danger); }
+.conversation-menu-delete { width: 30px; border: 1px solid color-mix(in srgb, var(--danger) 28%, transparent); border-radius: var(--radius-sm); background: color-mix(in srgb, var(--danger) 10%, transparent); color: var(--danger); display: grid; place-items: center; cursor: pointer; }
+.conversation-menu-delete:hover { background: color-mix(in srgb, var(--danger) 18%, transparent); color: var(--danger); }
 .conversation-menu-empty { padding: 10px; color: var(--text-muted); font-size: 12px; }
 .chat-scroll { flex: 1; min-height: 0; overflow: auto; padding: 20px 18px; display: flex; flex-direction: column; gap: 16px; }
 .msg { display: flex; gap: 10px; max-width: 100%; }
