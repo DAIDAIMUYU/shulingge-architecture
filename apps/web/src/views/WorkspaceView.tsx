@@ -71,7 +71,7 @@ type MobilePanel = "chapters" | "editor" | "chat";
 type QuickLookupTab = "characters" | "worldbook";
 type EditorMode = "rich" | "source";
 type ChatMessage =
-  | { id: number; kind: "text"; role: "ai" | "user"; text: string }
+  | { id: number; kind: "text"; role: "ai" | "user"; text: string; selectionText?: string }
   | { id: number; kind: "confirm"; task: DirectorTaskSuggestion; status: "pending" | "confirmed" | "cancelled" }
   | { id: number; kind: "ai-result"; agentName: string; text: string; undone?: boolean }
   | { id: number; kind: "run" };
@@ -84,6 +84,14 @@ type EditorContextMenu = {
   mode: EditorMode;
   hasSelection: boolean;
   selectedText: string;
+  start: number;
+  end: number;
+};
+type SelectedEditorText = {
+  mode: EditorMode;
+  start: number;
+  end: number;
+  text: string;
 };
 type PromptRequest = {
   title: string;
@@ -251,6 +259,11 @@ function summarizeSearchContent(content: string): string {
   return normalized.length > 86 ? `${normalized.slice(0, 86)}...` : normalized;
 }
 
+function excerptText(content: string, maxLength = 120): string {
+  const normalized = content.replace(/\s+/g, " ").trim();
+  return normalized.length > maxLength ? `${normalized.slice(0, maxLength)}...` : normalized;
+}
+
 function chapterIdFromSearchResult(result: SearchResult): string | null {
   const filename = result.path.split(/[\\/]/).pop();
   const fileChapterId = filename?.replace(/\.(md|json)$/i, "");
@@ -268,7 +281,7 @@ function isStoredChatMessage(value: unknown): value is StoredChatMessage {
   }
   const item = value as Partial<StoredChatMessage>;
   if (item.kind === "text") {
-    return (item.role === "ai" || item.role === "user") && typeof item.text === "string";
+    return (item.role === "ai" || item.role === "user") && typeof item.text === "string" && (item.selectionText === undefined || typeof item.selectionText === "string");
   }
   if (item.kind === "confirm") {
     return Boolean(item.task) && (item.status === "pending" || item.status === "confirmed" || item.status === "cancelled");
@@ -471,6 +484,7 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
   const [listStyle, setListStyle] = useState<ListStyleKind>("ordered-decimal");
   const [listMenuPosition, setListMenuPosition] = useState<ToolbarMenuPosition | null>(null);
   const [moreMenuPosition, setMoreMenuPosition] = useState<ToolbarMenuPosition | null>(null);
+  const [selectedEditorText, setSelectedEditorText] = useState<SelectedEditorText | null>(null);
   const [selectionRange, setSelectionRange] = useState({ start: 0, end: 0 });
   const [history, setHistory] = useState<string[]>([]);
   const [future, setFuture] = useState<string[]>([]);
@@ -976,10 +990,21 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
     if (!node) {
       return;
     }
+    const start = node.selectionStart ?? 0;
+    const end = node.selectionEnd ?? 0;
     setSelectionRange({
-      start: node.selectionStart ?? 0,
-      end: node.selectionEnd ?? 0,
+      start,
+      end,
     });
+    const text = start === end ? "" : node.value.slice(start, end);
+    setSelectedEditorText(text ? { mode: "source", start, end, text } : null);
+  };
+
+  const syncRichSelection = (activeEditor: Editor) => {
+    const { from, to } = activeEditor.state.selection;
+    setSelectionRange({ start: from, end: to });
+    const text = from === to ? "" : activeEditor.state.doc.textBetween(from, to, "\n").trim();
+    setSelectedEditorText(text ? { mode: "rich", start: from, end: to, text } : null);
   };
 
   const editor = useEditor({
@@ -1013,8 +1038,7 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
       setSelectionRange({ start: from, end: to });
     },
     onSelectionUpdate: ({ editor: activeEditor }) => {
-      const { from, to } = activeEditor.state.selection;
-      setSelectionRange({ start: from, end: to });
+      syncRichSelection(activeEditor);
     },
   }, [hasValidActiveChapter, vaultSelected, locator.chapterId, locator.novelId, locator.projectId]);
 
@@ -1171,7 +1195,36 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
       const caret = start + replacement.length;
       node.setSelectionRange(caret, caret);
       setSelectionRange({ start: caret, end: caret });
+      setSelectedEditorText(null);
     });
+  };
+
+  const replaceTrackedSelection = (selection: SelectedEditorText, replacement: string) => {
+    if (!replacement || !hasValidActiveChapter) {
+      return;
+    }
+    pushHistory(draft);
+    if (selection.mode === "source") {
+      const next = `${draft.slice(0, selection.start)}${replacement}${draft.slice(selection.end)}`;
+      onEdit(next);
+      setSelectedEditorText(null);
+      requestAnimationFrame(() => {
+        const node = sourceTextareaRef.current;
+        if (!node) {
+          return;
+        }
+        const caret = selection.start + replacement.length;
+        node.focus();
+        node.setSelectionRange(caret, caret);
+        setSelectionRange({ start: caret, end: caret });
+      });
+      return;
+    }
+    if (!editor) {
+      return;
+    }
+    editor.chain().focus().setTextSelection({ from: selection.start, to: selection.end }).insertContent(replacement).run();
+    setSelectedEditorText(null);
   };
 
   const getSourceSelectedText = () => {
@@ -1276,11 +1329,20 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
   };
 
   const askAiRewriteSelection = () => {
-    const selectedText = editorContextMenu?.selectedText.trim();
+    const menu = editorContextMenu;
+    if (!menu) {
+      return;
+    }
+    const selectedText = menu.selectedText.trim();
     if (!selectedText) {
       return;
     }
-    setChatInput(`请帮我改写这段文字，保持原意但让表达更自然：\n\n${selectedText}`);
+    setSelectedEditorText({
+      mode: menu.mode,
+      start: menu.start,
+      end: menu.end,
+      text: selectedText,
+    });
     setMobilePanel("chat");
   };
 
@@ -2035,16 +2097,31 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
 
   const onSend = async () => {
     const text = chatInput.trim();
-    if (!text || chatSending) {
+    const activeSelection = selectedEditorText;
+    if ((!text && !activeSelection) || chatSending) {
       return;
     }
     setChatInput("");
-    const userMessage: ChatMessage = { id: nextId(), kind: "text", role: "user", text };
+    const userText = text || "请改写这段文字";
+    const userMessage: ChatMessage = { id: nextId(), kind: "text", role: "user", text: userText, selectionText: activeSelection?.text };
+    const modelUserContent = activeSelection
+      ? [
+          "请只根据下面的选中正文进行局部改写。",
+          "必须返回 mode=chat 的 JSON，且 reply 字段只能包含改写后的正文文本。",
+          "不要解释，不要加标题，不要把整章正文放进 reply，不要返回 task。",
+          "",
+          "【选中正文】",
+          activeSelection.text,
+          "",
+          "【用户指令】",
+          userText,
+        ].join("\n")
+      : userText;
     const historyMessages: DirectorChatMessage[] = [...messages, userMessage]
       .filter((message): message is Extract<ChatMessage, { kind: "text" }> => message.kind === "text" && message.id !== 0)
       .map((message) => ({
         role: message.role === "ai" ? "assistant" : "user",
-        content: message.text,
+        content: message.id === userMessage.id ? modelUserContent : message.text,
       }));
     setMessages((items) => [...items, userMessage]);
 
@@ -2062,6 +2139,26 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
         novelId: locator.novelId || undefined,
         chapterId: locator.chapterId || undefined,
       });
+      if (activeSelection) {
+        const rewritten = (reply.reply ?? "").trim();
+        if (!rewritten || reply.mode === "task") {
+          throw new Error("AI 没有返回可用于替换选区的改写文本");
+        }
+        replaceTrackedSelection(activeSelection, rewritten);
+        setMessages((items) =>
+          items.map((message) =>
+            message.id === thinkingMessageId && message.kind === "text"
+              ? {
+                  id: thinkingMessageId,
+                  kind: "ai-result" as const,
+                  agentName: "总控改写",
+                  text: "已根据你的指令改写选中正文，并替换到原位置。可用编辑器撤销恢复。",
+                }
+              : message,
+          ),
+        );
+        return;
+      }
       setMessages((items) =>
         items.map((message) =>
           message.id === thinkingMessageId && message.kind === "text"
@@ -2162,6 +2259,8 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
       mode,
       hasSelection: selectedText.length > 0,
       selectedText,
+      start: selectionRange.start,
+      end: selectionRange.end,
     });
   };
 
@@ -2962,7 +3061,15 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
                 <span className={`msg-av ${message.role === "ai" ? "ai" : ""}`}>
                   {message.role === "ai" ? <Bot size={15} strokeWidth={1.75} /> : <PenLine size={14} strokeWidth={1.75} />}
                 </span>
-                <div className="msg-bubble">{message.text}</div>
+                <div className="msg-bubble">
+                  {message.selectionText ? (
+                    <div className="msg-selection-block">
+                      <span>针对选中</span>
+                      <p>「{excerptText(message.selectionText, 160)}」</p>
+                    </div>
+                  ) : null}
+                  <div className="msg-text">{message.text}</div>
+                </div>
               </div>
             ),
           )}
@@ -2971,6 +3078,17 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
 
         <div className="chat-input">
           {conversationSaveError ? <div className="chat-hint error">对话历史保存失败：{conversationSaveError}</div> : null}
+          {selectedEditorText ? (
+            <div className="selected-text-card">
+              <div className="selected-text-card-main">
+                <span>已选中正文</span>
+                <p>「{excerptText(selectedEditorText.text, 160)}」</p>
+              </div>
+              <button type="button" className="btn-icon" onClick={() => setSelectedEditorText(null)} aria-label="清除选中正文">
+                <X size={14} strokeWidth={1.9} />
+              </button>
+            </div>
+          ) : null}
           <div className="chat-input-box">
             <textarea
               rows={1}
@@ -2983,7 +3101,7 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
             <button
               type="button"
               className="chat-send"
-              disabled={chatSending || !chatInput.trim()}
+              disabled={chatSending || (!chatInput.trim() && !selectedEditorText)}
               onClick={() => void onSend()}
               title="发送"
             >

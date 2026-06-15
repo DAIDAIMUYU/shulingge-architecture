@@ -544,16 +544,20 @@ body.app-focus .main { padding-bottom: 0; }
 .chat-head .ch-name { font-size: 14px; font-weight: 600; }
 .chat-head .ch-sub { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
 .chat-head .grow { flex: 1; }
-.chat-scroll { flex: 1; min-height: 0; overflow: auto; padding: 20px 18px; display: flex; flex-direction: column; gap: 18px; }
+.chat-scroll { flex: 1; min-height: 0; overflow: auto; padding: 20px 18px; display: flex; flex-direction: column; gap: 16px; }
 .msg { display: flex; gap: 10px; max-width: 100%; }
 .msg-av { width: 28px; height: 28px; border-radius: 9px; flex: none; display: grid; place-items: center; font-size: 13px; }
 .msg-av.ai { background: var(--primary-light); color: var(--primary); }
-.msg-bubble { padding: 11px 14px; border-radius: var(--radius-md); font-size: 13.5px; line-height: 1.7; max-width: 280px; word-break: break-word; }
+.msg-bubble { padding: 12px 14px; border-radius: var(--radius-md); font-size: 13.5px; line-height: 1.68; max-width: min(340px, calc(100% - 38px)); overflow-wrap: anywhere; white-space: pre-wrap; }
 .msg.ai .msg-bubble { background: var(--bg-card); background-image: none; border: 1px solid var(--border); color: var(--text-primary); border-top-left-radius: 4px; box-shadow: var(--shadow-card); }
 .msg.user { flex-direction: row-reverse; }
 .msg.user .msg-bubble { background: linear-gradient(180deg, var(--primary), var(--primary-hover)); color: var(--text-on-primary); border-top-right-radius: 4px; box-shadow: 0 8px 18px color-mix(in srgb, var(--primary) 16%, transparent); }
 .msg.user .msg-av { background: var(--bg-hover); color: var(--text-secondary); }
-.msg-task .msg-bubble { max-width: 300px; }
+.msg-text { white-space: pre-wrap; }
+.msg-selection-block { display: grid; gap: 4px; margin-bottom: 9px; padding: 8px 10px; border-radius: var(--radius-sm); background: color-mix(in srgb, var(--bg-card) 14%, transparent); border: 1px solid color-mix(in srgb, currentColor 18%, transparent); color: inherit; opacity: .92; }
+.msg-selection-block span { font-size: 11px; font-weight: 600; opacity: .72; }
+.msg-selection-block p { margin: 0; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; line-height: 1.55; }
+.msg-task .msg-bubble { max-width: min(360px, calc(100% - 38px)); }
 .task-confirm-card { border-color: color-mix(in srgb, var(--primary) 34%, var(--border)); background: color-mix(in srgb, var(--primary-light) 46%, var(--bg-card)); box-shadow: var(--shadow-card); }
 .task-confirm-text { color: var(--text-primary); font-weight: 600; }
 .task-confirm-meta { display: flex; justify-content: space-between; gap: 10px; margin-top: 8px; color: var(--text-muted); font-size: 12px; }
@@ -612,6 +616,11 @@ body.app-focus .main { padding-bottom: 0; }
 
 /* 对话输入区 */
 .chat-input { border-top: 1px solid var(--border); padding: 14px 16px; }
+.selected-text-card { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 10px; padding: 10px 10px 10px 12px; border: 1px solid color-mix(in srgb, var(--primary) 24%, var(--border)); border-radius: var(--radius-md); background: color-mix(in srgb, var(--primary-light) 36%, var(--bg-card)); box-shadow: var(--shadow-card); }
+.selected-text-card-main { flex: 1; min-width: 0; display: grid; gap: 4px; }
+.selected-text-card-main span { color: var(--primary); font-size: 11px; font-weight: 700; letter-spacing: .02em; }
+.selected-text-card-main p { margin: 0; color: var(--text-secondary); font-size: 12px; line-height: 1.55; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.selected-text-card .btn-icon { width: 26px; height: 26px; flex: none; }
 .chat-input-box { display: flex; align-items: flex-end; gap: 8px; background: var(--bg-card); background-image: var(--surface-sheen); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 8px 8px 8px 14px; transition: border-color .18s ease, box-shadow .18s ease; }
 .chat-input-box:focus-within { border-color: var(--primary); box-shadow: var(--focus-ring); }
 .chat-input-box textarea { flex: 1; border: 0; outline: none; resize: none; background: transparent; font-size: 13.5px; line-height: 1.6; color: var(--text-primary); max-height: 120px; padding: 4px 0; }
