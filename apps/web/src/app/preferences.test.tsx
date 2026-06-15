@@ -13,6 +13,12 @@ test("normalizeWebPreferences keeps supported values and falls back for invalid 
       defaultInspectorTab: "annotations",
       sendShortcut: "mod-enter",
       watchedAgentIds: ["writer", "", "director"],
+      bodyFont: {
+        id: "preset-kaiti",
+        label: "楷体 KaiTi",
+        family: '"KaiTi", "楷体", serif',
+        source: "preset",
+      },
     }),
     {
       preferredLanguage: "en-US",
@@ -22,6 +28,13 @@ test("normalizeWebPreferences keeps supported values and falls back for invalid 
       defaultInspectorTab: "annotations",
       sendShortcut: "mod-enter",
       watchedAgentIds: ["writer", "director"],
+      bodyFont: {
+        id: "preset-kaiti",
+        label: "楷体 KaiTi",
+        family: '"KaiTi", "楷体", serif',
+        source: "preset",
+        fallback: undefined,
+      },
     },
   );
 

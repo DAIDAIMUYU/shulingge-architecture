@@ -22,6 +22,8 @@ import { TimelineView } from "../views/TimelineView.js";
 import { WorkspaceView } from "../views/WorkspaceView.js";
 import { WorldbookView } from "../views/WorldbookView.js";
 import { api } from "../api/client.js";
+import { hydrateSelectedCustomFont } from "./fonts.js";
+import { readWebPreferences } from "./preferences.js";
 import { VaultPickerModal } from "./VaultPickerModal.js";
 
 interface NavItem {
@@ -97,6 +99,7 @@ export function App() {
     await api.selectVault(nextPath);
     window.localStorage.setItem("shulingge.web.vaultPath", nextPath);
     setVaultPath(nextPath);
+    void hydrateSelectedCustomFont(readWebPreferences().bodyFont).catch(() => undefined);
   };
   const onClearVault = () => {
     window.localStorage.removeItem("shulingge.web.vaultPath");

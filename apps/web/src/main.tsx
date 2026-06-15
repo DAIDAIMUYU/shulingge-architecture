@@ -2,7 +2,8 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 
 import { App } from "./app/App.js";
-import { applyThemePreference, readWebPreferences } from "./app/preferences.js";
+import { hydrateSelectedCustomFont } from "./app/fonts.js";
+import { applyBodyFontPreference, applyThemePreference, readWebPreferences } from "./app/preferences.js";
 import { globalCss } from "./styles.js";
 
 // 浏览器 CSR 入口：注入设计系统全局样式，再挂载书灵阁 App。
@@ -11,6 +12,8 @@ styleTag.textContent = globalCss;
 document.head.appendChild(styleTag);
 const initialPreferences = readWebPreferences();
 applyThemePreference(initialPreferences.themeMode);
+applyBodyFontPreference(initialPreferences.bodyFont);
+void hydrateSelectedCustomFont(initialPreferences.bodyFont).catch(() => undefined);
 
 const container = document.getElementById("root");
 if (!container) {

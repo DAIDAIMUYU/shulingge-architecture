@@ -99,6 +99,7 @@ import {
   rollbackChapterFromSnapshot,
   unlockFinalizedChapter,
 } from "./versioning.js";
+import { importCustomFont, listCustomFonts } from "./font-settings.js";
 import {
   cancelWorkflowRun,
   getWorkflowRun,
@@ -483,6 +484,22 @@ export const routeDefinitions: RouteDefinition[] = [
     async handler(request, context) {
       const vaultRoot = requireVaultRoot(context);
       return await updateResearchSettings(vaultRoot, request.body, context.services.credentialService);
+    },
+  },
+  {
+    method: "GET",
+    path: "/api/v1/fonts",
+    async handler(_request, context) {
+      const vaultRoot = requireVaultRoot(context);
+      return await listCustomFonts(vaultRoot);
+    },
+  },
+  {
+    method: "POST",
+    path: "/api/v1/fonts/import",
+    async handler(request, context) {
+      const vaultRoot = requireVaultRoot(context);
+      return await importCustomFont(vaultRoot, request.body);
     },
   },
   {

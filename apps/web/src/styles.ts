@@ -39,6 +39,7 @@ export const globalCss = `
   --agent-error: #A94442;
 
   --font-serif: "Noto Serif SC", "Source Han Serif SC", "宋体", serif;
+  --body-font-family: var(--font-serif);
   --font-sans: "Noto Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif;
   --font-mono: "JetBrains Mono", "Consolas", monospace;
 
@@ -440,21 +441,21 @@ body.app-focus .main { padding-bottom: 0; }
 .quick-lookup-field p { margin: 0; color: var(--text-secondary); font-size: 12px; line-height: 1.7; overflow-wrap: anywhere; }
 .quick-lookup-field.multiline { grid-template-columns: 1fr; gap: 3px; }
 .paper-body { padding: 64px clamp(48px, 8vw, 96px) 78px; flex: 1; min-height: 0; overflow: auto; display: flex; flex-direction: column; position: relative; z-index: 1; }
-.chapter-title { font-family: var(--font-serif); font-size: 36px; font-weight: 600; letter-spacing: .06em; line-height: 1.25; color: var(--primary-ink); text-align: center; }
+.chapter-title { font-family: var(--body-font-family); font-size: 36px; font-weight: 600; letter-spacing: .06em; line-height: 1.25; color: var(--primary-ink); text-align: center; }
 .chapter-title-input { width: 100%; padding: 0 0 4px; border: 0; border-bottom: 1px solid transparent; outline: none; background: transparent; color: var(--text-primary); }
 .chapter-title-input:focus { border-bottom-color: var(--border-strong); }
 .title-rule { width: 72px; height: 2px; background: linear-gradient(90deg, transparent, var(--accent-cinnabar) 0 16%, var(--primary) 16% 84%, transparent); margin: 20px auto 36px; border-radius: 2px; box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent-cinnabar) 7%, transparent); }
-.manuscript { font-family: var(--font-serif); font-size: 17px; line-height: 2; letter-spacing: .025em; color: var(--text-primary); border: 0; outline: none; resize: none; background: transparent; width: 100%; max-width: 680px; margin: 0 auto; flex: 1; min-height: 360px; }
+.manuscript { font-family: var(--body-font-family); font-size: 17px; line-height: 2; letter-spacing: .025em; color: var(--text-primary); border: 0; outline: none; resize: none; background: transparent; width: 100%; max-width: 680px; margin: 0 auto; flex: 1; min-height: 360px; }
 .manuscript::placeholder { color: var(--text-muted); }
 .rich-editor-shell { position: relative; flex: 1; min-height: 360px; display: flex; width: 100%; max-width: 680px; margin: 0 auto; }
 .rich-editor-shell > div:not(.rich-editor-placeholder) { flex: 1; display: flex; min-width: 0; position: relative; z-index: 1; }
-.rich-editor-placeholder { position: absolute; top: 0; left: 0; right: 0; z-index: 1; pointer-events: none; color: var(--text-muted); font-family: var(--font-serif); font-size: 17px; line-height: 2; letter-spacing: .025em; }
+.rich-editor-placeholder { position: absolute; top: 0; left: 0; right: 0; z-index: 1; pointer-events: none; color: var(--text-muted); font-family: var(--body-font-family); font-size: 17px; line-height: 2; letter-spacing: .025em; }
 .rich-manuscript { min-height: 360px; white-space: pre-wrap; word-break: break-word; caret-color: var(--accent-cinnabar); font-size: 17px; line-height: 2; letter-spacing: .025em; }
 .rich-manuscript:focus { outline: none; }
 .rich-manuscript p { margin: 0 0 1.05em; }
 .rich-manuscript h1,
 .rich-manuscript h2,
-.rich-manuscript h3 { margin: 1.25em 0 0.65em; font-family: var(--font-serif); line-height: 1.38; letter-spacing: .03em; color: var(--primary-ink); }
+.rich-manuscript h3 { margin: 1.25em 0 0.65em; font-family: var(--body-font-family); line-height: 1.38; letter-spacing: .03em; color: var(--primary-ink); }
 .rich-manuscript h1 { font-size: 1.7em; }
 .rich-manuscript h2 { font-size: 1.42em; }
 .rich-manuscript h3 { font-size: 1.2em; }
@@ -680,6 +681,9 @@ body.app-focus .main { padding-bottom: 0; }
 .research-save-actions { margin-top: 10px; padding-top: 18px; border-top: 1px solid var(--border); }
 .model-key-row { display: flex; align-items: end; gap: 10px; flex-wrap: wrap; }
 .model-key-input { flex: 1 1 320px; min-width: 220px; }
+.font-import-actions { display: flex; align-items: center; justify-content: flex-end; gap: 14px; flex-wrap: wrap; min-width: 260px; }
+.font-import-actions input[type="file"] { display: none; }
+.font-preview { min-width: 210px; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--bg-panel); color: var(--text-primary); font-size: 16px; line-height: 1.7; text-align: left; }
 .model-feedback { margin-top: 16px; display: flex; align-items: center; gap: 8px; padding: 12px 14px; border-radius: var(--radius-sm); border: 1px solid var(--border); font-size: 13px; font-weight: 500; }
 .model-feedback-info { background: var(--bg-panel); color: var(--text-secondary); }
 .model-feedback-success { background: color-mix(in srgb, var(--agent-done) 14%, var(--bg-card)); border-color: color-mix(in srgb, var(--agent-done) 42%, var(--border)); color: var(--agent-done); }

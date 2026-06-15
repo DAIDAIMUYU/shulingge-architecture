@@ -386,6 +386,22 @@ export interface SearchSourceTestResult {
   count?: number;
   sourceName?: string;
 }
+export interface CustomFontRecord {
+  id: string;
+  label: string;
+  family: string;
+  fileName: string;
+  mimeType: string;
+  size: number;
+  createdAt: string;
+  dataUrl: string;
+}
+export interface ImportFontPayload {
+  label: string;
+  fileName: string;
+  mimeType: string;
+  contentBase64: string;
+}
 export interface AssistWorldbookField {
   group: string;
   key: string;
@@ -956,6 +972,10 @@ export const api = {
       method: "PUT",
       body: JSON.stringify(payload),
     }),
+  listCustomFonts: async (): Promise<CustomFontRecord[]> =>
+    unwrapList<CustomFontRecord>(await get("/fonts"), "fonts"),
+  importCustomFont: async (payload: ImportFontPayload): Promise<CustomFontRecord> =>
+    (await post<{ font: CustomFontRecord }>("/fonts/import", payload)).font,
   researchCharacter: async (payload: ResearchCharacterPayload): Promise<ResearchCharacterResponse> =>
     post<ResearchCharacterResponse>("/assist/character/research", payload),
   assistWorldbook: async (payload: AssistWorldbookPayload): Promise<AssistWorldbookResponse> =>

@@ -3,6 +3,14 @@ export type SendShortcut = "enter" | "mod-enter";
 export type InspectorTabPreference = "outline" | "annotations" | "locks";
 export type WebThemeMode = "light" | "eye" | "dark";
 
+export interface FontPreference {
+  id: string;
+  label: string;
+  family: string;
+  source: "preset" | "custom";
+  fallback?: string;
+}
+
 export interface WebPreferences {
   preferredLanguage: PreferredLanguage;
   autosaveDelayMs: 800 | 1200 | 2000;
@@ -11,10 +19,18 @@ export interface WebPreferences {
   defaultInspectorTab: InspectorTabPreference;
   sendShortcut: SendShortcut;
   watchedAgentIds: string[];
+  bodyFont: FontPreference;
 }
 
 const STORAGE_KEY = "shulingge.web.preferences";
 let themeTransitionTimer: ReturnType<typeof setTimeout> | undefined;
+
+export const DEFAULT_BODY_FONT: FontPreference = {
+  id: "preset-source-han-serif",
+  label: "思源宋体",
+  family: '"Noto Serif SC", "Source Han Serif SC", "宋体", serif',
+  source: "preset",
+};
 
 export const DEFAULT_WEB_PREFERENCES: WebPreferences = {
   preferredLanguage: "zh-CN",
@@ -24,7 +40,15 @@ export const DEFAULT_WEB_PREFERENCES: WebPreferences = {
   defaultInspectorTab: "outline",
   sendShortcut: "enter",
   watchedAgentIds: ["writer", "rule-guard", "director"],
+  bodyFont: DEFAULT_BODY_FONT,
 };
+
+export function applyBodyFontPreference(font: FontPreference): void {
+  if (typeof document === "undefined") {
+    return;
+  }
+  document.documentElement.style.setProperty("--body-font-family", font.family || DEFAULT_BODY_FONT.family);
+}
 
 export function applyThemePreference(themeMode: WebThemeMode): void {
   if (typeof document === "undefined") {
@@ -73,6 +97,19 @@ function isThemeMode(value: unknown): value is WebThemeMode {
   return value === "light" || value === "eye" || value === "dark";
 }
 
+function normalizeFontPreference(value: unknown): FontPreference {
+  if (!value || typeof value !== "object") {
+    return DEFAULT_BODY_FONT;
+  }
+  const record = value as Record<string, unknown>;
+  const id = typeof record.id === "string" && record.id.trim() ? record.id.trim() : DEFAULT_BODY_FONT.id;
+  const label = typeof record.label === "string" && record.label.trim() ? record.label.trim() : DEFAULT_BODY_FONT.label;
+  const family = typeof record.family === "string" && record.family.trim() ? record.family.trim() : DEFAULT_BODY_FONT.family;
+  const source = record.source === "custom" ? "custom" : "preset";
+  const fallback = typeof record.fallback === "string" && record.fallback.trim() ? record.fallback.trim() : undefined;
+  return { id, label, family, source, fallback };
+}
+
 export function normalizeWebPreferences(input: unknown): WebPreferences {
   const record = input && typeof input === "object" ? input as Record<string, unknown> : {};
 
@@ -96,6 +133,7 @@ export function normalizeWebPreferences(input: unknown): WebPreferences {
     watchedAgentIds: Array.isArray(record.watchedAgentIds)
       ? record.watchedAgentIds.map((item) => String(item).trim()).filter(Boolean)
       : DEFAULT_WEB_PREFERENCES.watchedAgentIds,
+    bodyFont: normalizeFontPreference(record.bodyFont),
   };
 }
 
@@ -124,6 +162,7 @@ export function writeWebPreferences(next: WebPreferences): WebPreferences {
     document.documentElement.lang = normalized.preferredLanguage;
   }
   applyThemePreference(normalized.themeMode);
+  applyBodyFontPreference(normalized.bodyFont);
   return normalized;
 }
 

@@ -18,18 +18,23 @@ import {
 
 import {
   DEFAULT_WEB_PREFERENCES,
+  DEFAULT_BODY_FONT,
+  applyBodyFontPreference,
   mergeWebPreferences,
   readWebPreferences,
   writeWebPreferences,
+  type FontPreference,
   type WebThemeMode,
   type WebPreferences,
 } from "../app/preferences.js";
+import { customFontToPreference, loadCustomFonts as loadStoredCustomFonts, registerCustomFont } from "../app/fonts.js";
 import {
   api,
   ApiError,
   type ModelConfig,
   type ModelConfigInput,
   type RemoteGatewayStatus,
+  type CustomFontRecord,
   type SearchSourceInfo,
   type SearchSourceState,
 } from "../api/client.js";
@@ -44,6 +49,21 @@ type Section = (typeof SECTIONS)[number];
 type ResearchConfigSource = "google" | "bing" | "custom";
 type CustomResearchSourceDraft = { id: string; name: string; baseUrl: string };
 type SourceStatesDraft = Record<string, SearchSourceState>;
+type FontOption = FontPreference & { dataUrl?: string };
+
+const BODY_FONT_PRESETS: FontOption[] = [
+  DEFAULT_BODY_FONT,
+  { id: "preset-source-han-sans", label: "思源黑体", family: '"Noto Sans SC", "Source Han Sans SC", "Microsoft YaHei", sans-serif', source: "preset" },
+  { id: "preset-simsun", label: "宋体", family: '"SimSun", "宋体", serif', source: "preset" },
+  { id: "preset-kaiti", label: "楷体 KaiTi", family: '"KaiTi", "楷体", serif', source: "preset" },
+  { id: "preset-simhei", label: "黑体 SimHei", family: '"SimHei", "黑体", sans-serif', source: "preset" },
+  { id: "preset-yahei", label: "微软雅黑", family: '"Microsoft YaHei", "微软雅黑", sans-serif', source: "preset" },
+  { id: "preset-fangsong", label: "仿宋 FangSong", family: '"FangSong", "仿宋", serif', source: "preset" },
+  { id: "preset-dengxian", label: "等线 DengXian", family: '"DengXian", "等线", sans-serif', source: "preset" },
+];
+
+const FONT_IMPORT_ACCEPT = ".ttf,.otf,.woff,.woff2";
+const MAX_FONT_FILE_BYTES = 8 * 1024 * 1024;
 
 const RESEARCH_CONFIG_SOURCE_OPTIONS: Array<{ value: ResearchConfigSource; label: string; hint: string }> = [
   { value: "google", label: "谷歌 Google", hint: "API key + 搜索引擎 ID（cx）" },
@@ -56,6 +76,22 @@ function createLocalCustomSourceId(): string {
     return crypto.randomUUID().slice(0, 12);
   }
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function customFontToOption(font: CustomFontRecord): FontOption {
+  return customFontToPreference(font);
+}
+
+function readFileAsBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = typeof reader.result === "string" ? reader.result : "";
+      resolve(result.includes(",") ? result.slice(result.indexOf(",") + 1) : result);
+    };
+    reader.onerror = () => reject(reader.error ?? new Error("字体文件读取失败"));
+    reader.readAsDataURL(file);
+  });
 }
 
 function sourceHealthLabel(source: SearchSourceInfo): string {
@@ -677,6 +713,9 @@ export function SettingsView({ vaultPath, onSetVault, onClearVault }: SettingsVi
   const [sec, setSec] = useState<Section>("资料库");
   const [preferences, setPreferences] = useState<WebPreferences>(() => readWebPreferences());
   const [preferencesFeedback, setPreferencesFeedback] = useState<string | null>(null);
+  const [customFonts, setCustomFonts] = useState<CustomFontRecord[]>([]);
+  const [fontFeedback, setFontFeedback] = useState<string | null>(null);
+  const [fontImporting, setFontImporting] = useState(false);
   const [vaultDraft, setVaultDraft] = useState(vaultPath ?? "");
   const [vaultFeedback, setVaultFeedback] = useState<string | null>(null);
   const [vaultSaving, setVaultSaving] = useState(false);
@@ -723,6 +762,51 @@ export function SettingsView({ vaultPath, onSetVault, onClearVault }: SettingsVi
     () => models.find((model) => model.id === selectedModelId) ?? null,
     [models, selectedModelId],
   );
+  const bodyFontOptions = useMemo<FontOption[]>(
+    () => [...BODY_FONT_PRESETS, ...customFonts.map(customFontToOption)],
+    [customFonts],
+  );
+
+  function saveBodyFont(fontId: string): void {
+    const font = bodyFontOptions.find((option) => option.id === fontId) ?? DEFAULT_BODY_FONT;
+    savePreferencePatch({ bodyFont: font }, setPreferences, setPreferencesFeedback);
+  }
+
+  async function importBodyFont(file: File | undefined): Promise<void> {
+    if (!file) {
+      return;
+    }
+    setFontFeedback(null);
+    const extension = file.name.slice(file.name.lastIndexOf(".")).toLowerCase();
+    if (![".ttf", ".otf", ".woff", ".woff2"].includes(extension)) {
+      setFontFeedback("仅支持 .ttf、.otf、.woff、.woff2 字体文件");
+      return;
+    }
+    if (file.size > MAX_FONT_FILE_BYTES) {
+      setFontFeedback("字体文件需小于 8MB");
+      return;
+    }
+    setFontImporting(true);
+    try {
+      const contentBase64 = await readFileAsBase64(file);
+      const label = file.name.replace(/\.[^.]+$/, "");
+      const font = await api.importCustomFont({
+        label,
+        fileName: file.name,
+        mimeType: file.type || "font/ttf",
+        contentBase64,
+      });
+      await registerCustomFont(font);
+      setCustomFonts((current) => [...current.filter((item) => item.id !== font.id), font]);
+      const option = customFontToOption(font);
+      savePreferencePatch({ bodyFont: option }, setPreferences, setPreferencesFeedback);
+      setFontFeedback(`已导入并应用字体：${font.label}`);
+    } catch (error) {
+      setFontFeedback(error instanceof ApiError ? error.message : "字体导入失败");
+    } finally {
+      setFontImporting(false);
+    }
+  }
 
   async function loadModels() {
     setModelsLoading(true);
@@ -745,6 +829,15 @@ export function SettingsView({ vaultPath, onSetVault, onClearVault }: SettingsVi
       setRemoteAutoStart(Boolean(status.autoStart));
     } catch (error) {
       setRemoteFeedback(error instanceof ApiError ? error.message : "远程状态加载失败");
+    }
+  }
+
+  async function loadCustomFonts(): Promise<void> {
+    try {
+      const fonts = await loadStoredCustomFonts();
+      setCustomFonts(fonts);
+    } catch (error) {
+      setFontFeedback(error instanceof ApiError ? error.message : "字体列表加载失败");
     }
   }
 
@@ -779,6 +872,7 @@ export function SettingsView({ vaultPath, onSetVault, onClearVault }: SettingsVi
     void loadModels();
     void loadRemoteStatus();
     void loadResearchSettings();
+    void loadCustomFonts();
   }, []);
 
   async function saveResearchDefaultSource(nextSource: string): Promise<void> {
@@ -936,6 +1030,10 @@ export function SettingsView({ vaultPath, onSetVault, onClearVault }: SettingsVi
   }, [preferences.preferredLanguage]);
 
   useEffect(() => {
+    applyBodyFontPreference(preferences.bodyFont);
+  }, [preferences.bodyFont]);
+
+  useEffect(() => {
     setVaultDraft(vaultPath ?? "");
   }, [vaultPath]);
 
@@ -954,6 +1052,7 @@ export function SettingsView({ vaultPath, onSetVault, onClearVault }: SettingsVi
     try {
       await onSetVault(nextPath);
       setVaultFeedback("资料库位置已更新");
+      await loadCustomFonts();
     } catch (error) {
       setVaultFeedback(error instanceof Error ? error.message : "资料库位置更新失败");
     } finally {
@@ -966,6 +1065,7 @@ export function SettingsView({ vaultPath, onSetVault, onClearVault }: SettingsVi
       return;
     }
     onClearVault();
+    setCustomFonts([]);
     setVaultFeedback("资料库位置已清除");
     setConfirmClearVault(false);
   };
@@ -1079,10 +1179,44 @@ export function SettingsView({ vaultPath, onSetVault, onClearVault }: SettingsVi
               <div className="form-row">
                 <div>
                   <div className="fr-label">正文字体</div>
-                  <div className="fr-desc">编辑器正文使用的字体。</div>
+                  <div className="fr-desc">编辑器正文和章节标题使用的字体，可选择系统预设或导入字体文件。</div>
                 </div>
-                <span className="tag">思源宋体</span>
+                <Select
+                  value={bodyFontOptions.some((option) => option.id === preferences.bodyFont.id) ? preferences.bodyFont.id : DEFAULT_BODY_FONT.id}
+                  onChange={saveBodyFont}
+                  options={bodyFontOptions.map((font) => ({
+                    value: font.id,
+                    label: font.label,
+                    hint: font.source === "custom" ? "已导入字体" : "系统/预设字体",
+                  }))}
+                  ariaLabel="选择正文字体"
+                />
               </div>
+              <div className="form-row">
+                <div>
+                  <div className="fr-label">导入字体</div>
+                  <div className="fr-desc">支持 ttf、otf、woff、woff2，单个文件不超过 8MB。导入后会存入当前资料库并加入字体列表。</div>
+                </div>
+                <div className="font-import-actions">
+                  <label className={`btn ${fontImporting ? "disabled" : ""}`}>
+                    {fontImporting ? "导入中..." : "选择字体文件"}
+                    <input
+                      type="file"
+                      accept={FONT_IMPORT_ACCEPT}
+                      disabled={fontImporting}
+                      onChange={(event) => {
+                        const file = event.currentTarget.files?.[0];
+                        event.currentTarget.value = "";
+                        void importBodyFont(file);
+                      }}
+                    />
+                  </label>
+                  <div className="font-preview" style={{ fontFamily: preferences.bodyFont.family }}>
+                    山月入窗，正文预览
+                  </div>
+                </div>
+              </div>
+              {fontFeedback ? <div className="inspector-feedback">{fontFeedback}</div> : null}
             </div>
           ) : null}
 
