@@ -988,8 +988,20 @@ body.app-focus .main { padding-bottom: 0; }
 .plot-textarea { min-height: 108px; }
 .plot-textarea-lg { min-height: 172px; }
 .plot-chapter-modal,
-.plot-volume-modal { display: grid; gap: 16px; }
+.plot-volume-modal { display: grid; gap: 16px; max-height: 85vh; overflow: hidden; }
 .plot-volume-modal { width: min(760px, 100%); }
+.plot-modal-body { min-height: 0; max-height: calc(85vh - 170px); display: grid; gap: 16px; overflow-y: auto; padding-right: 4px; }
+.plot-chapter-section { margin-top: 22px; padding-top: 20px; border-top: 1px solid var(--border); }
+.plot-chapter-section-head { margin-bottom: 12px; }
+.plot-chapter-section h3 { margin: 0; font-size: 16px; color: var(--text-primary); }
+.plot-chapter-groups { display: grid; gap: 14px; }
+.plot-chapter-group { display: grid; gap: 8px; }
+.plot-chapter-group-title { color: var(--text-muted); font-size: 12px; font-weight: 600; }
+.plot-chapter-list { display: grid; gap: 8px; }
+.plot-chapter-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 9px 10px; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--bg-card); background-image: none; box-shadow: var(--shadow-card); }
+.plot-chapter-main { min-width: 0; display: grid; gap: 3px; }
+.plot-chapter-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; font-weight: 600; color: var(--text-primary); }
+.plot-chapter-meta { color: var(--text-muted); font-size: 12px; }
 
 .card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(232px, 1fr)); gap: 22px; }
 .project-card { background: var(--bg-card); background-image: none; border: 1px solid var(--border); border-radius: var(--radius-md); box-shadow: var(--shadow-card); overflow: hidden; transition: box-shadow .18s ease, transform .18s ease, border-color .18s ease; }

@@ -43,6 +43,7 @@ export interface ChapterSummary {
   title: string;
   status: ChapterStatus;
   wordCount: number;
+  volumeId?: string;
 }
 
 export type VolumeStatus = NonNullable<Volume["status"]>;
@@ -709,6 +710,7 @@ export async function listChapters(vaultRoot: string, projectId: string, novelId
         title: readTitle(metadata, chapterId),
         status: metadata?.status ?? "drafting",
         wordCount: metadata?.wordCount ?? 0,
+        volumeId: metadata?.volumeId,
       };
     }),
   );
@@ -753,12 +755,13 @@ export async function createChapter(
     title,
     status: "drafting",
     wordCount: 0,
+    volumeId,
   };
 }
 
 export async function renameChapter(
   vaultRoot: string,
-  input: { projectId: string; novelId: string; chapterId: string; title?: unknown; status?: unknown },
+  input: { projectId: string; novelId: string; chapterId: string; title?: unknown; status?: unknown; volumeId?: unknown },
 ): Promise<ChapterSummary> {
   assertLocator(input);
   if (input.title !== undefined) {
@@ -767,22 +770,41 @@ export async function renameChapter(
   if (input.status !== undefined) {
     assertChapterStatus(input.status);
   }
+  let nextVolumeId: string | undefined;
+  if (input.volumeId !== undefined && input.volumeId !== null) {
+    if (typeof input.volumeId !== "string") {
+      throw createHttpError(400, "EDITOR_INVALID_VOLUME", "volumeId is invalid");
+    }
+    nextVolumeId = input.volumeId.trim() || undefined;
+    if (nextVolumeId) {
+      await readVolume(vaultRoot, input.projectId, input.novelId, nextVolumeId);
+    }
+  }
 
   const metadata = await readChapterMetadata(vaultRoot, input);
   const title = typeof input.title === "string" ? input.title.trim() : metadata.title;
   const status = input.status !== undefined ? input.status : metadata.status;
-  await writeJsonFile(vaultRoot, getMetadataRelativePath(input), {
+  const nextMetadata: Chapter = {
     ...metadata,
     title,
     status,
     updatedAt: new Date().toISOString(),
-  });
+  };
+  if (input.volumeId !== undefined) {
+    if (nextVolumeId) {
+      nextMetadata.volumeId = nextVolumeId;
+    } else {
+      delete nextMetadata.volumeId;
+    }
+  }
+  await writeJsonFile(vaultRoot, getMetadataRelativePath(input), nextMetadata);
 
   return {
     chapterId: input.chapterId,
     title,
     status,
     wordCount: metadata.wordCount ?? 0,
+    volumeId: nextMetadata.volumeId,
   };
 }
 

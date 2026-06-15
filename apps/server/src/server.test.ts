@@ -2566,7 +2566,12 @@ test("project create route initializes project and default novel skeleton", asyn
     });
     const createVolumeChapterPayload = (await createVolumeChapterResponse.json()) as {
       ok: true;
-      data: { chapterId: string; title: string };
+      data: { chapterId: string; title: string; volumeId?: string };
+    };
+    const chaptersAfterVolumeChapterResponse = await fetch(`${server.baseUrl}/api/v1/projects/${createdPayload.data.projectId}/novels/main/chapters`);
+    const chaptersAfterVolumeChapterPayload = (await chaptersAfterVolumeChapterResponse.json()) as {
+      ok: true;
+      data: { chapters: Array<{ chapterId: string; volumeId?: string }> };
     };
 
     const emptyProjectsPayload = (await emptyProjectsResponse.json()) as {
@@ -2626,11 +2631,46 @@ test("project create route initializes project and default novel skeleton", asyn
     );
     assert.equal(createVolumeChapterResponse.status, 200);
     assert.equal(createVolumeChapterPayload.data.title, "卷内章节");
+    assert.equal(createVolumeChapterPayload.data.volumeId, createdVolumePayload.data.id);
+    assert.equal(chaptersAfterVolumeChapterResponse.status, 200);
+    assert.equal(
+      chaptersAfterVolumeChapterPayload.data.chapters.find((chapter) => chapter.chapterId === createVolumeChapterPayload.data.chapterId)?.volumeId,
+      createdVolumePayload.data.id,
+    );
     const volumeChapterMetadata = await readJsonFile<{ volumeId?: string }>(
       vaultRoot,
       `projects/${createdPayload.data.projectId}/novels/main/metadata/chapters/${createVolumeChapterPayload.data.chapterId}.json`,
     );
     assert.equal(volumeChapterMetadata.volumeId, createdVolumePayload.data.id);
+    const clearVolumeChapterResponse = await fetch(
+      `${server.baseUrl}/api/v1/projects/${createdPayload.data.projectId}/novels/main/chapters/${createVolumeChapterPayload.data.chapterId}`,
+      {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ title: "未归属章节", volumeId: null }),
+      },
+    );
+    const clearVolumeChapterPayload = (await clearVolumeChapterResponse.json()) as {
+      ok: true;
+      data: { chapterId: string; title: string; volumeId?: string };
+    };
+    const chaptersAfterClearVolumeResponse = await fetch(`${server.baseUrl}/api/v1/projects/${createdPayload.data.projectId}/novels/main/chapters`);
+    const chaptersAfterClearVolumePayload = (await chaptersAfterClearVolumeResponse.json()) as {
+      ok: true;
+      data: { chapters: Array<{ chapterId: string; volumeId?: string }> };
+    };
+    assert.equal(clearVolumeChapterResponse.status, 200);
+    assert.equal(clearVolumeChapterPayload.data.title, "未归属章节");
+    assert.equal(clearVolumeChapterPayload.data.volumeId, undefined);
+    assert.equal(
+      chaptersAfterClearVolumePayload.data.chapters.find((chapter) => chapter.chapterId === createVolumeChapterPayload.data.chapterId)?.volumeId,
+      undefined,
+    );
+    const clearedVolumeChapterMetadata = await readJsonFile<{ volumeId?: string }>(
+      vaultRoot,
+      `projects/${createdPayload.data.projectId}/novels/main/metadata/chapters/${createVolumeChapterPayload.data.chapterId}.json`,
+    );
+    assert.equal(clearedVolumeChapterMetadata.volumeId, undefined);
   } finally {
     await server.close();
     await rm(vaultRoot, { recursive: true, force: true });

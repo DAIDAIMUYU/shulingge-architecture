@@ -204,6 +204,7 @@ export interface ChapterSummary {
   title: string;
   status: string;
   wordCount: number;
+  volumeId?: string;
 }
 export interface SearchQuery {
   text?: string;
@@ -1051,10 +1052,10 @@ export const api = {
       `/projects/${encodeURIComponent(projectId)}/novels/${encodeURIComponent(novelId)}/chapters`,
       { title, volumeId },
     ),
-  renameChapter: async (projectId: string, novelId: string, chapterId: string, title: string): Promise<ChapterSummary> =>
+  renameChapter: async (projectId: string, novelId: string, chapterId: string, title: string, volumeId?: string | null): Promise<ChapterSummary> =>
     patch<ChapterSummary>(
       `/projects/${encodeURIComponent(projectId)}/novels/${encodeURIComponent(novelId)}/chapters/${encodeURIComponent(chapterId)}`,
-      { title },
+      { title, volumeId },
     ),
   setChapterStatus: async (projectId: string, novelId: string, chapterId: string, status: string): Promise<ChapterSummary> =>
     patch<ChapterSummary>(

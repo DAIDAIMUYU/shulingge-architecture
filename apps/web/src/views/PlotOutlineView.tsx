@@ -12,7 +12,7 @@ import {
   Trash2,
 } from "lucide-react";
 
-import { api, ApiError, type NovelSummary, type ProjectSummary, type VolumeInput, type VolumeRecord, type VolumeStatus } from "../api/client.js";
+import { api, ApiError, type ChapterSummary, type NovelSummary, type ProjectSummary, type VolumeInput, type VolumeRecord, type VolumeStatus } from "../api/client.js";
 import { ConfirmModal } from "../app/Modals.js";
 import { ProjectSelector } from "./ProjectSelector.js";
 import { Select } from "./Select.js";
@@ -113,6 +113,7 @@ function VolumeEditorModal({
   editing,
   saving,
   disabled,
+  error,
   onChange,
   onCancel,
   onSubmit,
@@ -121,6 +122,7 @@ function VolumeEditorModal({
   editing: boolean;
   saving: boolean;
   disabled: boolean;
+  error?: string | null;
   onChange(patch: Partial<VolumeDraft>): void;
   onCancel(): void;
   onSubmit(): void;
@@ -138,64 +140,73 @@ function VolumeEditorModal({
           <p className="view-sub">本步只规划卷级结构；章节规划和关键事件会在后续步骤接入。</p>
         </div>
 
-        <div className="form-grid form-grid-2">
+        <div className="plot-modal-body">
+          <div className="form-grid form-grid-2">
+            <label className="form-block">
+              <span>卷名</span>
+              <input
+                className="input"
+                value={draft.title}
+                autoFocus
+                placeholder="例如 第一卷_香奈惠命运改写篇"
+                onChange={(event) => onChange({ title: event.target.value })}
+              />
+            </label>
+            <label className="form-block">
+              <span>状态</span>
+              <Select
+                value={draft.status}
+                options={STATUS_OPTIONS}
+                onChange={(value) => onChange({ status: value as VolumeStatus })}
+                ariaLabel="分卷状态"
+              />
+            </label>
+          </div>
+
           <label className="form-block">
-            <span>卷名</span>
-            <input
-              className="input"
-              value={draft.title}
-              autoFocus
-              placeholder="例如 第一卷_香奈惠命运改写篇"
-              onChange={(event) => onChange({ title: event.target.value })}
+            <span>卷定位</span>
+            <textarea
+              className="textarea plot-textarea"
+              value={draft.positioning}
+              placeholder="这一卷的核心是什么，承担什么剧情功能"
+              onChange={(event) => onChange({ positioning: event.target.value })}
             />
           </label>
           <label className="form-block">
-            <span>状态</span>
-            <Select
-              value={draft.status}
-              options={STATUS_OPTIONS}
-              onChange={(value) => onChange({ status: value as VolumeStatus })}
-              ariaLabel="分卷状态"
+            <span>核心主题</span>
+            <textarea
+              className="textarea plot-textarea"
+              value={draft.themes}
+              placeholder="可逐条写下主题、人物命题、情绪关键词"
+              onChange={(event) => onChange({ themes: event.target.value })}
+            />
+          </label>
+          <label className="form-block">
+            <span>本卷重点</span>
+            <textarea
+              className="textarea plot-textarea-lg"
+              value={draft.keyPoints}
+              placeholder="写本卷必须推进的主线、人物变化、冲突和伏笔"
+              onChange={(event) => onChange({ keyPoints: event.target.value })}
+            />
+          </label>
+          <label className="form-block">
+            <span>备注 / 补充</span>
+            <textarea
+              className="textarea plot-textarea"
+              value={draft.notes}
+              placeholder="可选：临时想法、风险点、待确认设定"
+              onChange={(event) => onChange({ notes: event.target.value })}
             />
           </label>
         </div>
 
-        <label className="form-block">
-          <span>卷定位</span>
-          <textarea
-            className="textarea plot-textarea"
-            value={draft.positioning}
-            placeholder="这一卷的核心是什么，承担什么剧情功能"
-            onChange={(event) => onChange({ positioning: event.target.value })}
-          />
-        </label>
-        <label className="form-block">
-          <span>核心主题</span>
-          <textarea
-            className="textarea plot-textarea"
-            value={draft.themes}
-            placeholder="可逐条写下主题、人物命题、情绪关键词"
-            onChange={(event) => onChange({ themes: event.target.value })}
-          />
-        </label>
-        <label className="form-block">
-          <span>本卷重点</span>
-          <textarea
-            className="textarea plot-textarea-lg"
-            value={draft.keyPoints}
-            placeholder="写本卷必须推进的主线、人物变化、冲突和伏笔"
-            onChange={(event) => onChange({ keyPoints: event.target.value })}
-          />
-        </label>
-        <label className="form-block">
-          <span>备注 / 补充</span>
-          <textarea
-            className="textarea plot-textarea"
-            value={draft.notes}
-            placeholder="可选：临时想法、风险点、待确认设定"
-            onChange={(event) => onChange({ notes: event.target.value })}
-          />
-        </label>
+        {error ? (
+          <div className="model-feedback model-feedback-error">
+            <AlertCircle size={16} />
+            <span>{error}</span>
+          </div>
+        ) : null}
 
         <div className="vault-modal-actions">
           <button type="button" className="btn btn-ghost" disabled={saving} onClick={onCancel}>取消</button>
@@ -209,17 +220,21 @@ function VolumeEditorModal({
   );
 }
 
-function ChapterCreateModal({
+function ChapterEditorModal({
   draft,
+  editing,
   volumes,
   saving,
+  error,
   onChange,
   onCancel,
   onSubmit,
 }: {
   draft: ChapterDraft;
+  editing: boolean;
   volumes: VolumeRecord[];
   saving: boolean;
+  error?: string | null;
   onChange(patch: Partial<ChapterDraft>): void;
   onCancel(): void;
   onSubmit(): void;
@@ -237,29 +252,37 @@ function ChapterCreateModal({
   return (
     <div className="vault-modal-backdrop" onMouseDown={onCancel}>
       <form className="vault-modal input-modal plot-chapter-modal" onSubmit={submit} onMouseDown={(event) => event.stopPropagation()}>
-        <h2>新建章节</h2>
-        <label className="form-block">
-          <span>章节名</span>
-          <input
-            className="input"
-            value={draft.title}
-            autoFocus
-            onChange={(event) => onChange({ title: event.target.value })}
-            placeholder="例如 第一章 破局"
-          />
-        </label>
-        <label className="form-block">
-          <span>归属分卷</span>
-          <Select
-            value={draft.volumeId}
-            options={volumeOptions}
-            onChange={(value) => onChange({ volumeId: value })}
-            ariaLabel="归属分卷"
-          />
-        </label>
+        <h2>{editing ? "编辑章节" : "新建章节"}</h2>
+        <div className="plot-modal-body">
+          <label className="form-block">
+            <span>章节名</span>
+            <input
+              className="input"
+              value={draft.title}
+              autoFocus
+              onChange={(event) => onChange({ title: event.target.value })}
+              placeholder="例如 第一章 破局"
+            />
+          </label>
+          <label className="form-block">
+            <span>归属分卷</span>
+            <Select
+              value={draft.volumeId}
+              options={volumeOptions}
+              onChange={(value) => onChange({ volumeId: value })}
+              ariaLabel="归属分卷"
+            />
+          </label>
+        </div>
+        {error ? (
+          <div className="model-feedback model-feedback-error">
+            <AlertCircle size={16} />
+            <span>{error}</span>
+          </div>
+        ) : null}
         <div className="vault-modal-actions">
           <button type="button" className="btn btn-ghost" disabled={saving} onClick={onCancel}>取消</button>
-          <button type="submit" className="btn btn-primary" disabled={saving}>{saving ? "创建中..." : "创建章节"}</button>
+          <button type="submit" className="btn btn-primary" disabled={saving}>{saving ? "保存中..." : editing ? "保存章节" : "创建章节"}</button>
         </div>
       </form>
     </div>
@@ -272,18 +295,23 @@ export function PlotOutlineView() {
   const [projectId, setProjectId] = useState(readStoredProjectId);
   const [novelId, setNovelId] = useState("");
   const [volumes, setVolumes] = useState<VolumeRecord[]>([]);
+  const [chapters, setChapters] = useState<ChapterSummary[]>([]);
   const [selectedVolumeId, setSelectedVolumeId] = useState<string | null>(null);
   const [draft, setDraft] = useState<VolumeDraft>(() => createDraft());
-  const [chapterDraft, setChapterDraft] = useState<ChapterDraft>({ title: "新章节", volumeId: NO_VOLUME });
+  const [chapterDraft, setChapterDraft] = useState<ChapterDraft>({ title: "", volumeId: NO_VOLUME });
   const [viewMode, setViewMode] = useState<PlotViewMode>(readStoredViewMode);
   const [newMenuOpen, setNewMenuOpen] = useState(false);
   const [volumeModalOpen, setVolumeModalOpen] = useState(false);
   const [chapterModalOpen, setChapterModalOpen] = useState(false);
+  const [editingChapter, setEditingChapter] = useState<ChapterSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [creatingChapter, setCreatingChapter] = useState(false);
   const [feedback, setFeedback] = useState<FeedbackState | null>(null);
+  const [volumeModalError, setVolumeModalError] = useState<string | null>(null);
+  const [chapterModalError, setChapterModalError] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<VolumeRecord | null>(null);
+  const [deleteChapterTarget, setDeleteChapterTarget] = useState<ChapterSummary | null>(null);
   const newMenuRef = useRef<HTMLDivElement | null>(null);
 
   const selectedVolume = useMemo(
@@ -294,6 +322,18 @@ export function PlotOutlineView() {
     () => [...volumes].sort((left, right) => left.order - right.order || left.title.localeCompare(right.title)),
     [volumes],
   );
+  const sortedChapters = useMemo(
+    () => [...chapters].sort((left, right) => left.chapterId.localeCompare(right.chapterId)),
+    [chapters],
+  );
+  const chaptersByVolume = useMemo(() => {
+    const groups = new Map<string, ChapterSummary[]>();
+    for (const chapter of sortedChapters) {
+      const key = chapter.volumeId ?? NO_VOLUME;
+      groups.set(key, [...(groups.get(key) ?? []), chapter]);
+    }
+    return groups;
+  }, [sortedChapters]);
 
   useEffect(() => {
     if (!newMenuOpen) {
@@ -344,6 +384,7 @@ export function PlotOutlineView() {
       setNovels([]);
       setNovelId("");
       setVolumes([]);
+      setChapters([]);
       return;
     }
     try {
@@ -360,17 +401,23 @@ export function PlotOutlineView() {
   async function loadVolumes(nextProjectId = projectId, nextNovelId = novelId) {
     if (!nextProjectId || !nextNovelId) {
       setVolumes([]);
+      setChapters([]);
       setSelectedVolumeId(null);
       setDraft(createDraft());
       return;
     }
     setLoading(true);
     try {
-      const list = await api.listVolumes(nextProjectId, nextNovelId);
-      setVolumes(list);
-      setSelectedVolumeId((current) => current && list.some((volume) => volume.id === current) ? current : list[0]?.id ?? null);
+      const [volumeList, chapterList] = await Promise.all([
+        api.listVolumes(nextProjectId, nextNovelId),
+        api.listChapters(nextProjectId, nextNovelId),
+      ]);
+      setVolumes(volumeList);
+      setChapters(chapterList);
+      setSelectedVolumeId((current) => current && volumeList.some((volume) => volume.id === current) ? current : volumeList[0]?.id ?? null);
     } catch (error) {
       setVolumes([]);
+      setChapters([]);
       setSelectedVolumeId(null);
       setFeedback({ kind: "error", message: error instanceof ApiError ? error.message : "分卷大纲加载失败" });
     } finally {
@@ -404,6 +451,7 @@ export function PlotOutlineView() {
     setSelectedVolumeId(null);
     setDraft(createDraft());
     setVolumeModalOpen(true);
+    setVolumeModalError(null);
     setFeedback(null);
   }
 
@@ -411,14 +459,33 @@ export function PlotOutlineView() {
     setSelectedVolumeId(volume.id);
     setDraft(createDraft(volume));
     setVolumeModalOpen(true);
+    setVolumeModalError(null);
     setFeedback(null);
   }
 
   function startCreateChapter() {
     setNewMenuOpen(false);
-    setChapterDraft({ title: "新章节", volumeId: selectedVolumeId ?? NO_VOLUME });
+    setEditingChapter(null);
+    setChapterDraft({ title: "", volumeId: selectedVolumeId ?? NO_VOLUME });
     setChapterModalOpen(true);
+    setChapterModalError(null);
     setFeedback(null);
+  }
+
+  function startEditChapter(chapter: ChapterSummary) {
+    setEditingChapter(chapter);
+    setChapterDraft({ title: chapter.title, volumeId: chapter.volumeId ?? NO_VOLUME });
+    setChapterModalOpen(true);
+    setChapterModalError(null);
+    setFeedback(null);
+  }
+
+  async function refreshChapters() {
+    if (!projectId || !novelId) {
+      setChapters([]);
+      return;
+    }
+    setChapters(await api.listChapters(projectId, novelId));
   }
 
   async function saveVolume() {
@@ -428,11 +495,13 @@ export function PlotOutlineView() {
     }
     const payload = toPayload(draft);
     if (!payload.title) {
+      setVolumeModalError("请填写卷名");
       setFeedback({ kind: "error", message: "请填写卷名" });
       return;
     }
 
     setSaving(true);
+    setVolumeModalError(null);
     setFeedback(null);
     try {
       const saved = selectedVolume
@@ -450,27 +519,48 @@ export function PlotOutlineView() {
     }
   }
 
-  async function createChapter() {
+  async function saveChapter() {
     if (!projectId || !novelId) {
       setFeedback({ kind: "error", message: "请先选择项目和小说" });
       return;
     }
     const title = chapterDraft.title.trim();
     if (!title) {
+      setChapterModalError("请填写章节标题");
       setFeedback({ kind: "error", message: "请填写章节名" });
       return;
     }
 
     setCreatingChapter(true);
+    setChapterModalError(null);
     try {
       const volumeId = chapterDraft.volumeId === NO_VOLUME ? undefined : chapterDraft.volumeId;
-      const chapter = await api.createChapter(projectId, novelId, title, volumeId);
+      const nextVolumeId = chapterDraft.volumeId === NO_VOLUME ? null : chapterDraft.volumeId;
+      const chapter = editingChapter
+        ? await api.renameChapter(projectId, novelId, editingChapter.chapterId, title, nextVolumeId)
+        : await api.createChapter(projectId, novelId, title, volumeId);
+      await refreshChapters();
       setChapterModalOpen(false);
-      setFeedback({ kind: "success", message: `章节「${chapter.title}」已创建` });
+      setEditingChapter(null);
+      setFeedback({ kind: "success", message: editingChapter ? `章节「${chapter.title}」已保存` : `章节「${chapter.title}」已创建` });
     } catch (error) {
-      setFeedback({ kind: "error", message: error instanceof ApiError ? error.message : "章节创建失败" });
+      setFeedback({ kind: "error", message: error instanceof ApiError ? error.message : "章节保存失败" });
     } finally {
       setCreatingChapter(false);
+    }
+  }
+
+  async function deleteChapter(chapter: ChapterSummary) {
+    if (!projectId || !novelId) {
+      return;
+    }
+    setDeleteChapterTarget(null);
+    try {
+      await api.deleteChapter(projectId, novelId, chapter.chapterId);
+      await refreshChapters();
+      setFeedback({ kind: "success", message: `章节「${chapter.title}」已删除` });
+    } catch (error) {
+      setFeedback({ kind: "error", message: error instanceof ApiError ? error.message : "章节删除失败" });
     }
   }
 
@@ -481,8 +571,12 @@ export function PlotOutlineView() {
     setDeleteTarget(null);
     try {
       await api.deleteVolume(projectId, novelId, volume.id);
-      const list = await api.listVolumes(projectId, novelId);
+      const [list, chapterList] = await Promise.all([
+        api.listVolumes(projectId, novelId),
+        api.listChapters(projectId, novelId),
+      ]);
       setVolumes(list);
+      setChapters(chapterList);
       setSelectedVolumeId(list[0]?.id ?? null);
       setFeedback({ kind: "success", message: `分卷「${volume.title}」已删除` });
     } catch (error) {
@@ -539,6 +633,25 @@ export function PlotOutlineView() {
           <Trash2 size={15} />
         </button>
       </div>
+    );
+  }
+
+  function renderChapterRow(chapter: ChapterSummary) {
+    return (
+      <article className="plot-chapter-row" key={chapter.chapterId}>
+        <div className="plot-chapter-main">
+          <span className="plot-chapter-title">{chapter.title}</span>
+          <span className="plot-chapter-meta">{chapter.wordCount ?? 0} 字</span>
+        </div>
+        <div className="plot-volume-actions">
+          <button type="button" className="btn-icon" title="编辑章节" onClick={() => startEditChapter(chapter)}>
+            <Pencil size={15} />
+          </button>
+          <button type="button" className="btn-icon danger" title="删除章节" onClick={() => setDeleteChapterTarget(chapter)}>
+            <Trash2 size={15} />
+          </button>
+        </div>
+      </article>
     );
   }
 
@@ -664,6 +777,40 @@ export function PlotOutlineView() {
           ) : (
             <div className="empty-card">还没有分卷。可以新建分卷做卷级规划，也可以直接新建章节开始写。</div>
           )}
+
+
+          <section className="plot-chapter-section">
+            <div className="editor-card-head plot-chapter-section-head">
+              <div>
+                <h3>章节</h3>
+                <p className="view-sub">当前小说共 {chapters.length} 章，可在这里调整章节标题和归属分卷。</p>
+              </div>
+            </div>
+            {sortedChapters.length ? (
+              <div className="plot-chapter-groups">
+                {sortedVolumes.map((volume) => {
+                  const volumeChapters = chaptersByVolume.get(volume.id) ?? [];
+                  if (!volumeChapters.length) {
+                    return null;
+                  }
+                  return (
+                    <div className="plot-chapter-group" key={volume.id}>
+                      <div className="plot-chapter-group-title">{volume.title}</div>
+                      <div className="plot-chapter-list">{volumeChapters.map(renderChapterRow)}</div>
+                    </div>
+                  );
+                })}
+                {(chaptersByVolume.get(NO_VOLUME) ?? []).length ? (
+                  <div className="plot-chapter-group">
+                    <div className="plot-chapter-group-title">未归属分卷</div>
+                    <div className="plot-chapter-list">{(chaptersByVolume.get(NO_VOLUME) ?? []).map(renderChapterRow)}</div>
+                  </div>
+                ) : null}
+              </div>
+            ) : (
+              <div className="empty-card">还没有章节。点击“新建”选择“新建章节”即可直接开始。</div>
+            )}
+          </section>
         </section>
 
       </div>
@@ -674,10 +821,12 @@ export function PlotOutlineView() {
           editing={Boolean(selectedVolume)}
           saving={saving}
           disabled={!projectId || !novelId}
+          error={volumeModalError}
           onChange={(patch) => setDraft((current) => ({ ...current, ...patch }))}
           onCancel={() => {
             if (!saving) {
               setVolumeModalOpen(false);
+              setVolumeModalError(null);
               setDraft(createDraft(selectedVolume ?? undefined));
             }
           }}
@@ -686,17 +835,21 @@ export function PlotOutlineView() {
       ) : null}
 
       {chapterModalOpen ? (
-        <ChapterCreateModal
+        <ChapterEditorModal
           draft={chapterDraft}
+          editing={Boolean(editingChapter)}
           volumes={sortedVolumes}
           saving={creatingChapter}
+          error={chapterModalError}
           onChange={(patch) => setChapterDraft((current) => ({ ...current, ...patch }))}
           onCancel={() => {
             if (!creatingChapter) {
               setChapterModalOpen(false);
+              setEditingChapter(null);
+              setChapterModalError(null);
             }
           }}
-          onSubmit={() => void createChapter()}
+          onSubmit={() => void saveChapter()}
         />
       ) : null}
 
@@ -708,6 +861,17 @@ export function PlotOutlineView() {
           danger
           onCancel={() => setDeleteTarget(null)}
           onConfirm={() => void deleteVolume(deleteTarget)}
+        />
+      ) : null}
+
+      {deleteChapterTarget ? (
+        <ConfirmModal
+          title="删除章节"
+          message={`确定删除章节「${deleteChapterTarget.title}」吗？此操作不可恢复。`}
+          confirmText="删除"
+          danger
+          onCancel={() => setDeleteChapterTarget(null)}
+          onConfirm={() => void deleteChapter(deleteChapterTarget)}
         />
       ) : null}
     </ViewShell>
