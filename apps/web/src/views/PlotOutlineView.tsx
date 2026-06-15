@@ -5,9 +5,7 @@ import {
   ArrowUp,
   CheckCircle2,
   ChevronDown,
-  Columns3,
   FilePlus2,
-  List,
   Pencil,
   Plus,
   Save,
@@ -110,6 +108,107 @@ function volumeSummary(volume: VolumeRecord): string {
   return compactText(volume.positioning || volume.themes || volume.keyPoints);
 }
 
+function VolumeEditorModal({
+  draft,
+  editing,
+  saving,
+  disabled,
+  onChange,
+  onCancel,
+  onSubmit,
+}: {
+  draft: VolumeDraft;
+  editing: boolean;
+  saving: boolean;
+  disabled: boolean;
+  onChange(patch: Partial<VolumeDraft>): void;
+  onCancel(): void;
+  onSubmit(): void;
+}) {
+  const submit = (event: FormEvent) => {
+    event.preventDefault();
+    onSubmit();
+  };
+
+  return (
+    <div className="vault-modal-backdrop" onMouseDown={onCancel}>
+      <form className="vault-modal input-modal plot-volume-modal" onSubmit={submit} onMouseDown={(event) => event.stopPropagation()}>
+        <div>
+          <h2>{editing ? "编辑分卷" : "新建分卷"}</h2>
+          <p className="view-sub">本步只规划卷级结构；章节规划和关键事件会在后续步骤接入。</p>
+        </div>
+
+        <div className="form-grid form-grid-2">
+          <label className="form-block">
+            <span>卷名</span>
+            <input
+              className="input"
+              value={draft.title}
+              autoFocus
+              placeholder="例如 第一卷_香奈惠命运改写篇"
+              onChange={(event) => onChange({ title: event.target.value })}
+            />
+          </label>
+          <label className="form-block">
+            <span>状态</span>
+            <Select
+              value={draft.status}
+              options={STATUS_OPTIONS}
+              onChange={(value) => onChange({ status: value as VolumeStatus })}
+              ariaLabel="分卷状态"
+            />
+          </label>
+        </div>
+
+        <label className="form-block">
+          <span>卷定位</span>
+          <textarea
+            className="textarea plot-textarea"
+            value={draft.positioning}
+            placeholder="这一卷的核心是什么，承担什么剧情功能"
+            onChange={(event) => onChange({ positioning: event.target.value })}
+          />
+        </label>
+        <label className="form-block">
+          <span>核心主题</span>
+          <textarea
+            className="textarea plot-textarea"
+            value={draft.themes}
+            placeholder="可逐条写下主题、人物命题、情绪关键词"
+            onChange={(event) => onChange({ themes: event.target.value })}
+          />
+        </label>
+        <label className="form-block">
+          <span>本卷重点</span>
+          <textarea
+            className="textarea plot-textarea-lg"
+            value={draft.keyPoints}
+            placeholder="写本卷必须推进的主线、人物变化、冲突和伏笔"
+            onChange={(event) => onChange({ keyPoints: event.target.value })}
+          />
+        </label>
+        <label className="form-block">
+          <span>备注 / 补充</span>
+          <textarea
+            className="textarea plot-textarea"
+            value={draft.notes}
+            placeholder="可选：临时想法、风险点、待确认设定"
+            onChange={(event) => onChange({ notes: event.target.value })}
+          />
+        </label>
+
+        <div className="vault-modal-actions">
+          <button type="button" className="btn btn-ghost" disabled={saving} onClick={onCancel}>取消</button>
+          <button type="submit" className="btn btn-primary" disabled={saving || disabled}>
+            <Save size={15} strokeWidth={2} />
+            {saving ? "保存中..." : "保存分卷"}
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
 function ChapterCreateModal({
   draft,
   volumes,
@@ -178,6 +277,7 @@ export function PlotOutlineView() {
   const [chapterDraft, setChapterDraft] = useState<ChapterDraft>({ title: "新章节", volumeId: NO_VOLUME });
   const [viewMode, setViewMode] = useState<PlotViewMode>(readStoredViewMode);
   const [newMenuOpen, setNewMenuOpen] = useState(false);
+  const [volumeModalOpen, setVolumeModalOpen] = useState(false);
   const [chapterModalOpen, setChapterModalOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -303,6 +403,14 @@ export function PlotOutlineView() {
     setNewMenuOpen(false);
     setSelectedVolumeId(null);
     setDraft(createDraft());
+    setVolumeModalOpen(true);
+    setFeedback(null);
+  }
+
+  function startEditVolume(volume: VolumeRecord) {
+    setSelectedVolumeId(volume.id);
+    setDraft(createDraft(volume));
+    setVolumeModalOpen(true);
     setFeedback(null);
   }
 
@@ -333,6 +441,7 @@ export function PlotOutlineView() {
       const list = await api.listVolumes(projectId, novelId);
       setVolumes(list);
       setSelectedVolumeId(saved.id);
+      setVolumeModalOpen(false);
       setFeedback({ kind: "success", message: selectedVolume ? "分卷大纲已保存" : "分卷大纲已创建" });
     } catch (error) {
       setFeedback({ kind: "error", message: error instanceof ApiError ? error.message : "分卷保存失败" });
@@ -419,7 +528,7 @@ export function PlotOutlineView() {
         </button>
         <button type="button" className="btn-icon" title="编辑" onClick={(event) => {
           event.stopPropagation();
-          setSelectedVolumeId(volume.id);
+          startEditVolume(volume);
         }}>
           <Pencil size={15} />
         </button>
@@ -443,12 +552,12 @@ export function PlotOutlineView() {
               <p className="view-sub">当前小说共 {volumes.length} 卷。默认横条视图便于一眼扫过卷名、状态和摘要。</p>
             </div>
             <div className="plot-head-actions">
-              <div className="view-toggle" aria-label="分卷视图切换">
-                <button type="button" className={viewMode === "strip" ? "on" : ""} title="横条视图" onClick={() => changeViewMode("strip")}>
-                  <List size={15} />
+              <div className="segmented" aria-label="分卷视图切换">
+                <button type="button" className={viewMode === "strip" ? "on" : ""} onClick={() => changeViewMode("strip")}>
+                  横条
                 </button>
-                <button type="button" className={viewMode === "table" ? "on" : ""} title="表格视图" onClick={() => changeViewMode("table")}>
-                  <Columns3 size={15} />
+                <button type="button" className={viewMode === "table" ? "on" : ""} onClick={() => changeViewMode("table")}>
+                  表格
                 </button>
               </div>
               <div className="plot-create-wrap" ref={newMenuRef}>
@@ -458,7 +567,7 @@ export function PlotOutlineView() {
                   <ChevronDown size={14} strokeWidth={1.8} />
                 </button>
                 {newMenuOpen ? (
-                  <div className="plot-create-menu" role="menu">
+                  <div className="tree-create-menu" role="menu">
                     <button type="button" role="menuitem" onClick={startCreateVolume}>
                       <Plus size={14} />
                       新建分卷
@@ -557,52 +666,24 @@ export function PlotOutlineView() {
           )}
         </section>
 
-        <section className="editor-card plot-editor-card">
-          <div className="editor-card-head">
-            <div>
-              <h2>{selectedVolume ? "编辑分卷" : "新建分卷"}</h2>
-              <p className="view-sub">本步只规划卷级结构；章节规划和关键事件会在后续页签接入。</p>
-            </div>
-            <button type="button" className="btn btn-primary" disabled={saving || !projectId || !novelId} onClick={() => void saveVolume()}>
-              <Save size={15} strokeWidth={2} />
-              {saving ? "保存中..." : "保存分卷"}
-            </button>
-          </div>
-
-          <div className="form-grid form-grid-2">
-            <label className="form-block">
-              <span>卷名</span>
-              <input className="input" value={draft.title} placeholder="例如 第一卷_香奈惠命运改写篇" onChange={(event) => setDraft((current) => ({ ...current, title: event.target.value }))} />
-            </label>
-            <label className="form-block">
-              <span>状态</span>
-              <Select
-                value={draft.status}
-                options={STATUS_OPTIONS}
-                onChange={(value) => setDraft((current) => ({ ...current, status: value as VolumeStatus }))}
-                ariaLabel="分卷状态"
-              />
-            </label>
-          </div>
-
-          <label className="form-block">
-            <span>卷定位</span>
-            <textarea className="textarea plot-textarea" value={draft.positioning} placeholder="这一卷的核心是什么，承担什么剧情功能" onChange={(event) => setDraft((current) => ({ ...current, positioning: event.target.value }))} />
-          </label>
-          <label className="form-block">
-            <span>核心主题</span>
-            <textarea className="textarea plot-textarea" value={draft.themes} placeholder="可逐条写下主题、人物命题、情绪关键词" onChange={(event) => setDraft((current) => ({ ...current, themes: event.target.value }))} />
-          </label>
-          <label className="form-block">
-            <span>本卷重点</span>
-            <textarea className="textarea plot-textarea-lg" value={draft.keyPoints} placeholder="写本卷必须推进的主线、人物变化、冲突和伏笔" onChange={(event) => setDraft((current) => ({ ...current, keyPoints: event.target.value }))} />
-          </label>
-          <label className="form-block">
-            <span>备注 / 补充</span>
-            <textarea className="textarea plot-textarea" value={draft.notes} placeholder="可选：临时想法、风险点、待确认设定" onChange={(event) => setDraft((current) => ({ ...current, notes: event.target.value }))} />
-          </label>
-        </section>
       </div>
+
+      {volumeModalOpen ? (
+        <VolumeEditorModal
+          draft={draft}
+          editing={Boolean(selectedVolume)}
+          saving={saving}
+          disabled={!projectId || !novelId}
+          onChange={(patch) => setDraft((current) => ({ ...current, ...patch }))}
+          onCancel={() => {
+            if (!saving) {
+              setVolumeModalOpen(false);
+              setDraft(createDraft(selectedVolume ?? undefined));
+            }
+          }}
+          onSubmit={() => void saveVolume()}
+        />
+      ) : null}
 
       {chapterModalOpen ? (
         <ChapterCreateModal

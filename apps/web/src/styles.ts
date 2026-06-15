@@ -953,14 +953,10 @@ body.app-focus .main { padding-bottom: 0; }
 .timeline-custom-list { display: flex; flex-wrap: wrap; gap: 7px; }
 .timeline-description { min-height: 160px; }
 
-.plot-layout { display: grid; grid-template-columns: minmax(320px, 0.92fr) minmax(0, 1.18fr); gap: 22px; align-items: start; }
-.plot-index-card,
-.plot-editor-card { margin-bottom: 0; }
+.plot-layout { display: grid; gap: 22px; align-items: start; }
+.plot-index-card { margin-bottom: 0; }
 .plot-head-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: flex-end; }
 .plot-create-wrap { position: relative; }
-.plot-create-menu { position: absolute; top: calc(100% + 8px); right: 0; z-index: 40; width: 144px; padding: 6px; background: var(--bg-card); background-image: none; border: 1px solid var(--border); border-radius: var(--radius-sm); box-shadow: var(--shadow-popover); }
-.plot-create-menu button { width: 100%; height: 34px; padding: 0 10px; border: 0; background: transparent; color: var(--text-secondary); border-radius: var(--radius-sm); display: flex; align-items: center; gap: 8px; font-size: 13px; text-align: left; cursor: pointer; transition: background .16s ease, color .16s ease; }
-.plot-create-menu button:hover { background: var(--bg-hover); color: var(--text-primary); }
 .plot-select-row { display: flex; align-items: flex-end; gap: 12px; flex-wrap: wrap; margin: 18px 0; }
 .plot-novel-select { display: grid; gap: 6px; min-width: 220px; }
 .plot-novel-select > span { font-size: 12px; color: var(--text-muted); }
@@ -991,7 +987,9 @@ body.app-focus .main { padding-bottom: 0; }
 .status-pill-draft { color: var(--warning); border-color: color-mix(in srgb, var(--warning) 32%, transparent); background: color-mix(in srgb, var(--warning) 10%, transparent); }
 .plot-textarea { min-height: 108px; }
 .plot-textarea-lg { min-height: 172px; }
-.plot-chapter-modal { display: grid; gap: 16px; }
+.plot-chapter-modal,
+.plot-volume-modal { display: grid; gap: 16px; }
+.plot-volume-modal { width: min(760px, 100%); }
 
 .card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(232px, 1fr)); gap: 22px; }
 .project-card { background: var(--bg-card); background-image: none; border: 1px solid var(--border); border-radius: var(--radius-md); box-shadow: var(--shadow-card); overflow: hidden; transition: box-shadow .18s ease, transform .18s ease, border-color .18s ease; }
