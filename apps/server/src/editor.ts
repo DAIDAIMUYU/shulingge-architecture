@@ -1,7 +1,7 @@
 import { mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 
-import { CHAPTER_STATUS_VALUES, type Annotation, type Chapter, type ChapterStatus, type Lock } from "@shulingge/shared";
+import { CHAPTER_STATUS_VALUES, type Annotation, type Chapter, type ChapterStatus, type Lock, type Volume } from "@shulingge/shared";
 import { readJsonFile, readManuscriptFile, resolveSafePath, writeJsonFile, writeManuscriptFile } from "@shulingge/vault-core";
 
 import { createHttpError } from "./errors.js";
@@ -45,6 +45,17 @@ export interface ChapterSummary {
   wordCount: number;
 }
 
+export type VolumeStatus = NonNullable<Volume["status"]>;
+
+export interface VolumeInput {
+  title?: unknown;
+  status?: unknown;
+  positioning?: unknown;
+  themes?: unknown;
+  keyPoints?: unknown;
+  notes?: unknown;
+}
+
 interface SaveChapterInput extends EditorChapterLocator {
   content: string;
 }
@@ -70,6 +81,14 @@ function getNovelRootPathFor(projectId: string, novelId: string): string {
   return path.posix.join("projects", projectId, "novels", novelId);
 }
 
+function getVolumesRootPath(projectId: string, novelId: string): string {
+  return path.posix.join(getNovelRootPathFor(projectId, novelId), "volumes");
+}
+
+function getVolumeRelativePath(projectId: string, novelId: string, volumeId: string): string {
+  return path.posix.join(getVolumesRootPath(projectId, novelId), `${volumeId}.json`);
+}
+
 function getProjectRelativePath(projectId: string): string {
   return path.posix.join("projects", projectId);
 }
@@ -86,6 +105,12 @@ function assertNovelId(novelId: string | undefined): asserts novelId is string {
   }
 }
 
+function assertVolumeId(volumeId: string | undefined): asserts volumeId is string {
+  if (!volumeId) {
+    throw createHttpError(400, "EDITOR_INVALID_VOLUME", "volumeId is required");
+  }
+}
+
 function assertTitle(title: unknown): asserts title is string {
   if (typeof title !== "string" || !title.trim()) {
     throw createHttpError(400, "EDITOR_INVALID_TITLE", "title is required");
@@ -99,10 +124,17 @@ const PROJECT_COVER_TYPES: Record<string, string> = {
   ".png": "image/png",
   ".webp": "image/webp",
 };
+const VOLUME_STATUS_VALUES: VolumeStatus[] = ["draft", "finalized"];
 
 function assertChapterStatus(status: unknown): asserts status is ChapterStatus {
   if (typeof status !== "string" || !CHAPTER_STATUS_VALUES.includes(status as ChapterStatus)) {
     throw createHttpError(400, "EDITOR_INVALID_STATUS", "章节状态无效");
+  }
+}
+
+function assertVolumeStatus(status: unknown): asserts status is VolumeStatus {
+  if (typeof status !== "string" || !VOLUME_STATUS_VALUES.includes(status as VolumeStatus)) {
+    throw createHttpError(400, "EDITOR_INVALID_VOLUME_STATUS", "分卷状态无效");
   }
 }
 
@@ -130,6 +162,22 @@ async function listMarkdownBaseNames(vaultRoot: string, relativePath: string): P
     return entries
       .filter((entry) => entry.isFile() && entry.name.endsWith(".md"))
       .map((entry) => entry.name.slice(0, -3))
+      .sort((a, b) => a.localeCompare(b));
+  } catch (error) {
+    if (!isMissingDirectoryError(error)) {
+      throw error;
+    }
+    return [];
+  }
+}
+
+async function listJsonBaseNames(vaultRoot: string, relativePath: string): Promise<string[]> {
+  try {
+    const absolutePath = resolveSafePath(vaultRoot, relativePath);
+    const entries = await readdir(absolutePath, { withFileTypes: true });
+    return entries
+      .filter((entry) => entry.isFile() && entry.name.endsWith(".json"))
+      .map((entry) => entry.name.slice(0, -5))
       .sort((a, b) => a.localeCompare(b));
   } catch (error) {
     if (!isMissingDirectoryError(error)) {
@@ -442,6 +490,142 @@ export async function createProject(vaultRoot: string, input: { title: string })
     title,
     defaultNovelId,
   };
+}
+
+function readOptionalText(value: unknown): string {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function normalizeVolumePayload(input: VolumeInput, current?: Volume): Omit<Volume, "id" | "novelId" | "order" | "schemaVersion" | "createdAt" | "updatedAt"> {
+  if (!current || input.title !== undefined) {
+    assertTitle(input.title);
+  }
+  if (input.status !== undefined) {
+    assertVolumeStatus(input.status);
+  }
+
+  return {
+    title: input.title !== undefined ? String(input.title).trim() : current?.title ?? "",
+    status: input.status !== undefined ? input.status : current?.status ?? "draft",
+    positioning: input.positioning !== undefined ? readOptionalText(input.positioning) : current?.positioning ?? "",
+    themes: input.themes !== undefined ? readOptionalText(input.themes) : current?.themes ?? "",
+    keyPoints: input.keyPoints !== undefined ? readOptionalText(input.keyPoints) : current?.keyPoints ?? "",
+    notes: input.notes !== undefined ? readOptionalText(input.notes) : current?.notes ?? "",
+  };
+}
+
+async function ensureNovelExists(vaultRoot: string, projectId: string, novelId: string): Promise<void> {
+  const novelPath = path.posix.join(getNovelRootPathFor(projectId, novelId), "novel.json");
+  const metadata = await readOptionalJson<unknown>(vaultRoot, novelPath);
+  if (!metadata) {
+    throw createHttpError(404, "EDITOR_NOVEL_NOT_FOUND", "小说不存在");
+  }
+}
+
+async function readVolume(vaultRoot: string, projectId: string, novelId: string, volumeId: string): Promise<Volume> {
+  const volume = await readOptionalJson<Volume>(vaultRoot, getVolumeRelativePath(projectId, novelId, volumeId));
+  if (!volume) {
+    throw createHttpError(404, "EDITOR_VOLUME_NOT_FOUND", "分卷不存在");
+  }
+  return volume;
+}
+
+export async function listVolumes(vaultRoot: string, projectId: string, novelId: string): Promise<Volume[]> {
+  assertProjectId(projectId);
+  assertNovelId(novelId);
+  await ensureNovelExists(vaultRoot, projectId, novelId);
+  const volumeIds = await listJsonBaseNames(vaultRoot, getVolumesRootPath(projectId, novelId));
+  const volumes = await Promise.all(volumeIds.map((volumeId) => readVolume(vaultRoot, projectId, novelId, volumeId).catch(() => null)));
+  return volumes
+    .filter((volume): volume is Volume => Boolean(volume))
+    .sort((left, right) => left.order - right.order || left.title.localeCompare(right.title));
+}
+
+export async function createVolume(vaultRoot: string, projectId: string, novelId: string, input: VolumeInput): Promise<Volume> {
+  assertProjectId(projectId);
+  assertNovelId(novelId);
+  await ensureNovelExists(vaultRoot, projectId, novelId);
+  const payload = normalizeVolumePayload(input);
+  const existingVolumes = await listVolumes(vaultRoot, projectId, novelId);
+  const existingIds = existingVolumes.map((volume) => volume.id);
+  const baseId = slugifyTitle(payload.title) || "volume";
+  const volumeId = existingIds.includes(baseId) ? nextNumberedId(baseId, existingIds) : baseId;
+  const now = new Date().toISOString();
+  const volume: Volume = {
+    id: volumeId,
+    novelId,
+    order: existingVolumes.length,
+    ...payload,
+    schemaVersion: 1,
+    createdAt: now,
+    updatedAt: now,
+  };
+
+  await mkdir(resolveSafePath(vaultRoot, getVolumesRootPath(projectId, novelId)), { recursive: true });
+  await writeJsonFile(vaultRoot, getVolumeRelativePath(projectId, novelId, volumeId), volume);
+  return volume;
+}
+
+export async function updateVolume(
+  vaultRoot: string,
+  projectId: string,
+  novelId: string,
+  volumeId: string,
+  input: VolumeInput,
+): Promise<Volume> {
+  assertProjectId(projectId);
+  assertNovelId(novelId);
+  assertVolumeId(volumeId);
+  const current = await readVolume(vaultRoot, projectId, novelId, volumeId);
+  const payload = normalizeVolumePayload(input, current);
+  const next: Volume = {
+    ...current,
+    ...payload,
+    updatedAt: new Date().toISOString(),
+  };
+  await writeJsonFile(vaultRoot, getVolumeRelativePath(projectId, novelId, volumeId), next);
+  return next;
+}
+
+export async function deleteVolume(vaultRoot: string, projectId: string, novelId: string, volumeId: string): Promise<{ id: string; deleted: true }> {
+  assertProjectId(projectId);
+  assertNovelId(novelId);
+  assertVolumeId(volumeId);
+  await rm(resolveSafePath(vaultRoot, getVolumeRelativePath(projectId, novelId, volumeId)), { force: true });
+  const remaining = await listVolumes(vaultRoot, projectId, novelId);
+  await Promise.all(remaining.map((volume, index) => {
+    const next = { ...volume, order: index, updatedAt: new Date().toISOString() };
+    return writeJsonFile(vaultRoot, getVolumeRelativePath(projectId, novelId, volume.id), next);
+  }));
+  return { id: volumeId, deleted: true };
+}
+
+export async function reorderVolumes(vaultRoot: string, projectId: string, novelId: string, orderedIds: unknown): Promise<Volume[]> {
+  assertProjectId(projectId);
+  assertNovelId(novelId);
+  if (!Array.isArray(orderedIds) || orderedIds.some((id) => typeof id !== "string")) {
+    throw createHttpError(400, "EDITOR_INVALID_VOLUME_ORDER", "orderedIds is required");
+  }
+  const volumes = await listVolumes(vaultRoot, projectId, novelId);
+  const knownIds = new Set(volumes.map((volume) => volume.id));
+  const requestedIds = orderedIds as string[];
+  if (requestedIds.some((id) => !knownIds.has(id))) {
+    throw createHttpError(400, "EDITOR_INVALID_VOLUME_ORDER", "分卷排序包含不存在的分卷");
+  }
+  const finalOrder = [...requestedIds, ...volumes.map((volume) => volume.id).filter((id) => !requestedIds.includes(id))];
+  const byId = new Map(volumes.map((volume) => [volume.id, volume]));
+  await Promise.all(finalOrder.map((id, index) => {
+    const volume = byId.get(id);
+    if (!volume) {
+      return Promise.resolve();
+    }
+    return writeJsonFile(vaultRoot, getVolumeRelativePath(projectId, novelId, id), {
+      ...volume,
+      order: index,
+      updatedAt: new Date().toISOString(),
+    });
+  }));
+  return await listVolumes(vaultRoot, projectId, novelId);
 }
 
 export async function updateProjectCover(vaultRoot: string, projectId: string, input: unknown): Promise<ProjectSummary> {

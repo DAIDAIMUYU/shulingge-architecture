@@ -113,6 +113,11 @@ export interface Volume extends Entity {
   novelId: string;
   title: string;
   order: number;
+  status?: "draft" | "finalized";
+  positioning?: string;
+  themes?: string;
+  keyPoints?: string;
+  notes?: string;
 }
 
 export interface TextRange {

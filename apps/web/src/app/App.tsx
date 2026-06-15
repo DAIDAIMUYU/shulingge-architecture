@@ -3,6 +3,7 @@ import {
   Clock,
   Globe,
   Library,
+  ListTree,
   Network,
   PenLine,
   Scale,
@@ -13,6 +14,7 @@ import {
 } from "lucide-react";
 
 import { CharactersView } from "../views/CharactersView.js";
+import { PlotOutlineView } from "../views/PlotOutlineView.js";
 import { ProjectsView } from "../views/ProjectsView.js";
 import { RelationsView } from "../views/RelationsView.js";
 import { RulesView } from "../views/RulesView.js";
@@ -39,6 +41,7 @@ const PRIMARY_NAV: NavItem[] = [
   { id: "relations", icon: Network, label: "关系" },
   { id: "timeline", icon: Clock, label: "时间线" },
   { id: "worldbook", icon: Globe, label: "世界大纲" },
+  { id: "plot-outline", icon: ListTree, label: "剧情大纲" },
   { id: "skills", icon: Sparkles, label: "技能" },
   { id: "rules", icon: Scale, label: "规则" },
 ];
@@ -64,6 +67,7 @@ const VIEWS: Record<string, (props: AppViewProps) => ReactNode> = {
   relations: () => <RelationsView />,
   timeline: () => <TimelineView />,
   worldbook: () => <WorldbookView />,
+  "plot-outline": () => <PlotOutlineView />,
   skills: () => <SkillsView />,
   rules: () => <RulesView />,
   settings: ({ vaultPath, onSetVault, onClearVault }) => (

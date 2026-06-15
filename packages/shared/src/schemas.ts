@@ -117,6 +117,11 @@ export const volumeSchema = entitySchema.extend({
   novelId: z.string().min(1),
   title: z.string().min(1),
   order: z.number().int().nonnegative(),
+  status: z.enum(["draft", "finalized"]).optional(),
+  positioning: z.string().optional(),
+  themes: z.string().optional(),
+  keyPoints: z.string().optional(),
+  notes: z.string().optional(),
 });
 
 export const chapterSourceSchema = z.object({

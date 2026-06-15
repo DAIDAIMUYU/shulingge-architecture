@@ -2505,6 +2505,60 @@ test("project create route initializes project and default novel skeleton", asyn
       ok: true;
       data: { projects: Array<{ projectId: string; coverImage?: string; coverDataUrl?: string }> };
     };
+    const createVolumeResponse = await fetch(`${server.baseUrl}/api/v1/projects/${createdPayload.data.projectId}/novels/main/volumes`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        title: "第一卷_命运改写篇",
+        positioning: "建立卷级目标",
+        themes: "命运改写\n代价",
+        keyPoints: "完成关键人物转折",
+      }),
+    });
+    const createSecondVolumeResponse = await fetch(`${server.baseUrl}/api/v1/projects/${createdPayload.data.projectId}/novels/main/volumes`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ title: "第二卷_余波篇", status: "draft" }),
+    });
+    const createdVolumePayload = (await createVolumeResponse.json()) as {
+      ok: true;
+      data: { id: string; title: string; status: string; positioning?: string; order: number };
+    };
+    const createdSecondVolumePayload = (await createSecondVolumeResponse.json()) as {
+      ok: true;
+      data: { id: string; order: number };
+    };
+    const updateVolumeResponse = await fetch(
+      `${server.baseUrl}/api/v1/projects/${createdPayload.data.projectId}/novels/main/volumes/${createdVolumePayload.data.id}`,
+      {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ status: "finalized", notes: "已定案" }),
+      },
+    );
+    const reorderVolumesResponse = await fetch(`${server.baseUrl}/api/v1/projects/${createdPayload.data.projectId}/novels/main/volumes/reorder`, {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ orderedIds: [createdSecondVolumePayload.data.id, createdVolumePayload.data.id] }),
+    });
+    const volumesAfterReorderPayload = (await reorderVolumesResponse.json()) as {
+      ok: true;
+      data: { volumes: Array<{ id: string; order: number }> };
+    };
+    const listVolumesResponse = await fetch(`${server.baseUrl}/api/v1/projects/${createdPayload.data.projectId}/novels/main/volumes`);
+    const listVolumesPayload = (await listVolumesResponse.json()) as {
+      ok: true;
+      data: { volumes: Array<{ id: string; title: string; status: string; notes?: string; order: number }> };
+    };
+    const deleteVolumeResponse = await fetch(
+      `${server.baseUrl}/api/v1/projects/${createdPayload.data.projectId}/novels/main/volumes/${createdSecondVolumePayload.data.id}`,
+      { method: "DELETE" },
+    );
+    const volumesAfterDeleteResponse = await fetch(`${server.baseUrl}/api/v1/projects/${createdPayload.data.projectId}/novels/main/volumes`);
+    const volumesAfterDeletePayload = (await volumesAfterDeleteResponse.json()) as {
+      ok: true;
+      data: { volumes: Array<{ id: string; order: number }> };
+    };
 
     const emptyProjectsPayload = (await emptyProjectsResponse.json()) as {
       ok: true;
@@ -2544,6 +2598,23 @@ test("project create route initializes project and default novel skeleton", asyn
     assert.equal(coverPayload.data.coverDataUrl?.startsWith("data:image/png;base64,"), true);
     assert.equal(projectsAfterCoverPayload.data.projects[0]?.coverImage, coverPayload.data.coverImage);
     assert.equal(projectsAfterCoverPayload.data.projects[0]?.coverDataUrl?.startsWith("data:image/png;base64,"), true);
+    assert.equal(createVolumeResponse.status, 200);
+    assert.equal(createSecondVolumeResponse.status, 200);
+    assert.equal(createdVolumePayload.data.status, "draft");
+    assert.equal(createdVolumePayload.data.positioning, "建立卷级目标");
+    assert.equal(createdSecondVolumePayload.data.order, 1);
+    assert.equal(updateVolumeResponse.status, 200);
+    assert.equal(reorderVolumesResponse.status, 200);
+    assert.equal(volumesAfterReorderPayload.data.volumes[0]?.id, createdSecondVolumePayload.data.id);
+    assert.equal(listVolumesResponse.status, 200);
+    assert.equal(listVolumesPayload.data.volumes.find((volume) => volume.id === createdVolumePayload.data.id)?.status, "finalized");
+    assert.equal(listVolumesPayload.data.volumes.find((volume) => volume.id === createdVolumePayload.data.id)?.notes, "已定案");
+    assert.equal(deleteVolumeResponse.status, 200);
+    assert.deepEqual(volumesAfterDeletePayload.data.volumes.map((volume) => volume.order), [0]);
+    await readJsonFile(
+      vaultRoot,
+      `projects/${createdPayload.data.projectId}/novels/main/volumes/${createdVolumePayload.data.id}.json`,
+    );
   } finally {
     await server.close();
     await rm(vaultRoot, { recursive: true, force: true });

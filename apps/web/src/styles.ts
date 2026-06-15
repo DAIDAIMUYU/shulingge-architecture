@@ -953,6 +953,27 @@ body.app-focus .main { padding-bottom: 0; }
 .timeline-custom-list { display: flex; flex-wrap: wrap; gap: 7px; }
 .timeline-description { min-height: 160px; }
 
+.plot-layout { display: grid; grid-template-columns: minmax(320px, 0.92fr) minmax(0, 1.18fr); gap: 22px; align-items: start; }
+.plot-index-card,
+.plot-editor-card { margin-bottom: 0; }
+.plot-select-row { display: flex; align-items: flex-end; gap: 12px; flex-wrap: wrap; margin: 18px 0; }
+.plot-novel-select { display: grid; gap: 6px; min-width: 220px; }
+.plot-novel-select > span { font-size: 12px; color: var(--text-muted); }
+.plot-volume-list { display: grid; gap: 10px; }
+.plot-volume-item { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; align-items: center; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--bg-card); background-image: none; padding: 8px; box-shadow: var(--shadow-card); transition: border-color .18s ease, box-shadow .18s ease, transform .18s ease; }
+.plot-volume-item:hover { border-color: color-mix(in srgb, var(--primary) 18%, var(--border)); transform: translateY(-1px); }
+.plot-volume-item.active { border-color: color-mix(in srgb, var(--primary) 42%, var(--border)); box-shadow: inset 3px 0 0 var(--accent-cinnabar), var(--shadow-card); }
+.plot-volume-main { min-width: 0; display: grid; grid-template-columns: 34px minmax(0, 1fr) auto; gap: 10px; align-items: center; border: 0; background: transparent; color: var(--text-primary); text-align: left; cursor: pointer; }
+.plot-volume-order { width: 30px; height: 30px; border-radius: 8px; display: grid; place-items: center; background: var(--bg-panel); color: var(--text-muted); font-variant-numeric: tabular-nums; font-size: 12px; }
+.plot-volume-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; font-size: 14px; }
+.plot-volume-actions { display: flex; align-items: center; gap: 2px; }
+.plot-volume-actions .btn-icon { width: 28px; height: 28px; }
+.status-pill { display: inline-flex; align-items: center; height: 24px; padding: 0 9px; border-radius: 999px; font-size: 12px; border: 1px solid var(--border); color: var(--text-secondary); background: var(--bg-panel); white-space: nowrap; }
+.status-pill-finalized { color: var(--success); border-color: color-mix(in srgb, var(--success) 28%, transparent); background: color-mix(in srgb, var(--success) 10%, transparent); }
+.status-pill-draft { color: var(--warning); border-color: color-mix(in srgb, var(--warning) 32%, transparent); background: color-mix(in srgb, var(--warning) 10%, transparent); }
+.plot-textarea { min-height: 108px; }
+.plot-textarea-lg { min-height: 172px; }
+
 .card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(232px, 1fr)); gap: 22px; }
 .project-card { background: var(--bg-card); background-image: none; border: 1px solid var(--border); border-radius: var(--radius-md); box-shadow: var(--shadow-card); overflow: hidden; transition: box-shadow .18s ease, transform .18s ease, border-color .18s ease; }
 .project-card:hover { box-shadow: var(--shadow-popover); transform: translateY(-2px); border-color: color-mix(in srgb, var(--primary) 22%, var(--border)); }
@@ -1056,6 +1077,7 @@ body.app-focus .main { padding-bottom: 0; }
   .toolbar-row { flex-wrap: wrap; }
   .search { min-width: 0; flex: 1 1 100%; }
   .settings-layout { grid-template-columns: 1fr; gap: 16px; }
+  .plot-layout { grid-template-columns: 1fr; }
   .settings-menu {
     position: static;
     flex-direction: row;

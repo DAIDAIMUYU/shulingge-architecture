@@ -177,6 +177,28 @@ export interface NovelSummary {
   novelId: string;
   title: string;
 }
+export type VolumeStatus = "draft" | "finalized";
+export interface VolumeRecord {
+  id: string;
+  novelId: string;
+  title: string;
+  order: number;
+  status: VolumeStatus;
+  positioning?: string;
+  themes?: string;
+  keyPoints?: string;
+  notes?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+export interface VolumeInput {
+  title: string;
+  status: VolumeStatus;
+  positioning?: string;
+  themes?: string;
+  keyPoints?: string;
+  notes?: string;
+}
 export interface ChapterSummary {
   chapterId: string;
   title: string;
@@ -1062,6 +1084,35 @@ export const api = {
     request<{ ok: true }>(`/projects/${encodeURIComponent(projectId)}/novels/${encodeURIComponent(novelId)}`, {
       method: "DELETE",
     }),
+  listVolumes: async (projectId: string, novelId: string): Promise<VolumeRecord[]> =>
+    unwrapList<VolumeRecord>(
+      await get(`/projects/${encodeURIComponent(projectId)}/novels/${encodeURIComponent(novelId)}/volumes`),
+      "volumes",
+    ),
+  createVolume: async (projectId: string, novelId: string, payload: VolumeInput): Promise<VolumeRecord> =>
+    post<VolumeRecord>(`/projects/${encodeURIComponent(projectId)}/novels/${encodeURIComponent(novelId)}/volumes`, payload),
+  updateVolume: async (projectId: string, novelId: string, volumeId: string, payload: Partial<VolumeInput>): Promise<VolumeRecord> =>
+    patch<VolumeRecord>(
+      `/projects/${encodeURIComponent(projectId)}/novels/${encodeURIComponent(novelId)}/volumes/${encodeURIComponent(volumeId)}`,
+      payload,
+    ),
+  deleteVolume: async (projectId: string, novelId: string, volumeId: string): Promise<{ id: string; deleted: true }> =>
+    request<{ id: string; deleted: true }>(
+      `/projects/${encodeURIComponent(projectId)}/novels/${encodeURIComponent(novelId)}/volumes/${encodeURIComponent(volumeId)}`,
+      { method: "DELETE" },
+    ),
+  reorderVolumes: async (projectId: string, novelId: string, orderedIds: string[]): Promise<VolumeRecord[]> =>
+    unwrapList<VolumeRecord>(
+      await request<{ volumes: VolumeRecord[] }>(
+        `/projects/${encodeURIComponent(projectId)}/novels/${encodeURIComponent(novelId)}/volumes/reorder`,
+        {
+          method: "PUT",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ orderedIds }),
+        },
+      ),
+      "volumes",
+    ),
 
   loadChapter: (chapterId: string, projectId: string, novelId: string) =>
     get<EditorChapter>(withQuery(`/editor/chapters/${encodeURIComponent(chapterId)}`, { projectId, novelId })),
