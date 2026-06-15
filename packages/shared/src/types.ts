@@ -95,6 +95,7 @@ export interface ProjectSeries extends Entity {
   defaultNovelId: string;
   sharedPath: string;
   readPolicyPath: string;
+  coverImage?: string;
 }
 
 export interface NovelBranch extends Entity {

@@ -2487,6 +2487,24 @@ test("project create route initializes project and default novel skeleton", asyn
     const chaptersResponse = await fetch(
       `${server.baseUrl}/api/v1/projects/${createdPayload.data.projectId}/novels/main/chapters`,
     );
+    const coverResponse = await fetch(`${server.baseUrl}/api/v1/projects/${createdPayload.data.projectId}/cover`, {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        fileName: "cover.png",
+        mimeType: "image/png",
+        contentBase64: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=",
+      }),
+    });
+    const coverPayload = (await coverResponse.json()) as {
+      ok: true;
+      data: { coverImage?: string; coverDataUrl?: string };
+    };
+    const projectsAfterCoverResponse = await fetch(`${server.baseUrl}/api/v1/projects`);
+    const projectsAfterCoverPayload = (await projectsAfterCoverResponse.json()) as {
+      ok: true;
+      data: { projects: Array<{ projectId: string; coverImage?: string; coverDataUrl?: string }> };
+    };
 
     const emptyProjectsPayload = (await emptyProjectsResponse.json()) as {
       ok: true;
@@ -2521,6 +2539,11 @@ test("project create route initializes project and default novel skeleton", asyn
     assert.equal(projectsAfterCreatePayload.data.projects[0]?.title, "新书");
     assert.equal(chaptersResponse.status, 200);
     assert.deepEqual(chaptersPayload.data.chapters, []);
+    assert.equal(coverResponse.status, 200);
+    assert.equal(coverPayload.data.coverImage, `projects/${createdPayload.data.projectId}/assets/cover.png`);
+    assert.equal(coverPayload.data.coverDataUrl?.startsWith("data:image/png;base64,"), true);
+    assert.equal(projectsAfterCoverPayload.data.projects[0]?.coverImage, coverPayload.data.coverImage);
+    assert.equal(projectsAfterCoverPayload.data.projects[0]?.coverDataUrl?.startsWith("data:image/png;base64,"), true);
   } finally {
     await server.close();
     await rm(vaultRoot, { recursive: true, force: true });

@@ -99,6 +99,7 @@ export const projectSeriesSchema = entitySchema.extend({
   defaultNovelId: z.string().min(1),
   sharedPath: z.string().min(1),
   readPolicyPath: z.string().min(1),
+  coverImage: z.string().min(1).optional(),
 });
 
 export const novelBranchSchema = entitySchema.extend({

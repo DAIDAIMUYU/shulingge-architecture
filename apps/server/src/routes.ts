@@ -14,6 +14,7 @@ import {
   saveEditorAnnotations,
   saveEditorChapter,
   saveEditorLocks,
+  updateProjectCover,
 } from "./editor.js";
 import {
   commitImport,
@@ -1474,6 +1475,14 @@ export const routeDefinitions: RouteDefinition[] = [
       return await createProject(vaultRoot, {
         title: body?.title as never,
       });
+    },
+  },
+  {
+    method: "PUT",
+    path: "/api/v1/projects/:projectId/cover",
+    async handler(request, context) {
+      const vaultRoot = requireVaultRoot(context);
+      return await updateProjectCover(vaultRoot, request.params.projectId, request.body);
     },
   },
   {

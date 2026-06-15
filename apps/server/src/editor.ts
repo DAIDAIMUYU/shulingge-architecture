@@ -1,4 +1,4 @@
-import { mkdir, readdir, rm } from "node:fs/promises";
+import { mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import { CHAPTER_STATUS_VALUES, type Annotation, type Chapter, type ChapterStatus, type Lock } from "@shulingge/shared";
@@ -25,6 +25,8 @@ interface EditorChapterLocator {
 export interface ProjectSummary {
   projectId: string;
   title: string;
+  coverImage?: string;
+  coverDataUrl?: string;
 }
 
 export interface CreatedProject extends ProjectSummary {
@@ -90,6 +92,14 @@ function assertTitle(title: unknown): asserts title is string {
   }
 }
 
+const PROJECT_COVER_MAX_BYTES = 5 * 1024 * 1024;
+const PROJECT_COVER_TYPES: Record<string, string> = {
+  ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
+  ".png": "image/png",
+  ".webp": "image/webp",
+};
+
 function assertChapterStatus(status: unknown): asserts status is ChapterStatus {
   if (typeof status !== "string" || !CHAPTER_STATUS_VALUES.includes(status as ChapterStatus)) {
     throw createHttpError(400, "EDITOR_INVALID_STATUS", "章节状态无效");
@@ -146,6 +156,34 @@ function readTitle(value: unknown, fallback: string): string {
     }
   }
   return fallback;
+}
+
+function readStringField(value: unknown, key: string): string | undefined {
+  if (!value || typeof value !== "object") {
+    return undefined;
+  }
+  const field = (value as Record<string, unknown>)[key];
+  return typeof field === "string" && field.trim() ? field.trim() : undefined;
+}
+
+function mimeTypeFromImageName(fileName: string): string | undefined {
+  return PROJECT_COVER_TYPES[path.extname(fileName).toLowerCase()];
+}
+
+async function readProjectCoverDataUrl(vaultRoot: string, coverImage: string | undefined): Promise<string | undefined> {
+  if (!coverImage) {
+    return undefined;
+  }
+  const mimeType = mimeTypeFromImageName(coverImage);
+  if (!mimeType) {
+    return undefined;
+  }
+  try {
+    const buffer = await readFile(resolveSafePath(vaultRoot, coverImage));
+    return `data:${mimeType};base64,${buffer.toString("base64")}`;
+  } catch {
+    return undefined;
+  }
 }
 
 function slugifyTitle(title: string): string {
@@ -342,9 +380,12 @@ export async function listProjects(vaultRoot: string): Promise<ProjectSummary[]>
       const metadata =
         (await readOptionalJson<unknown>(vaultRoot, path.posix.join("projects", projectId, "project.json"))) ??
         (await readOptionalJson<unknown>(vaultRoot, path.posix.join("projects", projectId, "series.json")));
+      const coverImage = readStringField(metadata, "coverImage");
       return {
         projectId,
         title: readTitle(metadata, projectId),
+        coverImage,
+        coverDataUrl: await readProjectCoverDataUrl(vaultRoot, coverImage),
       };
     }),
   );
@@ -400,6 +441,54 @@ export async function createProject(vaultRoot: string, input: { title: string })
     projectId,
     title,
     defaultNovelId,
+  };
+}
+
+export async function updateProjectCover(vaultRoot: string, projectId: string, input: unknown): Promise<ProjectSummary> {
+  assertProjectId(projectId);
+  const record = input && typeof input === "object" ? input as Record<string, unknown> : {};
+  const fileName = typeof record.fileName === "string" ? record.fileName.trim() : "";
+  const contentBase64 = typeof record.contentBase64 === "string" ? record.contentBase64.trim() : "";
+  const extension = path.extname(fileName).toLowerCase();
+  const mimeType = mimeTypeFromImageName(fileName);
+
+  if (!mimeType || !PROJECT_COVER_TYPES[extension]) {
+    throw createHttpError(400, "PROJECT_COVER_INVALID_TYPE", "仅支持 jpg、png、webp 封面图片");
+  }
+  if (!contentBase64) {
+    throw createHttpError(400, "PROJECT_COVER_EMPTY", "封面图片内容不能为空");
+  }
+
+  const buffer = Buffer.from(contentBase64, "base64");
+  if (!buffer.length || buffer.length > PROJECT_COVER_MAX_BYTES) {
+    throw createHttpError(400, "PROJECT_COVER_TOO_LARGE", "封面图片需小于 5MB");
+  }
+
+  const projectRoot = getProjectRelativePath(projectId);
+  const projectMetadataPath = path.posix.join(projectRoot, "project.json");
+  const metadata = await readOptionalJson<Record<string, unknown>>(vaultRoot, projectMetadataPath);
+  if (!metadata) {
+    throw createHttpError(404, "PROJECT_NOT_FOUND", "项目不存在");
+  }
+
+  const coverFileName = `cover${extension === ".jpeg" ? ".jpg" : extension}`;
+  const coverImage = path.posix.join(projectRoot, "assets", coverFileName);
+  const coverPath = resolveSafePath(vaultRoot, coverImage);
+  await mkdir(path.dirname(coverPath), { recursive: true });
+  await writeFile(coverPath, buffer);
+
+  const nextMetadata = {
+    ...metadata,
+    coverImage,
+    updatedAt: new Date().toISOString(),
+  };
+  await writeJsonFile(vaultRoot, projectMetadataPath, nextMetadata);
+
+  return {
+    projectId,
+    title: readTitle(nextMetadata, projectId),
+    coverImage,
+    coverDataUrl: await readProjectCoverDataUrl(vaultRoot, coverImage),
   };
 }
 

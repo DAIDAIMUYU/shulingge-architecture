@@ -167,6 +167,8 @@ export interface EditorChapter {
 export interface ProjectSummary {
   projectId: string;
   title: string;
+  coverImage?: string;
+  coverDataUrl?: string;
 }
 export interface CreatedProject extends ProjectSummary {
   defaultNovelId: string;
@@ -1007,6 +1009,14 @@ export const api = {
     unwrapList<ProjectSummary>(await get("/projects"), "projects"),
   createProject: async (title: string): Promise<CreatedProject> =>
     post<CreatedProject>("/projects", { title }),
+  updateProjectCover: async (
+    projectId: string,
+    payload: { fileName: string; mimeType?: string; contentBase64: string },
+  ): Promise<ProjectSummary> =>
+    request<ProjectSummary>(`/projects/${encodeURIComponent(projectId)}/cover`, {
+      method: "PUT",
+      body: JSON.stringify(payload),
+    }),
   listNovels: async (projectId: string): Promise<NovelSummary[]> =>
     unwrapList<NovelSummary>(await get(`/projects/${encodeURIComponent(projectId)}/novels`), "novels"),
   listChapters: async (projectId: string, novelId: string): Promise<ChapterSummary[]> =>
