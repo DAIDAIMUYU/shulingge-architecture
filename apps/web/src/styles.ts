@@ -653,6 +653,15 @@ body.app-focus .main { padding-bottom: 0; }
 .signal-list { display: flex; flex-direction: column; gap: 12px; }
 .signal-item { display: flex; gap: 10px; align-items: flex-start; color: var(--text-secondary); }
 .signal-item svg { color: var(--primary); flex: none; margin-top: 2px; }
+.shortcut-groups { display: grid; gap: 16px; }
+.shortcut-group { display: grid; gap: 10px; }
+.shortcut-group-title { display: inline-flex; align-items: center; gap: 8px; color: var(--text-secondary); font-size: 13px; font-weight: 600; }
+.shortcut-group-title svg { color: var(--primary); }
+.shortcut-list { display: grid; gap: 8px; }
+.shortcut-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 16px; align-items: center; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--bg-panel); }
+.shortcut-action { font-size: 13px; font-weight: 600; color: var(--text-primary); }
+.shortcut-note { margin-top: 2px; font-size: 12px; color: var(--text-muted); }
+.shortcut-row kbd { min-width: 0; padding: 4px 8px; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); background: var(--bg-card); color: var(--text-secondary); font-family: var(--font-mono); font-size: 11px; line-height: 1.4; white-space: nowrap; box-shadow: 0 1px 0 var(--surface-inset-highlight) inset; }
 
 .editor-card { background: var(--bg-card); background-image: none; border: 1px solid var(--border); border-radius: var(--radius-md); box-shadow: var(--shadow-card); padding: 26px 28px; margin-bottom: 24px; }
 .editor-card-head { display: flex; justify-content: space-between; gap: 18px; align-items: flex-start; margin-bottom: 18px; }

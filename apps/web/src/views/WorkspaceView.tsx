@@ -987,6 +987,27 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
     [locator, preferences.autosaveDelayMs],
   );
 
+  const saveNow = useCallback(
+    async (content = draft) => {
+      if (!vaultSelected || !hasValidActiveChapter) {
+        return;
+      }
+      if (saveTimer.current) {
+        clearTimeout(saveTimer.current);
+        saveTimer.current = null;
+      }
+      setSaveState("saving");
+      try {
+        const saved = await api.saveChapter(locator.chapterId, content, locator.projectId, locator.novelId);
+        setChapter(saved);
+        setSaveState("saved");
+      } catch {
+        setSaveState("error");
+      }
+    },
+    [draft, hasValidActiveChapter, locator, vaultSelected],
+  );
+
   const onEdit = (text: string) => {
     setDraft(text);
     if (vaultSelected) {
@@ -1098,6 +1119,52 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
       setFuture([]);
     }
   };
+
+  useEffect(() => {
+    const onWritingShortcut = (event: globalThis.KeyboardEvent) => {
+      const target = event.target instanceof HTMLElement ? event.target : null;
+      const inRichEditor = Boolean(target?.closest(".rich-editor-shell .ProseMirror"));
+      const inSourceEditor = Boolean(target?.closest(".source-manuscript"));
+      if (!target || (!inRichEditor && !inSourceEditor)) {
+        return;
+      }
+      if (event.isComposing) {
+        return;
+      }
+
+      const isMod = event.ctrlKey || event.metaKey;
+      if (!isMod) {
+        return;
+      }
+      const key = event.key.toLowerCase();
+
+      if (key === "s") {
+        event.preventDefault();
+        void saveNow();
+        return;
+      }
+
+      if (key === "b" && inRichEditor) {
+        event.preventDefault();
+        runEditorCommand((activeEditor) => activeEditor.chain().focus().toggleBold().run());
+        return;
+      }
+
+      if (key === "i" && inRichEditor) {
+        event.preventDefault();
+        runEditorCommand((activeEditor) => activeEditor.chain().focus().toggleItalic().run());
+        return;
+      }
+
+      if (key === "f" && event.shiftKey) {
+        event.preventDefault();
+        setFocusMode((enabled) => !enabled);
+      }
+    };
+
+    document.addEventListener("keydown", onWritingShortcut);
+    return () => document.removeEventListener("keydown", onWritingShortcut);
+  }, [runEditorCommand, saveNow]);
 
   const createChapterInNovel = async (targetNovelIdOverride?: string) => {
     if (!projectTree) {

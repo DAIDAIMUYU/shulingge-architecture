@@ -652,6 +652,37 @@ function ShortcutsPanel({
 }) {
   const sendLabel = preferences.sendShortcut === "enter" ? "Enter" : "Ctrl / Cmd + Enter";
   const newlineLabel = preferences.sendShortcut === "enter" ? "Shift + Enter" : "Enter";
+  const shortcutGroups = [
+    {
+      title: "文件类",
+      items: [
+        { action: "保存当前章节", keys: "Ctrl / Cmd + S", note: "仅在正文编辑器获得焦点时触发" },
+      ],
+    },
+    {
+      title: "编辑格式类",
+      items: [
+        { action: "加粗", keys: "Ctrl / Cmd + B", note: "富文本模式" },
+        { action: "斜体", keys: "Ctrl / Cmd + I", note: "富文本模式" },
+        { action: "撤销", keys: "Ctrl / Cmd + Z", note: "使用编辑器原生撤销" },
+        { action: "重做", keys: "Ctrl / Cmd + Shift + Z", note: "使用编辑器原生重做" },
+      ],
+    },
+    {
+      title: "视图类",
+      items: [
+        { action: "切换专注模式", keys: "Ctrl / Cmd + Shift + F", note: "仅在正文编辑器获得焦点时触发" },
+        { action: "关闭浮层/弹窗", keys: "Esc", note: "关闭速查、弹窗或菜单" },
+      ],
+    },
+    {
+      title: "对话类",
+      items: [
+        { action: "发送总控消息", keys: sendLabel, note: "可在上方切换" },
+        { action: "总控消息换行", keys: newlineLabel, note: "随发送组合键自动调整" },
+      ],
+    },
+  ];
 
   return (
     <div className="stack-list">
@@ -683,29 +714,27 @@ function ShortcutsPanel({
       </section>
 
       <section className="info-card">
-        <h3>当前映射</h3>
-        <div className="signal-list">
-          <div className="signal-item">
-            <Keyboard size={16} />
-            <div>
-              <div className="mini-card-title">发送</div>
-              <div className="mini-card-sub">{sendLabel}</div>
+        <h3>快捷键列表</h3>
+        <div className="shortcut-groups">
+          {shortcutGroups.map((group) => (
+            <div className="shortcut-group" key={group.title}>
+              <div className="shortcut-group-title">
+                <Keyboard size={15} />
+                {group.title}
+              </div>
+              <div className="shortcut-list">
+                {group.items.map((item) => (
+                  <div className="shortcut-row" key={`${group.title}-${item.action}`}>
+                    <div>
+                      <div className="shortcut-action">{item.action}</div>
+                      <div className="shortcut-note">{item.note}</div>
+                    </div>
+                    <kbd>{item.keys}</kbd>
+                  </div>
+                ))}
+              </div>
             </div>
-          </div>
-          <div className="signal-item">
-            <Keyboard size={16} />
-            <div>
-              <div className="mini-card-title">换行</div>
-              <div className="mini-card-sub">{newlineLabel}</div>
-            </div>
-          </div>
-          <div className="signal-item">
-            <Keyboard size={16} />
-            <div>
-              <div className="mini-card-title">格式操作</div>
-              <div className="mini-card-sub">仍通过编辑器顶部工具栏触发，加粗 / 斜体 / 引用 / 列表已真实生效。</div>
-            </div>
-          </div>
+          ))}
         </div>
       </section>
     </div>
