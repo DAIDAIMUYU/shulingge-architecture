@@ -1596,11 +1596,12 @@ export const routeDefinitions: RouteDefinition[] = [
     path: "/api/v1/projects/:projectId/novels/:novelId/chapters",
     async handler(request, context) {
       const vaultRoot = requireVaultRoot(context);
-      const body = request.body as { title?: unknown } | undefined;
+      const body = request.body as { title?: unknown; volumeId?: unknown } | undefined;
       return await createChapter(vaultRoot, {
         projectId: request.params.projectId,
         novelId: request.params.novelId,
         title: body?.title as never,
+        volumeId: body?.volumeId,
       });
     },
   },

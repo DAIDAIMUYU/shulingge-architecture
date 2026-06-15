@@ -716,11 +716,18 @@ export async function listChapters(vaultRoot: string, projectId: string, novelId
 
 export async function createChapter(
   vaultRoot: string,
-  input: { projectId: string; novelId: string; title: string },
+  input: { projectId: string; novelId: string; title: string; volumeId?: unknown },
 ): Promise<ChapterSummary> {
   assertProjectId(input.projectId);
   assertNovelId(input.novelId);
   assertTitle(input.title);
+  if (input.volumeId !== undefined && (typeof input.volumeId !== "string" || !input.volumeId.trim())) {
+    throw createHttpError(400, "EDITOR_INVALID_VOLUME", "volumeId is invalid");
+  }
+  const volumeId = typeof input.volumeId === "string" && input.volumeId.trim() ? input.volumeId.trim() : undefined;
+  if (volumeId) {
+    await readVolume(vaultRoot, input.projectId, input.novelId, volumeId);
+  }
 
   await ensureNovelDirectories(vaultRoot, input.projectId, input.novelId);
   const existingIds = await listMarkdownBaseNames(
@@ -736,7 +743,10 @@ export async function createChapter(
   const title = input.title.trim();
 
   await writeManuscriptFile(vaultRoot, getManuscriptRelativePath(locator), "");
-  await writeJsonFile(vaultRoot, getMetadataRelativePath(locator), createChapterMetadata(locator, title, existingIds.length + 1));
+  await writeJsonFile(vaultRoot, getMetadataRelativePath(locator), {
+    ...createChapterMetadata(locator, title, existingIds.length + 1),
+    volumeId,
+  });
 
   return {
     chapterId,

@@ -2559,6 +2559,15 @@ test("project create route initializes project and default novel skeleton", asyn
       ok: true;
       data: { volumes: Array<{ id: string; order: number }> };
     };
+    const createVolumeChapterResponse = await fetch(`${server.baseUrl}/api/v1/projects/${createdPayload.data.projectId}/novels/main/chapters`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ title: "卷内章节", volumeId: createdVolumePayload.data.id }),
+    });
+    const createVolumeChapterPayload = (await createVolumeChapterResponse.json()) as {
+      ok: true;
+      data: { chapterId: string; title: string };
+    };
 
     const emptyProjectsPayload = (await emptyProjectsResponse.json()) as {
       ok: true;
@@ -2615,6 +2624,13 @@ test("project create route initializes project and default novel skeleton", asyn
       vaultRoot,
       `projects/${createdPayload.data.projectId}/novels/main/volumes/${createdVolumePayload.data.id}.json`,
     );
+    assert.equal(createVolumeChapterResponse.status, 200);
+    assert.equal(createVolumeChapterPayload.data.title, "卷内章节");
+    const volumeChapterMetadata = await readJsonFile<{ volumeId?: string }>(
+      vaultRoot,
+      `projects/${createdPayload.data.projectId}/novels/main/metadata/chapters/${createVolumeChapterPayload.data.chapterId}.json`,
+    );
+    assert.equal(volumeChapterMetadata.volumeId, createdVolumePayload.data.id);
   } finally {
     await server.close();
     await rm(vaultRoot, { recursive: true, force: true });

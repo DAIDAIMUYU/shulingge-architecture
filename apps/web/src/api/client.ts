@@ -1046,10 +1046,10 @@ export const api = {
       await get(`/projects/${encodeURIComponent(projectId)}/novels/${encodeURIComponent(novelId)}/chapters`),
       "chapters",
     ),
-  createChapter: async (projectId: string, novelId: string, title: string): Promise<ChapterSummary> =>
+  createChapter: async (projectId: string, novelId: string, title: string, volumeId?: string): Promise<ChapterSummary> =>
     post<ChapterSummary>(
       `/projects/${encodeURIComponent(projectId)}/novels/${encodeURIComponent(novelId)}/chapters`,
-      { title },
+      { title, volumeId },
     ),
   renameChapter: async (projectId: string, novelId: string, chapterId: string, title: string): Promise<ChapterSummary> =>
     patch<ChapterSummary>(

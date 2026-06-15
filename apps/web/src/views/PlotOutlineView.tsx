@@ -1,5 +1,18 @@
-import { useEffect, useMemo, useState } from "react";
-import { AlertCircle, ArrowDown, ArrowUp, CheckCircle2, Pencil, Plus, Save, Trash2 } from "lucide-react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import {
+  AlertCircle,
+  ArrowDown,
+  ArrowUp,
+  CheckCircle2,
+  ChevronDown,
+  Columns3,
+  FilePlus2,
+  List,
+  Pencil,
+  Plus,
+  Save,
+  Trash2,
+} from "lucide-react";
 
 import { api, ApiError, type NovelSummary, type ProjectSummary, type VolumeInput, type VolumeRecord, type VolumeStatus } from "../api/client.js";
 import { ConfirmModal } from "../app/Modals.js";
@@ -9,6 +22,7 @@ import { ViewShell } from "./common.js";
 
 type FeedbackKind = "success" | "error" | "info";
 type FeedbackState = { kind: FeedbackKind; message: string };
+type PlotViewMode = "strip" | "table";
 
 interface VolumeDraft {
   title: string;
@@ -19,7 +33,14 @@ interface VolumeDraft {
   notes: string;
 }
 
-const STORAGE_KEY = "shulingge.web.plotOutline.projectId";
+interface ChapterDraft {
+  title: string;
+  volumeId: string;
+}
+
+const PROJECT_STORAGE_KEY = "shulingge.web.plotOutline.projectId";
+const VIEW_STORAGE_KEY = "shulingge.web.plotOutline.viewMode";
+const NO_VOLUME = "__none__";
 
 const STATUS_OPTIONS: Array<{ value: VolumeStatus; label: string; hint: string }> = [
   { value: "draft", label: "草稿", hint: "还在构思和调整" },
@@ -30,13 +51,27 @@ function readStoredProjectId(): string {
   if (typeof window === "undefined") {
     return "";
   }
-  return window.localStorage.getItem(STORAGE_KEY) ?? window.localStorage.getItem("shulingge.web.projectId") ?? "";
+  return window.localStorage.getItem(PROJECT_STORAGE_KEY) ?? window.localStorage.getItem("shulingge.web.projectId") ?? "";
+}
+
+function readStoredViewMode(): PlotViewMode {
+  if (typeof window === "undefined") {
+    return "strip";
+  }
+  const value = window.localStorage.getItem(VIEW_STORAGE_KEY);
+  return value === "table" ? "table" : "strip";
 }
 
 function writeStoredProjectId(projectId: string): void {
   if (typeof window !== "undefined") {
-    window.localStorage.setItem(STORAGE_KEY, projectId);
+    window.localStorage.setItem(PROJECT_STORAGE_KEY, projectId);
     window.localStorage.setItem("shulingge.web.projectId", projectId);
+  }
+}
+
+function writeStoredViewMode(mode: PlotViewMode): void {
+  if (typeof window !== "undefined") {
+    window.localStorage.setItem(VIEW_STORAGE_KEY, mode);
   }
 }
 
@@ -66,6 +101,72 @@ function toPayload(draft: VolumeDraft): VolumeInput {
   };
 }
 
+function compactText(value: string | undefined, fallback = "未填写摘要"): string {
+  const normalized = (value ?? "").split(/\n+/).map((line) => line.trim()).filter(Boolean).join(" / ");
+  return normalized || fallback;
+}
+
+function volumeSummary(volume: VolumeRecord): string {
+  return compactText(volume.positioning || volume.themes || volume.keyPoints);
+}
+
+function ChapterCreateModal({
+  draft,
+  volumes,
+  saving,
+  onChange,
+  onCancel,
+  onSubmit,
+}: {
+  draft: ChapterDraft;
+  volumes: VolumeRecord[];
+  saving: boolean;
+  onChange(patch: Partial<ChapterDraft>): void;
+  onCancel(): void;
+  onSubmit(): void;
+}) {
+  const volumeOptions = [
+    { value: NO_VOLUME, label: "不归属分卷", hint: "直接在当前小说下新建章节" },
+    ...volumes.map((volume) => ({ value: volume.id, label: volume.title, hint: statusLabel(volume.status) })),
+  ];
+
+  const submit = (event: FormEvent) => {
+    event.preventDefault();
+    onSubmit();
+  };
+
+  return (
+    <div className="vault-modal-backdrop" onMouseDown={onCancel}>
+      <form className="vault-modal input-modal plot-chapter-modal" onSubmit={submit} onMouseDown={(event) => event.stopPropagation()}>
+        <h2>新建章节</h2>
+        <label className="form-block">
+          <span>章节名</span>
+          <input
+            className="input"
+            value={draft.title}
+            autoFocus
+            onChange={(event) => onChange({ title: event.target.value })}
+            placeholder="例如 第一章 破局"
+          />
+        </label>
+        <label className="form-block">
+          <span>归属分卷</span>
+          <Select
+            value={draft.volumeId}
+            options={volumeOptions}
+            onChange={(value) => onChange({ volumeId: value })}
+            ariaLabel="归属分卷"
+          />
+        </label>
+        <div className="vault-modal-actions">
+          <button type="button" className="btn btn-ghost" disabled={saving} onClick={onCancel}>取消</button>
+          <button type="submit" className="btn btn-primary" disabled={saving}>{saving ? "创建中..." : "创建章节"}</button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
 export function PlotOutlineView() {
   const [projects, setProjects] = useState<ProjectSummary[]>([]);
   const [novels, setNovels] = useState<NovelSummary[]>([]);
@@ -74,10 +175,16 @@ export function PlotOutlineView() {
   const [volumes, setVolumes] = useState<VolumeRecord[]>([]);
   const [selectedVolumeId, setSelectedVolumeId] = useState<string | null>(null);
   const [draft, setDraft] = useState<VolumeDraft>(() => createDraft());
+  const [chapterDraft, setChapterDraft] = useState<ChapterDraft>({ title: "新章节", volumeId: NO_VOLUME });
+  const [viewMode, setViewMode] = useState<PlotViewMode>(readStoredViewMode);
+  const [newMenuOpen, setNewMenuOpen] = useState(false);
+  const [chapterModalOpen, setChapterModalOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [creatingChapter, setCreatingChapter] = useState(false);
   const [feedback, setFeedback] = useState<FeedbackState | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<VolumeRecord | null>(null);
+  const newMenuRef = useRef<HTMLDivElement | null>(null);
 
   const selectedVolume = useMemo(
     () => volumes.find((volume) => volume.id === selectedVolumeId) ?? null,
@@ -87,6 +194,28 @@ export function PlotOutlineView() {
     () => [...volumes].sort((left, right) => left.order - right.order || left.title.localeCompare(right.title)),
     [volumes],
   );
+
+  useEffect(() => {
+    if (!newMenuOpen) {
+      return;
+    }
+    const onPointerDown = (event: PointerEvent) => {
+      if (newMenuRef.current && !newMenuRef.current.contains(event.target as Node)) {
+        setNewMenuOpen(false);
+      }
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setNewMenuOpen(false);
+      }
+    };
+    window.addEventListener("pointerdown", onPointerDown);
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      window.removeEventListener("pointerdown", onPointerDown);
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [newMenuOpen]);
 
   async function loadProjects() {
     setLoading(true);
@@ -165,9 +294,22 @@ export function PlotOutlineView() {
     setDraft(createDraft(selectedVolume ?? undefined));
   }, [selectedVolume?.id]);
 
-  function startCreate() {
+  function changeViewMode(mode: PlotViewMode) {
+    setViewMode(mode);
+    writeStoredViewMode(mode);
+  }
+
+  function startCreateVolume() {
+    setNewMenuOpen(false);
     setSelectedVolumeId(null);
     setDraft(createDraft());
+    setFeedback(null);
+  }
+
+  function startCreateChapter() {
+    setNewMenuOpen(false);
+    setChapterDraft({ title: "新章节", volumeId: selectedVolumeId ?? NO_VOLUME });
+    setChapterModalOpen(true);
     setFeedback(null);
   }
 
@@ -196,6 +338,30 @@ export function PlotOutlineView() {
       setFeedback({ kind: "error", message: error instanceof ApiError ? error.message : "分卷保存失败" });
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function createChapter() {
+    if (!projectId || !novelId) {
+      setFeedback({ kind: "error", message: "请先选择项目和小说" });
+      return;
+    }
+    const title = chapterDraft.title.trim();
+    if (!title) {
+      setFeedback({ kind: "error", message: "请填写章节名" });
+      return;
+    }
+
+    setCreatingChapter(true);
+    try {
+      const volumeId = chapterDraft.volumeId === NO_VOLUME ? undefined : chapterDraft.volumeId;
+      const chapter = await api.createChapter(projectId, novelId, title, volumeId);
+      setChapterModalOpen(false);
+      setFeedback({ kind: "success", message: `章节「${chapter.title}」已创建` });
+    } catch (error) {
+      setFeedback({ kind: "error", message: error instanceof ApiError ? error.message : "章节创建失败" });
+    } finally {
+      setCreatingChapter(false);
     }
   }
 
@@ -236,19 +402,75 @@ export function PlotOutlineView() {
     }
   }
 
+  function renderVolumeActions(volume: VolumeRecord, index: number) {
+    return (
+      <div className="plot-volume-actions">
+        <button type="button" className="btn-icon" title="上移" disabled={index === 0} onClick={(event) => {
+          event.stopPropagation();
+          void moveVolume(volume, -1);
+        }}>
+          <ArrowUp size={15} />
+        </button>
+        <button type="button" className="btn-icon" title="下移" disabled={index === sortedVolumes.length - 1} onClick={(event) => {
+          event.stopPropagation();
+          void moveVolume(volume, 1);
+        }}>
+          <ArrowDown size={15} />
+        </button>
+        <button type="button" className="btn-icon" title="编辑" onClick={(event) => {
+          event.stopPropagation();
+          setSelectedVolumeId(volume.id);
+        }}>
+          <Pencil size={15} />
+        </button>
+        <button type="button" className="btn-icon danger" title="删除" onClick={(event) => {
+          event.stopPropagation();
+          setDeleteTarget(volume);
+        }}>
+          <Trash2 size={15} />
+        </button>
+      </div>
+    );
+  }
+
   return (
-    <ViewShell title="剧情大纲" subtitle="先搭好分卷大纲：明确每卷定位、主题和重点，后续章节规划会基于这里展开">
+    <ViewShell title="剧情大纲" subtitle="先搭好分卷大纲：明确每卷定位、主题和重点；也可以不分卷，直接新建章节开始写">
       <div className="plot-layout">
         <section className="editor-card plot-index-card">
           <div className="editor-card-head">
             <div>
               <h2>分卷大纲索引</h2>
-              <p className="view-sub">当前小说共 {volumes.length} 卷，按卷序管理整体剧情节奏。</p>
+              <p className="view-sub">当前小说共 {volumes.length} 卷。默认横条视图便于一眼扫过卷名、状态和摘要。</p>
             </div>
-            <button type="button" className="btn btn-primary" disabled={!projectId || !novelId} onClick={startCreate}>
-              <Plus size={15} strokeWidth={2} />
-              新建分卷
-            </button>
+            <div className="plot-head-actions">
+              <div className="view-toggle" aria-label="分卷视图切换">
+                <button type="button" className={viewMode === "strip" ? "on" : ""} title="横条视图" onClick={() => changeViewMode("strip")}>
+                  <List size={15} />
+                </button>
+                <button type="button" className={viewMode === "table" ? "on" : ""} title="表格视图" onClick={() => changeViewMode("table")}>
+                  <Columns3 size={15} />
+                </button>
+              </div>
+              <div className="plot-create-wrap" ref={newMenuRef}>
+                <button type="button" className="btn btn-primary" disabled={!projectId || !novelId} onClick={() => setNewMenuOpen((value) => !value)}>
+                  <Plus size={15} strokeWidth={2} />
+                  新建
+                  <ChevronDown size={14} strokeWidth={1.8} />
+                </button>
+                {newMenuOpen ? (
+                  <div className="plot-create-menu" role="menu">
+                    <button type="button" role="menuitem" onClick={startCreateVolume}>
+                      <Plus size={14} />
+                      新建分卷
+                    </button>
+                    <button type="button" role="menuitem" onClick={startCreateChapter}>
+                      <FilePlus2 size={14} />
+                      新建章节
+                    </button>
+                  </div>
+                ) : null}
+              </div>
+            </div>
           </div>
 
           <div className="plot-select-row">
@@ -279,56 +501,60 @@ export function PlotOutlineView() {
             </div>
           ) : null}
 
-          <div className="plot-volume-list">
-            {loading ? (
-              <div className="center-state" style={{ minHeight: 180 }}>
-                <div className="spinner" />
-                <span>正在加载分卷大纲...</span>
+          {loading ? (
+            <div className="center-state" style={{ minHeight: 180 }}>
+              <div className="spinner" />
+              <span>正在加载分卷大纲...</span>
+            </div>
+          ) : sortedVolumes.length ? (
+            viewMode === "strip" ? (
+              <div className="plot-volume-list plot-volume-list-strip">
+                {sortedVolumes.map((volume, index) => (
+                  <article
+                    className={`plot-volume-strip ${volume.id === selectedVolumeId ? "active" : ""}`}
+                    key={volume.id}
+                    onClick={() => setSelectedVolumeId(volume.id)}
+                  >
+                    <button type="button" className="plot-strip-main">
+                      <span className="plot-volume-order">{String(index + 1).padStart(2, "0")}</span>
+                      <span className="plot-strip-text">
+                        <span className="plot-volume-title">{volume.title}</span>
+                        <span className="plot-volume-summary">{volumeSummary(volume)}</span>
+                      </span>
+                      <span className={`status-pill status-pill-${volume.status ?? "draft"}`}>{statusLabel(volume.status)}</span>
+                    </button>
+                    {renderVolumeActions(volume, index)}
+                  </article>
+                ))}
               </div>
-            ) : sortedVolumes.length ? (
-              sortedVolumes.map((volume, index) => (
-                <article
-                  className={`plot-volume-item ${volume.id === selectedVolumeId ? "active" : ""}`}
-                  key={volume.id}
-                  onClick={() => setSelectedVolumeId(volume.id)}
-                >
-                  <button type="button" className="plot-volume-main">
-                    <span className="plot-volume-order">{String(index + 1).padStart(2, "0")}</span>
-                    <span className="plot-volume-title">{volume.title}</span>
-                    <span className={`status-pill status-pill-${volume.status ?? "draft"}`}>{statusLabel(volume.status)}</span>
-                  </button>
-                  <div className="plot-volume-actions">
-                    <button type="button" className="btn-icon" title="上移" disabled={index === 0} onClick={(event) => {
-                      event.stopPropagation();
-                      void moveVolume(volume, -1);
-                    }}>
-                      <ArrowUp size={15} />
-                    </button>
-                    <button type="button" className="btn-icon" title="下移" disabled={index === sortedVolumes.length - 1} onClick={(event) => {
-                      event.stopPropagation();
-                      void moveVolume(volume, 1);
-                    }}>
-                      <ArrowDown size={15} />
-                    </button>
-                    <button type="button" className="btn-icon" title="编辑" onClick={(event) => {
-                      event.stopPropagation();
-                      setSelectedVolumeId(volume.id);
-                    }}>
-                      <Pencil size={15} />
-                    </button>
-                    <button type="button" className="btn-icon danger" title="删除" onClick={(event) => {
-                      event.stopPropagation();
-                      setDeleteTarget(volume);
-                    }}>
-                      <Trash2 size={15} />
-                    </button>
-                  </div>
-                </article>
-              ))
             ) : (
-              <div className="empty-card">还没有分卷。先新建第一卷，写下卷定位和核心主题。</div>
-            )}
-          </div>
+              <div className="plot-volume-table">
+                <div className="plot-volume-table-head">
+                  <span>卷名</span>
+                  <span>状态</span>
+                  <span>定位 / 主题摘要</span>
+                  <span>操作</span>
+                </div>
+                {sortedVolumes.map((volume, index) => (
+                  <article
+                    className={`plot-volume-table-row ${volume.id === selectedVolumeId ? "active" : ""}`}
+                    key={volume.id}
+                    onClick={() => setSelectedVolumeId(volume.id)}
+                  >
+                    <button type="button" className="plot-table-title">
+                      <span className="plot-volume-order">{String(index + 1).padStart(2, "0")}</span>
+                      <span>{volume.title}</span>
+                    </button>
+                    <span className={`status-pill status-pill-${volume.status ?? "draft"}`}>{statusLabel(volume.status)}</span>
+                    <span className="plot-table-summary">{volumeSummary(volume)}</span>
+                    {renderVolumeActions(volume, index)}
+                  </article>
+                ))}
+              </div>
+            )
+          ) : (
+            <div className="empty-card">还没有分卷。可以新建分卷做卷级规划，也可以直接新建章节开始写。</div>
+          )}
         </section>
 
         <section className="editor-card plot-editor-card">
@@ -377,6 +603,21 @@ export function PlotOutlineView() {
           </label>
         </section>
       </div>
+
+      {chapterModalOpen ? (
+        <ChapterCreateModal
+          draft={chapterDraft}
+          volumes={sortedVolumes}
+          saving={creatingChapter}
+          onChange={(patch) => setChapterDraft((current) => ({ ...current, ...patch }))}
+          onCancel={() => {
+            if (!creatingChapter) {
+              setChapterModalOpen(false);
+            }
+          }}
+          onSubmit={() => void createChapter()}
+        />
+      ) : null}
 
       {deleteTarget ? (
         <ConfirmModal
