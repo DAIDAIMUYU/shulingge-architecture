@@ -51,6 +51,7 @@ import {
   type AnnotationRecord,
   type Character,
   type DirectorChatMessage,
+  type DirectorConversationSummary,
   type DirectorReviewReport,
   type DirectorTaskSuggestion,
   type EditorChapter,
@@ -269,6 +270,11 @@ function excerptText(content: string, maxLength = 120): string {
   return normalized.length > maxLength ? `${normalized.slice(0, maxLength)}...` : normalized;
 }
 
+function conversationTitleForSave(title: string): string | undefined {
+  const trimmed = title.trim();
+  return trimmed && trimmed !== "新对话" ? trimmed : undefined;
+}
+
 function chapterIdFromSearchResult(result: SearchResult): string | null {
   const filename = result.path.split(/[\\/]/).pop();
   const fileChapterId = filename?.replace(/\.(md|json)$/i, "");
@@ -476,6 +482,10 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
   const [editorMode, setEditorMode] = useState<EditorMode>("rich");
   const [messages, setMessages] = useState<ChatMessage[]>(() => hydrateChatMessages([], () => 0));
   const [conversationLoadedKey, setConversationLoadedKey] = useState("");
+  const [conversationId, setConversationId] = useState("");
+  const [conversationTitle, setConversationTitle] = useState("新对话");
+  const [conversationList, setConversationList] = useState<DirectorConversationSummary[]>([]);
+  const [conversationMenuOpen, setConversationMenuOpen] = useState(false);
   const [conversationSaveError, setConversationSaveError] = useState<string | null>(null);
   const [chatInput, setChatInput] = useState("");
   const [quickLookupOpen, setQuickLookupOpen] = useState(false);
@@ -501,6 +511,7 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const idRef = useRef(1);
   const chatEndRef = useRef<HTMLDivElement | null>(null);
+  const conversationMenuRef = useRef<HTMLDivElement | null>(null);
   const sourceTextareaRef = useRef<HTMLTextAreaElement | null>(null);
   const createMenuRef = useRef<HTMLDivElement | null>(null);
   const treeContextMenuRef = useRef<HTMLDivElement | null>(null);
@@ -708,6 +719,22 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
   }, [createMenuOpen]);
 
   useEffect(() => {
+    if (!conversationMenuOpen) {
+      return;
+    }
+
+    const closeOnOutsidePointer = (event: MouseEvent) => {
+      if (conversationMenuRef.current?.contains(event.target as Node)) {
+        return;
+      }
+      setConversationMenuOpen(false);
+    };
+
+    document.addEventListener("mousedown", closeOnOutsidePointer);
+    return () => document.removeEventListener("mousedown", closeOnOutsidePointer);
+  }, [conversationMenuOpen]);
+
+  useEffect(() => {
     if (!treeContextMenu) {
       return;
     }
@@ -887,47 +914,59 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
   }, [activeTitle]);
 
   useEffect(() => {
-    if (!vaultSelected || !activeId || !locator.projectId || !locator.novelId || !locator.chapterId) {
+    if (!vaultSelected) {
       setConversationLoadedKey("");
+      setConversationId("");
+      setConversationTitle("新对话");
+      setConversationList([]);
       setMessages(hydrateChatMessages([], nextId));
       return;
     }
 
     let alive = true;
-    const conversationKey = `${locator.projectId}/${locator.novelId}/${locator.chapterId}`;
     setConversationLoadedKey("");
     setConversationSaveError(null);
 
     void (async () => {
       try {
-        const record = await api.loadDirectorConversation(locator.projectId, locator.novelId, locator.chapterId);
+        let list = await api.listDirectorConversations();
+        let active = list[0] ?? null;
+        if (!active) {
+          const created = await api.createDirectorConversation({ title: "新对话", messages: [] });
+          active = {
+            id: created.id,
+            title: created.title,
+            createdAt: created.createdAt ?? created.updatedAt ?? "",
+            updatedAt: created.updatedAt ?? "",
+            messageCount: created.messageCount ?? created.messages.length,
+          };
+          list = [active];
+        }
+        const record = await api.loadDirectorConversation(active.id);
         if (!alive) {
           return;
         }
+        setConversationList(list);
+        setConversationId(record.id);
+        setConversationTitle(record.title || "新对话");
         setMessages(hydrateChatMessages(record.messages, nextId));
-      } catch {
+        setConversationLoadedKey(record.id);
+      } catch (err) {
         if (!alive) {
           return;
         }
+        setConversationSaveError(err instanceof ApiError ? err.message : "对话加载失败");
         setMessages(hydrateChatMessages([], nextId));
-      } finally {
-        if (alive) {
-          setConversationLoadedKey(conversationKey);
-        }
       }
     })();
 
     return () => {
       alive = false;
     };
-  }, [activeId, locator, vaultSelected]);
+  }, [vaultSelected]);
 
   useEffect(() => {
-    if (!conversationLoadedKey || !vaultSelected || !locator.projectId || !locator.novelId || !locator.chapterId) {
-      return;
-    }
-    const currentKey = `${locator.projectId}/${locator.novelId}/${locator.chapterId}`;
-    if (conversationLoadedKey !== currentKey) {
+    if (!conversationLoadedKey || !vaultSelected || !conversationId || conversationLoadedKey !== conversationId) {
       return;
     }
     if (conversationSaveTimer.current) {
@@ -937,7 +976,10 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
     const snapshot = serializeChatMessages(messages);
     conversationSaveTimer.current = setTimeout(async () => {
       try {
-        await api.saveDirectorConversation(locator.projectId, locator.novelId, locator.chapterId, snapshot);
+        const saved = await api.saveDirectorConversation(conversationId, snapshot, conversationTitleForSave(conversationTitle));
+        setConversationTitle(saved.title || "新对话");
+        const list = await api.listDirectorConversations();
+        setConversationList(list);
         setConversationSaveError(null);
       } catch (err) {
         setConversationSaveError(err instanceof ApiError ? err.message : "对话历史保存失败");
@@ -949,7 +991,7 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
         clearTimeout(conversationSaveTimer.current);
       }
     };
-  }, [conversationLoadedKey, locator, messages, vaultSelected]);
+  }, [conversationId, conversationLoadedKey, conversationTitle, messages, vaultSelected]);
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
@@ -1914,6 +1956,73 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
     setSearchResults([]);
     setSearchError(null);
     setIndexFeedback(null);
+  };
+
+  const saveCurrentConversationNow = async () => {
+    if (!vaultSelected || !conversationId || conversationLoadedKey !== conversationId) {
+      return;
+    }
+    const saved = await api.saveDirectorConversation(conversationId, serializeChatMessages(messages), conversationTitleForSave(conversationTitle));
+    setConversationTitle(saved.title || "新对话");
+    setConversationList(await api.listDirectorConversations());
+  };
+
+  const switchConversation = async (targetId: string) => {
+    if (!vaultSelected || !targetId || targetId === conversationId) {
+      setConversationMenuOpen(false);
+      return;
+    }
+    try {
+      await saveCurrentConversationNow();
+      setConversationLoadedKey("");
+      const record = await api.loadDirectorConversation(targetId);
+      setConversationId(record.id);
+      setConversationTitle(record.title || "新对话");
+      setMessages(hydrateChatMessages(record.messages, nextId));
+      setConversationLoadedKey(record.id);
+      setConversationMenuOpen(false);
+      setConversationSaveError(null);
+    } catch (err) {
+      setConversationSaveError(err instanceof ApiError ? err.message : "切换对话失败");
+    }
+  };
+
+  const createNewConversation = async () => {
+    if (!vaultSelected) {
+      return;
+    }
+    try {
+      await saveCurrentConversationNow();
+      setConversationLoadedKey("");
+      const created = await api.createDirectorConversation({ title: "新对话", messages: [] });
+      setConversationId(created.id);
+      setConversationTitle(created.title || "新对话");
+      setMessages(hydrateChatMessages([], nextId));
+      setConversationList(await api.listDirectorConversations());
+      setConversationLoadedKey(created.id);
+      setConversationMenuOpen(false);
+      setConversationSaveError(null);
+    } catch (err) {
+      setConversationSaveError(err instanceof ApiError ? err.message : "新建对话失败");
+    }
+  };
+
+  const clearCurrentConversation = () => {
+    if (!conversationId) {
+      return;
+    }
+    openConfirm({
+      title: "清空当前对话",
+      message: `确定清空「${conversationTitle || "新对话"}」里的全部消息吗？对话本身会保留。`,
+      confirmText: "清空",
+      danger: true,
+      onConfirm: () => {
+        closeConfirm();
+        setMessages(hydrateChatMessages([], nextId));
+        setConversationTitle("新对话");
+        setConversationSaveError(null);
+      },
+    });
   };
 
   const saveChapterTitle = async () => {
@@ -3208,9 +3317,44 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
           <div className="chat-avatar">
             <Bot size={20} strokeWidth={1.75} />
           </div>
-          <div>
+          <div className="chat-title-block">
             <div className="ch-name">总控 · 书灵</div>
-            <div className="ch-sub">对话式创作顾问</div>
+            <div className="ch-sub">{conversationTitle || "新对话"}</div>
+          </div>
+          <div className="chat-conversation-actions" ref={conversationMenuRef}>
+            <button
+              type="button"
+              className="btn-icon"
+              title="切换对话"
+              onClick={() => setConversationMenuOpen((open) => !open)}
+              disabled={!vaultSelected}
+            >
+              <ChevronDown size={15} strokeWidth={1.9} />
+            </button>
+            <button type="button" className="btn-icon" title="新建对话" onClick={() => void createNewConversation()} disabled={!vaultSelected}>
+              <PenLine size={15} strokeWidth={1.9} />
+            </button>
+            <button type="button" className="btn-icon" title="清空当前对话" onClick={clearCurrentConversation} disabled={!conversationId}>
+              <Trash2 size={15} strokeWidth={1.9} />
+            </button>
+            {conversationMenuOpen ? (
+              <div className="conversation-menu" role="menu">
+                {conversationList.length ? conversationList.map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    role="menuitem"
+                    className={item.id === conversationId ? "active" : ""}
+                    onClick={() => void switchConversation(item.id)}
+                  >
+                    <span>{item.title || "新对话"}</span>
+                    <small>{item.updatedAt ? new Date(item.updatedAt).toLocaleString("zh-CN", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" }) : "未保存"}</small>
+                  </button>
+                )) : (
+                  <div className="conversation-menu-empty">暂无历史对话</div>
+                )}
+              </div>
+            ) : null}
           </div>
         </div>
 

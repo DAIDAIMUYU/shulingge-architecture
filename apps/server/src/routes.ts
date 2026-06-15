@@ -117,7 +117,15 @@ import { assistCharacter } from "./assist-character.js";
 import { getPublicResearchSettings, listSearchSources, researchCharacter, researchTimeline, researchWorldbook, testSearchSource, updateResearchSettings } from "./assist-character-research.js";
 import { assistWorldbook } from "./assist-worldbook.js";
 import { assistTimeline } from "./assist-timeline.js";
-import { loadDirectorConversation, saveDirectorConversation } from "./director-conversations.js";
+import {
+  createGlobalDirectorConversation,
+  deleteGlobalDirectorConversation,
+  listGlobalDirectorConversations,
+  loadDirectorConversation,
+  loadGlobalDirectorConversation,
+  saveDirectorConversation,
+  saveGlobalDirectorConversation,
+} from "./director-conversations.js";
 import { listThemeCommunity, publishThemeCommunityEntry } from "./theme-market.js";
 import {
   applyDownloadedUpdate,
@@ -413,7 +421,55 @@ export const routeDefinitions: RouteDefinition[] = [
   },
   {
     method: "GET",
-    path: "/api/v1/director/conversations/:chapterId",
+    path: "/api/v1/director/conversations",
+    async handler(_request, context) {
+      const vaultRoot = requireVaultRoot(context);
+      return await listGlobalDirectorConversations(vaultRoot);
+    },
+  },
+  {
+    method: "POST",
+    path: "/api/v1/director/conversations",
+    async handler(request, context) {
+      const vaultRoot = requireVaultRoot(context);
+      const body = request.body as { title?: string; messages?: unknown[] } | undefined;
+      return await createGlobalDirectorConversation(vaultRoot, {
+        title: body?.title,
+        messages: body?.messages,
+      });
+    },
+  },
+  {
+    method: "GET",
+    path: "/api/v1/director/conversations/:conversationId",
+    async handler(request, context) {
+      const vaultRoot = requireVaultRoot(context);
+      return await loadGlobalDirectorConversation(vaultRoot, request.params.conversationId);
+    },
+  },
+  {
+    method: "PUT",
+    path: "/api/v1/director/conversations/:conversationId",
+    async handler(request, context) {
+      const vaultRoot = requireVaultRoot(context);
+      const body = request.body as { title?: string; messages?: unknown[] } | undefined;
+      return await saveGlobalDirectorConversation(vaultRoot, request.params.conversationId, {
+        title: body?.title,
+        messages: body?.messages ?? [],
+      });
+    },
+  },
+  {
+    method: "DELETE",
+    path: "/api/v1/director/conversations/:conversationId",
+    async handler(request, context) {
+      const vaultRoot = requireVaultRoot(context);
+      return await deleteGlobalDirectorConversation(vaultRoot, request.params.conversationId);
+    },
+  },
+  {
+    method: "GET",
+    path: "/api/v1/director/chapter-conversations/:chapterId",
     async handler(request, context) {
       const vaultRoot = requireVaultRoot(context);
       return await loadDirectorConversation(vaultRoot, {
@@ -425,7 +481,7 @@ export const routeDefinitions: RouteDefinition[] = [
   },
   {
     method: "PUT",
-    path: "/api/v1/director/conversations/:chapterId",
+    path: "/api/v1/director/chapter-conversations/:chapterId",
     async handler(request, context) {
       const vaultRoot = requireVaultRoot(context);
       const body = request.body as { projectId?: string; novelId?: string; messages?: unknown[] } | undefined;

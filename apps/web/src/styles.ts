@@ -543,11 +543,20 @@ body.app-focus .main { padding-bottom: 0; }
 
 /* ===== 第四列：总控 AI 对话窗 ===== */
 .chat-pane { background: var(--bg-panel); background-image: none; border-left: 1px solid var(--border); display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
-.chat-head { display: flex; align-items: center; gap: 12px; padding: 18px 20px; border-bottom: 1px solid var(--border); flex: none; }
+.chat-head { display: flex; align-items: center; gap: 12px; padding: 18px 20px; border-bottom: 1px solid var(--border); flex: none; position: relative; }
 .chat-avatar { width: 38px; height: 38px; border-radius: 11px; background: linear-gradient(135deg, var(--primary), var(--primary-hover)); color: var(--text-on-primary); display: grid; place-items: center; flex: none; box-shadow: inset 0 -2px 0 color-mix(in srgb, var(--accent-cinnabar) 36%, transparent), 0 8px 18px color-mix(in srgb, var(--primary) 18%, transparent); }
+.chat-title-block { min-width: 0; flex: 1; }
 .chat-head .ch-name { font-size: 14px; font-weight: 600; }
 .chat-head .ch-sub { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
 .chat-head .grow { flex: 1; }
+.chat-conversation-actions { position: relative; display: flex; align-items: center; gap: 4px; flex: none; }
+.conversation-menu { position: absolute; top: calc(100% + 8px); right: 0; z-index: 1000; width: 240px; max-height: 320px; overflow: auto; padding: 6px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--bg-card); box-shadow: var(--shadow-popover); }
+.conversation-menu button { width: 100%; display: grid; gap: 2px; padding: 8px 10px; border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--text-secondary); text-align: left; cursor: pointer; }
+.conversation-menu button:hover { background: var(--bg-hover); color: var(--text-primary); }
+.conversation-menu button.active { background: var(--bg-active); color: var(--primary); }
+.conversation-menu button span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
+.conversation-menu button small { color: var(--text-muted); font-size: 11px; }
+.conversation-menu-empty { padding: 10px; color: var(--text-muted); font-size: 12px; }
 .chat-scroll { flex: 1; min-height: 0; overflow: auto; padding: 20px 18px; display: flex; flex-direction: column; gap: 16px; }
 .msg { display: flex; gap: 10px; max-width: 100%; }
 .msg-av { width: 28px; height: 28px; border-radius: 9px; flex: none; display: grid; place-items: center; font-size: 13px; }

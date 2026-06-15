@@ -257,11 +257,19 @@ export interface DirectorReviewResponse {
   reports: DirectorReviewReport[];
 }
 export interface DirectorConversationRecord {
-  projectId: string;
-  novelId: string;
-  chapterId: string;
+  id: string;
+  title: string;
   messages: unknown[];
+  createdAt?: string;
   updatedAt?: string;
+  messageCount?: number;
+}
+export interface DirectorConversationSummary {
+  id: string;
+  title: string;
+  createdAt: string;
+  updatedAt: string;
+  messageCount: number;
 }
 export interface AssistCharacterField {
   group: string;
@@ -952,12 +960,20 @@ export const api = {
     post<DirectorExecuteResponse>("/director/execute", payload),
   reviewChapter: async (payload: DirectorReviewPayload): Promise<DirectorReviewResponse> =>
     post<DirectorReviewResponse>("/director/review", payload),
-  loadDirectorConversation: async (projectId: string, novelId: string, chapterId: string): Promise<DirectorConversationRecord> =>
-    get<DirectorConversationRecord>(withQuery(`/director/conversations/${encodeURIComponent(chapterId)}`, { projectId, novelId })),
-  saveDirectorConversation: async (projectId: string, novelId: string, chapterId: string, messages: unknown[]): Promise<DirectorConversationRecord> =>
-    request<DirectorConversationRecord>(`/director/conversations/${encodeURIComponent(chapterId)}`, {
+  listDirectorConversations: async (): Promise<DirectorConversationSummary[]> =>
+    unwrapList<DirectorConversationSummary>(await get("/director/conversations"), "conversations"),
+  createDirectorConversation: async (payload: { title?: string; messages?: unknown[] } = {}): Promise<DirectorConversationRecord> =>
+    post<DirectorConversationRecord>("/director/conversations", payload),
+  loadDirectorConversation: async (conversationId: string): Promise<DirectorConversationRecord> =>
+    get<DirectorConversationRecord>(`/director/conversations/${encodeURIComponent(conversationId)}`),
+  saveDirectorConversation: async (conversationId: string, messages: unknown[], title?: string): Promise<DirectorConversationRecord> =>
+    request<DirectorConversationRecord>(`/director/conversations/${encodeURIComponent(conversationId)}`, {
       method: "PUT",
-      body: JSON.stringify({ projectId, novelId, messages }),
+      body: JSON.stringify({ title, messages }),
+    }),
+  deleteDirectorConversation: async (conversationId: string): Promise<{ ok: true }> =>
+    request<{ ok: true }>(`/director/conversations/${encodeURIComponent(conversationId)}`, {
+      method: "DELETE",
     }),
   assistCharacter: async (payload: AssistCharacterPayload): Promise<AssistCharacterResponse> =>
     post<AssistCharacterResponse>("/assist/character", payload),
