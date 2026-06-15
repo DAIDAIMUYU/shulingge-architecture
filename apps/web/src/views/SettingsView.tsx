@@ -62,6 +62,8 @@ function createLocalCustomSourceId(): string {
 function sourceHealthLabel(source: SearchSourceInfo): string {
   if (source.health?.status === "verified") return "已验证可用";
   if (source.health?.status === "failed") return "上次失败";
+  if (!source.configured) return "待配置";
+  if (source.free && !source.requiresKey) return "免费可用";
   return "未测试";
 }
 
@@ -1439,7 +1441,7 @@ export function SettingsView({ vaultPath, onSetVault, onClearVault }: SettingsVi
                 ) : null}
               </section>
 
-              <section className="info-card">
+              <section className="info-card research-settings-card">
                 <h3>配置搜索源</h3>
                 <div className="list-card">
                   <div className="list-row head">
@@ -1484,7 +1486,7 @@ export function SettingsView({ vaultPath, onSetVault, onClearVault }: SettingsVi
                 </div>
 
                 {researchConfigSource === "google" ? (
-                  <div className="model-editor-section">
+                  <div className="model-editor-section research-config-section">
                     <div className="model-editor-section-title">谷歌 Google</div>
                     <div className="form-grid form-grid-2">
                       <label className="form-block">
@@ -1517,7 +1519,7 @@ export function SettingsView({ vaultPath, onSetVault, onClearVault }: SettingsVi
                 ) : null}
 
                 {researchConfigSource === "bing" ? (
-                  <div className="model-editor-section">
+                  <div className="model-editor-section research-config-section">
                     <div className="model-editor-section-title">必应 Bing</div>
                     <label className="form-block">
                       <span>Bing API key</span>
@@ -1539,7 +1541,7 @@ export function SettingsView({ vaultPath, onSetVault, onClearVault }: SettingsVi
                 ) : null}
 
                 {researchConfigSource === "custom" ? (
-                  <div className="model-editor-section">
+                  <div className="model-editor-section research-config-section">
                     <div className="model-editor-section-title">自定义 MediaWiki 源</div>
                     <div className="list-card">
                       <div className="list-row head">
@@ -1570,7 +1572,7 @@ export function SettingsView({ vaultPath, onSetVault, onClearVault }: SettingsVi
                       )}
                     </div>
 
-                    <div className="model-editor-section">
+                    <div className="model-editor-section research-custom-form">
                       <div className="model-editor-section-title">{editingCustomSourceId ? "编辑自定义源" : "添加自定义源"}</div>
                       <label className="form-block">
                         <span>源名称</span>
@@ -1610,7 +1612,7 @@ export function SettingsView({ vaultPath, onSetVault, onClearVault }: SettingsVi
                   </div>
                 ) : null}
 
-                <div className="view-actions">
+                <div className="view-actions research-save-actions">
                   <button type="button" className="btn btn-primary" onClick={() => void saveResearchSettings()} disabled={savingResearchSettings}>
                     {savingResearchSettings ? "保存中..." : "保存联网查资料配置"}
                   </button>

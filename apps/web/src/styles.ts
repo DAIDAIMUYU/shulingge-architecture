@@ -669,6 +669,15 @@ body.app-focus .main { padding-bottom: 0; }
 .model-actions-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .model-editor-section { display: grid; gap: 14px; }
 .model-editor-section-title { font-size: 13px; font-weight: 600; color: var(--text-secondary); }
+.research-settings-card { display: flex; flex-direction: column; gap: 22px; }
+.research-settings-card h3 { margin-bottom: 0; }
+.research-settings-card > .list-card { margin-top: 2px; }
+.research-settings-card > .form-row { margin-top: 2px; }
+.research-config-section { gap: 18px; padding-top: 4px; }
+.research-config-section .form-grid { gap: 18px; margin-bottom: 2px; }
+.research-config-section .model-actions-row { margin-top: 4px; gap: 12px; }
+.research-custom-form { gap: 16px; padding: 16px 0 4px; }
+.research-save-actions { margin-top: 10px; padding-top: 18px; border-top: 1px solid var(--border); }
 .model-key-row { display: flex; align-items: end; gap: 10px; flex-wrap: wrap; }
 .model-key-input { flex: 1 1 320px; min-width: 220px; }
 .model-feedback { margin-top: 16px; display: flex; align-items: center; gap: 8px; padding: 12px 14px; border-radius: var(--radius-sm); border: 1px solid var(--border); font-size: 13px; font-weight: 500; }
