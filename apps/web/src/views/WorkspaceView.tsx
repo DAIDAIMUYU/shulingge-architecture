@@ -2025,6 +2025,46 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
     });
   };
 
+  const deleteConversation = (target: DirectorConversationSummary) => {
+    openConfirm({
+      title: "删除对话",
+      message: `确定删除对话「${target.title || "新对话"}」吗？此操作不可恢复。`,
+      confirmText: "删除",
+      danger: true,
+      onConfirm: async () => {
+        closeConfirm();
+        try {
+          await api.deleteDirectorConversation(target.id);
+          const nextList = await api.listDirectorConversations();
+          setConversationList(nextList);
+          if (target.id !== conversationId) {
+            return;
+          }
+          setConversationLoadedKey("");
+          const next = nextList.find((item) => item.id !== target.id) ?? nextList[0] ?? null;
+          if (next) {
+            const record = await api.loadDirectorConversation(next.id);
+            setConversationId(record.id);
+            setConversationTitle(record.title || "新对话");
+            setMessages(hydrateChatMessages(record.messages, nextId));
+            setConversationLoadedKey(record.id);
+          } else {
+            const created = await api.createDirectorConversation({ title: "新对话", messages: [] });
+            setConversationId(created.id);
+            setConversationTitle(created.title || "新对话");
+            setMessages(hydrateChatMessages([], nextId));
+            setConversationList(await api.listDirectorConversations());
+            setConversationLoadedKey(created.id);
+          }
+          setConversationMenuOpen(false);
+          setConversationSaveError(null);
+        } catch (err) {
+          setConversationSaveError(err instanceof ApiError ? err.message : "删除对话失败");
+        }
+      },
+    });
+  };
+
   const saveChapterTitle = async () => {
     if (!projectTree || !hasValidActiveChapter) {
       return;
@@ -3340,16 +3380,29 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
             {conversationMenuOpen ? (
               <div className="conversation-menu" role="menu">
                 {conversationList.length ? conversationList.map((item) => (
-                  <button
-                    key={item.id}
-                    type="button"
-                    role="menuitem"
-                    className={item.id === conversationId ? "active" : ""}
-                    onClick={() => void switchConversation(item.id)}
-                  >
-                    <span>{item.title || "新对话"}</span>
-                    <small>{item.updatedAt ? new Date(item.updatedAt).toLocaleString("zh-CN", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" }) : "未保存"}</small>
-                  </button>
+                  <div className={`conversation-menu-row ${item.id === conversationId ? "active" : ""}`} key={item.id}>
+                    <button
+                      type="button"
+                      role="menuitem"
+                      className="conversation-menu-main"
+                      onClick={() => void switchConversation(item.id)}
+                    >
+                      <span>{item.title || "新对话"}</span>
+                      <small>{item.updatedAt ? new Date(item.updatedAt).toLocaleString("zh-CN", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" }) : "未保存"}</small>
+                    </button>
+                    <button
+                      type="button"
+                      className="conversation-menu-delete"
+                      title="删除对话"
+                      aria-label={`删除对话 ${item.title || "新对话"}`}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        deleteConversation(item);
+                      }}
+                    >
+                      <Trash2 size={14} strokeWidth={1.9} />
+                    </button>
+                  </div>
                 )) : (
                   <div className="conversation-menu-empty">暂无历史对话</div>
                 )}

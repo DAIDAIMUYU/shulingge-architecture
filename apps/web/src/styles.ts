@@ -551,11 +551,16 @@ body.app-focus .main { padding-bottom: 0; }
 .chat-head .grow { flex: 1; }
 .chat-conversation-actions { position: relative; display: flex; align-items: center; gap: 4px; flex: none; }
 .conversation-menu { position: absolute; top: calc(100% + 8px); right: 0; z-index: 1000; width: 240px; max-height: 320px; overflow: auto; padding: 6px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--bg-card); box-shadow: var(--shadow-popover); }
-.conversation-menu button { width: 100%; display: grid; gap: 2px; padding: 8px 10px; border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--text-secondary); text-align: left; cursor: pointer; }
-.conversation-menu button:hover { background: var(--bg-hover); color: var(--text-primary); }
-.conversation-menu button.active { background: var(--bg-active); color: var(--primary); }
-.conversation-menu button span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
-.conversation-menu button small { color: var(--text-muted); font-size: 11px; }
+.conversation-menu-row { display: grid; grid-template-columns: minmax(0, 1fr) 30px; gap: 4px; align-items: stretch; border-radius: var(--radius-sm); }
+.conversation-menu-row.active { background: var(--bg-active); }
+.conversation-menu-main { min-width: 0; display: grid; gap: 2px; padding: 8px 10px; border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--text-secondary); text-align: left; cursor: pointer; }
+.conversation-menu-main:hover,
+.conversation-menu-delete:hover { background: var(--bg-hover); color: var(--text-primary); }
+.conversation-menu-row.active .conversation-menu-main { color: var(--primary); }
+.conversation-menu-main span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
+.conversation-menu-main small { color: var(--text-muted); font-size: 11px; }
+.conversation-menu-delete { width: 30px; border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--text-muted); display: grid; place-items: center; cursor: pointer; }
+.conversation-menu-delete:hover { color: var(--danger); }
 .conversation-menu-empty { padding: 10px; color: var(--text-muted); font-size: 12px; }
 .chat-scroll { flex: 1; min-height: 0; overflow: auto; padding: 20px 18px; display: flex; flex-direction: column; gap: 16px; }
 .msg { display: flex; gap: 10px; max-width: 100%; }
