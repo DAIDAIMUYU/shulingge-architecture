@@ -19,8 +19,10 @@ import {
   Heading2,
   Italic,
   List,
+  ListOrdered,
   Maximize2,
   Minimize2,
+  Minus,
   PenLine,
   Quote,
   Redo2,
@@ -128,14 +130,16 @@ const TOOLS = [
   { kind: "italic" as const, Icon: Italic, label: "斜体" },
   { kind: "heading" as const, Icon: Heading2, label: "二级标题" },
   { kind: "quote" as const, Icon: Quote, label: "引用" },
-  { kind: "list" as const, Icon: List, label: "列表" },
+  { kind: "bullet-list" as const, Icon: List, label: "无序列表" },
+  { kind: "ordered-list" as const, Icon: ListOrdered, label: "有序列表" },
+  { kind: "horizontal-rule" as const, Icon: Minus, label: "分割线" },
   { sep: true as const },
   { kind: "body-align-left" as const, Icon: AlignLeft, label: "正文居左", align: "left" as const },
   { kind: "body-align-center" as const, Icon: AlignCenter, label: "正文居中", align: "center" as const },
   { kind: "body-align-right" as const, Icon: AlignRight, label: "正文居右", align: "right" as const },
 ];
 
-const FOCUS_TOOL_KINDS: readonly string[] = ["undo", "redo", "bold", "italic", "heading", "quote", "list", "body-align-left", "body-align-center", "body-align-right"];
+const FOCUS_TOOL_KINDS: readonly string[] = ["undo", "redo", "bold", "italic", "heading", "quote", "bullet-list", "ordered-list", "horizontal-rule", "body-align-left", "body-align-center", "body-align-right"];
 type ToolbarTool = Exclude<(typeof TOOLS)[number], { sep: true }>;
 type BodyAlignTool = ToolbarTool & { align: BodyAlignPreference };
 
@@ -2173,7 +2177,8 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
                         (editorMode === "rich" && tool.kind === "italic" && editor?.isActive("italic")) ||
                         (editorMode === "rich" && tool.kind === "heading" && editor?.isActive("heading", { level: 2 })) ||
                         (editorMode === "rich" && tool.kind === "quote" && editor?.isActive("blockquote")) ||
-                        (editorMode === "rich" && tool.kind === "list" && editor?.isActive("bulletList")) ||
+                        (editorMode === "rich" && tool.kind === "bullet-list" && editor?.isActive("bulletList")) ||
+                        (editorMode === "rich" && tool.kind === "ordered-list" && editor?.isActive("orderedList")) ||
                         (isBodyAlignTool(tool) && bodyAlign === tool.align)
                           ? "toolbar-active"
                           : ""
@@ -2182,7 +2187,7 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
                       title={tool.label}
                       disabled={
                         (!hasValidActiveChapter && tool.kind !== "undo" && tool.kind !== "redo") ||
-                        (editorMode === "source" && ["bold", "italic", "heading", "quote", "list"].includes(tool.kind))
+                        (editorMode === "source" && ["bold", "italic", "heading", "quote", "bullet-list", "ordered-list", "horizontal-rule"].includes(tool.kind))
                       }
                       onClick={() => {
                         if (tool.kind === "undo") {
@@ -2209,8 +2214,16 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
                           runEditorCommand((activeEditor) => activeEditor.chain().focus().toggleBlockquote().run());
                           return;
                         }
-                        if (tool.kind === "list") {
+                        if (tool.kind === "bullet-list") {
                           runEditorCommand((activeEditor) => activeEditor.chain().focus().toggleBulletList().run());
+                          return;
+                        }
+                        if (tool.kind === "ordered-list") {
+                          runEditorCommand((activeEditor) => activeEditor.chain().focus().toggleOrderedList().run());
+                          return;
+                        }
+                        if (tool.kind === "horizontal-rule") {
+                          runEditorCommand((activeEditor) => activeEditor.chain().focus().setHorizontalRule().run());
                           return;
                         }
                         if (isBodyAlignTool(tool)) {
