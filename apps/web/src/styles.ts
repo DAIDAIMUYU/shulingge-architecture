@@ -525,16 +525,16 @@ body.app-focus .main { padding-bottom: 0; }
 .err-card { margin: 14px 24px 0; padding: 11px 16px; background: var(--bg-card); border: 1px solid var(--border-strong); border-left: 3px solid var(--danger); border-radius: var(--radius-sm); font-size: 13px; color: var(--danger); }
 
 .vault-modal-backdrop { position: fixed; inset: 0; z-index: 100; display: grid; place-items: center; padding: 24px; background: color-mix(in srgb, var(--primary-ink) 42%, transparent); backdrop-filter: blur(10px); }
-.vault-modal { width: min(520px, 100%); background: var(--bg-card); background-image: none; border: 1px solid var(--border); border-radius: var(--radius-lg); box-shadow: var(--shadow-popover); padding: 30px 32px; }
+.vault-modal { width: min(520px, 100%); max-height: 90vh; display: flex; flex-direction: column; overflow: hidden; background: var(--bg-card); background-image: none; border: 1px solid var(--border); border-radius: var(--radius-lg); box-shadow: var(--shadow-popover); padding: 30px 32px; }
 .vault-modal-mark { width: 44px; height: 44px; display: grid; place-items: center; color: var(--primary); background: linear-gradient(180deg, var(--primary-soft), var(--primary-light)); border: 1px solid color-mix(in srgb, var(--primary) 16%, transparent); border-radius: var(--radius-md); margin-bottom: 16px; box-shadow: inset 0 -2px 0 color-mix(in srgb, var(--accent-cinnabar) 26%, transparent); }
 .vault-modal h2 { margin: 0; font-family: var(--font-sans); font-size: 27px; line-height: 1.25; letter-spacing: .035em; color: var(--primary-ink); }
 .vault-modal p { margin: 10px 0 20px; color: var(--text-secondary); }
 .vault-modal .err-card { margin: 14px 0 0; }
-.vault-modal-actions { display: flex; justify-content: flex-end; margin-top: 18px; }
-.input-modal { display: grid; gap: 18px; }
-.confirm-modal { display: grid; gap: 16px; }
-.input-modal .vault-modal-actions { gap: 8px; margin-top: 0; }
-.confirm-modal .vault-modal-actions { gap: 8px; margin-top: 0; }
+.vault-modal-actions { flex: none; display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--border); }
+.input-modal { gap: 18px; }
+.confirm-modal { gap: 16px; }
+.input-modal .vault-modal-actions,
+.confirm-modal .vault-modal-actions { margin-top: 0; }
 
 .save-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--success); display: inline-block; margin-right: 7px; vertical-align: middle; }
 .save-dot.dirty, .save-dot.saving { background: var(--warning); }
@@ -958,6 +958,13 @@ body.app-focus .main { padding-bottom: 0; }
 .plot-head-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: flex-end; }
 .plot-module-tabs { display: flex; align-items: center; justify-content: flex-start; }
 .plot-note-filter-row { display: flex; align-items: center; justify-content: flex-start; margin: 0 0 14px; overflow-x: auto; }
+.plot-page-actions { display: flex; align-items: flex-end; justify-content: flex-end; gap: 10px; flex-wrap: wrap; max-width: 460px; }
+.plot-page-actions .character-project-selector,
+.plot-page-actions .plot-novel-select { width: min(220px, 100%); min-width: 180px; }
+.plot-page-actions .character-project-selector { display: flex; }
+.plot-page-actions .character-project-button { flex: 1 1 auto; min-width: 0; }
+.plot-page-actions .character-project-button,
+.plot-page-actions .custom-select-trigger { min-height: 34px; }
 .plot-create-wrap { position: relative; }
 .plot-select-row { display: flex; align-items: flex-end; gap: 12px; flex-wrap: wrap; margin: 18px 0; }
 .plot-novel-select { display: grid; gap: 6px; min-width: 220px; }
@@ -993,11 +1000,11 @@ body.app-focus .main { padding-bottom: 0; }
 .plot-chapter-plan-modal,
 .plot-key-event-modal,
 .plot-note-modal,
-.plot-volume-modal { display: grid; gap: 16px; max-height: 85vh; overflow: hidden; }
+.plot-volume-modal { gap: 16px; max-height: 85vh; overflow: hidden; }
 .plot-volume-modal { width: min(760px, 100%); }
 .plot-note-modal,
 .plot-key-event-modal { width: min(820px, 100%); }
-.plot-modal-body { min-height: 0; max-height: calc(85vh - 170px); display: grid; gap: 16px; overflow-y: auto; padding-right: 4px; }
+.plot-modal-body { flex: 1 1 auto; min-height: 0; display: grid; gap: 16px; overflow-y: auto; padding-right: 4px; }
 .plot-chapter-section { margin-top: 22px; padding-top: 20px; border-top: 1px solid var(--border); }
 .plot-chapter-section-head { margin-bottom: 12px; }
 .plot-chapter-section h3 { margin: 0; font-size: 16px; color: var(--text-primary); }
@@ -1143,6 +1150,9 @@ body.app-focus .main { padding-bottom: 0; }
   }
   .view-title { font-size: 28px; letter-spacing: .045em; }
   .view-actions { width: 100%; flex-wrap: wrap; }
+  .plot-page-actions { width: 100%; max-width: none; justify-content: flex-start; }
+  .plot-page-actions .character-project-selector,
+  .plot-page-actions .plot-novel-select { flex: 1 1 180px; }
   .toolbar-row { flex-wrap: wrap; }
   .search { min-width: 0; flex: 1 1 100%; }
   .settings-layout { grid-template-columns: 1fr; gap: 16px; }

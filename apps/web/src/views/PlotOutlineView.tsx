@@ -1414,7 +1414,7 @@ export function PlotOutlineView() {
       title="剧情大纲"
       subtitle="先搭好分卷、章节规划、关键事件和剧情笔记，按模块逐步整理故事结构。"
       actions={
-        <>
+        <div className="plot-page-actions">
           <ProjectSelector
             projects={projects}
             projectId={projectId}
@@ -1442,7 +1442,7 @@ export function PlotOutlineView() {
               disabled={loading || novels.length === 0}
             />
           </label>
-        </>
+        </div>
       }
     >
       <div className="plot-layout">
