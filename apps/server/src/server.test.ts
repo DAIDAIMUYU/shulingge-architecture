@@ -1076,6 +1076,59 @@ test("rule CRUD routes persist project rules", async () => {
   }
 });
 
+test("rule import route parses markdown and persists global rules", async () => {
+  const vaultRoot = await createFixtureVault();
+  const server = await startServer({ vaultRoot });
+
+  try {
+    const importResponse = await fetch(`${server.baseUrl}/api/v1/knowledge/rules/import`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        projectId: "demo-series",
+        scope: "global",
+        level: "soft",
+        detectBy: ["manual"],
+        onViolation: "warn",
+        overridePolicy: "no-override",
+        tags: ["导入"],
+        files: [
+          {
+            fileName: "style-rule.md",
+            content: "# 叙事节奏规则\n\n避免连续三段都只写心理活动。",
+          },
+        ],
+      }),
+    });
+    const importPayload = (await importResponse.json()) as {
+      ok: true;
+      data: { rules: Array<{ id: string; title: string; content: string; scope: string }> };
+    };
+
+    const savedRule = await readJsonFile<{ title: string; content: string; scope: string }>(
+      vaultRoot,
+      `global/rules/${importPayload.data.rules[0].id}.json`,
+    );
+    const listResponse = await fetch(`${server.baseUrl}/api/v1/knowledge/rules?projectId=demo-series`);
+    const listPayload = (await listResponse.json()) as {
+      ok: true;
+      data: { rules: Array<{ id: string; title: string; scope: string }> };
+    };
+
+    assert.equal(importResponse.status, 200);
+    assert.equal(importPayload.data.rules[0].title, "叙事节奏规则");
+    assert.equal(importPayload.data.rules[0].scope, "global");
+    assert.match(importPayload.data.rules[0].content, /避免连续三段/);
+    assert.equal(savedRule.title, "叙事节奏规则");
+    assert.equal(savedRule.scope, "global");
+    assert.equal(listResponse.status, 200);
+    assert.equal(listPayload.data.rules.some((rule) => rule.id === importPayload.data.rules[0].id), true);
+  } finally {
+    await server.close();
+    await rm(vaultRoot, { recursive: true, force: true });
+  }
+});
+
 test("export and backup routes write sanitized artifacts inside vault", async () => {
   const vaultRoot = await createFixtureVault();
   const server = await startServer({ vaultRoot });

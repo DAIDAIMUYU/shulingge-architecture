@@ -91,6 +91,7 @@ import {
   getRule,
   getTimelineEvent,
   getWorldbookEntry,
+  importRules,
   listCharacters,
   listKnowledgeItems,
   listRelations,
@@ -2079,6 +2080,17 @@ export const routeDefinitions: RouteDefinition[] = [
       const body = (request.body as { projectId?: string } & Record<string, unknown>) ?? {};
       return {
         rule: await createRule(vaultRoot, { projectId: body.projectId ?? "" }, body as never),
+      };
+    },
+  },
+  {
+    method: "POST",
+    path: "/api/v1/knowledge/rules/import",
+    async handler(request, context) {
+      const vaultRoot = requireVaultRoot(context);
+      const body = (request.body as { projectId?: string } & Record<string, unknown>) ?? {};
+      return {
+        rules: await importRules(vaultRoot, { projectId: body.projectId ?? "" }, body as never),
       };
     },
   },

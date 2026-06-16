@@ -301,6 +301,7 @@ export interface RunRecord extends Entity {
 
 export interface Rule extends Entity {
   title: string;
+  content?: string;
   level: RuleLevel;
   scope: Scope;
   appliesTo?: string[];

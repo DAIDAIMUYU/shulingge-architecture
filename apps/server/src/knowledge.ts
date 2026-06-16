@@ -66,6 +66,25 @@ type TimelineInput = Partial<Omit<TimelineEvent, "schemaVersion">> &
 type KnowledgeItemInput = Partial<Omit<KnowledgeItem, "schemaVersion">> &
   Pick<KnowledgeItem, "id" | "content">;
 type RuleInput = Partial<Omit<Rule, "schemaVersion">> & Pick<Rule, "id" | "title">;
+export interface RuleImportFileInput {
+  fileName?: string;
+  content: string;
+}
+
+export interface RuleImportInput {
+  projectId?: string;
+  files: RuleImportFileInput[];
+  level?: Rule["level"];
+  scope?: Rule["scope"];
+  appliesTo?: string[];
+  detectBy?: Rule["detectBy"];
+  onViolation?: Rule["onViolation"];
+  enabled?: boolean;
+  source?: string;
+  priority?: number;
+  overridePolicy?: Rule["overridePolicy"];
+  tags?: string[];
+}
 
 const worldbookDescriptor: EntityDescriptor<WorldbookEntry> = {
   type: "worldbook",
@@ -134,6 +153,17 @@ const ruleDescriptor: EntityDescriptor<Rule> = {
   type: "rules",
   collectionPath(locator) {
     return path.posix.join("projects", locator.projectId, "rules");
+  },
+  relativePath(locator, entityId) {
+    return path.posix.join(this.collectionPath(locator), `${entityId}.json`);
+  },
+  schema: ruleSchema,
+};
+
+const globalRuleDescriptor: EntityDescriptor<Rule> = {
+  type: "rules",
+  collectionPath() {
+    return path.posix.join("global", "rules");
   },
   relativePath(locator, entityId) {
     return path.posix.join(this.collectionPath(locator), `${entityId}.json`);
@@ -222,6 +252,11 @@ function createTimestampFields<T extends { createdAt?: string; updatedAt?: strin
     createdAt: current?.createdAt ?? now,
     updatedAt: now,
   };
+}
+
+function slugify(value: string): string {
+  const slug = value.trim().toLowerCase().replace(/[^a-z0-9\u4e00-\u9fa5_-]+/g, "-").replace(/^-+|-+$/g, "");
+  return slug || `rule-${Date.now()}`;
 }
 
 function normalizeWorldbook(input: WorldbookInput, current?: WorldbookEntry): WorldbookEntry {
@@ -350,6 +385,7 @@ function normalizeRule(input: RuleInput, current?: Rule): Rule {
   return ruleSchema.parse({
     id: input.id ?? current?.id ?? "",
     title: input.title ?? current?.title ?? "",
+    content: input.content ?? current?.content ?? "",
     level: input.level ?? current?.level ?? "soft",
     scope: input.scope ?? current?.scope ?? "project",
     appliesTo: input.appliesTo ?? current?.appliesTo ?? [],
@@ -564,20 +600,109 @@ export async function deleteKnowledgeItem(vaultRoot: string, locator: NovelLocat
   return { id: itemId, deleted: true };
 }
 
+function isGlobalRuleScope(scope?: Rule["scope"]): boolean {
+  return scope === "global" || scope === "system" || scope === "vault";
+}
+
+function ruleDescriptorForScope(scope?: Rule["scope"]): EntityDescriptor<Rule> {
+  return isGlobalRuleScope(scope) ? globalRuleDescriptor : ruleDescriptor;
+}
+
+async function readRuleFromAnyScope(vaultRoot: string, locator: ProjectLocator, ruleId: string): Promise<{ rule: Rule; descriptor: EntityDescriptor<Rule> }> {
+  assertProjectLocator(locator);
+
+  try {
+    return { rule: await readEntity(vaultRoot, locator, ruleDescriptor, ruleId), descriptor: ruleDescriptor };
+  } catch {
+    return { rule: await readEntity(vaultRoot, locator, globalRuleDescriptor, ruleId), descriptor: globalRuleDescriptor };
+  }
+}
+
+async function createUniqueRuleId(
+  vaultRoot: string,
+  locator: ProjectLocator,
+  descriptor: EntityDescriptor<Rule>,
+  baseId: string,
+): Promise<string> {
+  let id = baseId;
+  let suffix = 2;
+
+  while (true) {
+    try {
+      await readEntity(vaultRoot, locator, descriptor, id);
+      id = `${baseId}-${suffix}`;
+      suffix += 1;
+    } catch {
+      return id;
+    }
+  }
+}
+
+function extractRuleTitleFromMarkdown(markdown: string, fallback: string): string {
+  const heading = markdown.match(/^#\s+(.+)$/m)?.[1]?.trim();
+  return heading || fallback.replace(/\.(md|markdown|txt)$/i, "").trim() || "导入规则";
+}
+
 export async function listRules(vaultRoot: string, locator: ProjectLocator): Promise<Rule[]> {
   assertProjectLocator(locator);
-  return readCollection(vaultRoot, locator, ruleDescriptor);
+  const [globalRules, projectRules] = await Promise.all([
+    readCollection(vaultRoot, locator, globalRuleDescriptor),
+    readCollection(vaultRoot, locator, ruleDescriptor),
+  ]);
+  return [...globalRules, ...projectRules].sort((left, right) => left.priority - right.priority || left.title.localeCompare(right.title));
 }
 
 export async function createRule(vaultRoot: string, locator: ProjectLocator, input: RuleInput) {
-  assertProjectLocator(locator);
-  await ensureUniqueEntity(vaultRoot, locator, ruleDescriptor, input.id);
-  return saveEntity(vaultRoot, locator, ruleDescriptor, normalizeRule(input));
+  const descriptor = ruleDescriptorForScope(input.scope);
+  if (!isGlobalRuleScope(input.scope)) {
+    assertProjectLocator(locator);
+  }
+  await ensureUniqueEntity(vaultRoot, locator, descriptor, input.id);
+  return saveEntity(vaultRoot, locator, descriptor, normalizeRule(input));
+}
+
+export async function importRules(vaultRoot: string, locator: ProjectLocator, input: RuleImportInput): Promise<Rule[]> {
+  const scope = input.scope ?? "project";
+  const descriptor = ruleDescriptorForScope(scope);
+  if (!isGlobalRuleScope(scope)) {
+    assertProjectLocator(locator);
+  }
+
+  const files = input.files.filter((file) => file.content.trim());
+  const imported: Rule[] = [];
+
+  for (const [index, file] of files.entries()) {
+    const title = extractRuleTitleFromMarkdown(file.content, file.fileName ?? "");
+    const baseId = slugify(`${file.fileName?.replace(/\.(md|markdown|txt)$/i, "") || title || "rule"}-${index + 1}`);
+    const id = await createUniqueRuleId(vaultRoot, locator, descriptor, baseId);
+    const rule = await saveEntity(
+      vaultRoot,
+      locator,
+      descriptor,
+      normalizeRule({
+        id,
+        title,
+        content: file.content,
+        level: input.level ?? "soft",
+        scope,
+        appliesTo: input.appliesTo ?? [],
+        detectBy: input.detectBy?.length ? input.detectBy : ["manual"],
+        onViolation: input.onViolation ?? "warn",
+        enabled: input.enabled ?? true,
+        source: input.source ?? "import",
+        priority: input.priority ?? 50,
+        overridePolicy: input.overridePolicy ?? "no-override",
+        tags: input.tags ?? [],
+      }),
+    );
+    imported.push(rule);
+  }
+
+  return imported;
 }
 
 export async function getRule(vaultRoot: string, locator: ProjectLocator, ruleId: string) {
-  assertProjectLocator(locator);
-  return readEntity(vaultRoot, locator, ruleDescriptor, ruleId);
+  return (await readRuleFromAnyScope(vaultRoot, locator, ruleId)).rule;
 }
 
 export async function updateRule(
@@ -586,15 +711,21 @@ export async function updateRule(
   ruleId: string,
   input: Partial<RuleInput>,
 ) {
-  assertProjectLocator(locator);
-  const current = await readEntity(vaultRoot, locator, ruleDescriptor, ruleId);
-  return saveEntity(vaultRoot, locator, ruleDescriptor, normalizeRule({ ...input, id: ruleId, title: input.title ?? current.title }, current));
+  const { rule: current, descriptor } = await readRuleFromAnyScope(vaultRoot, locator, ruleId);
+  const nextDescriptor = input.scope && input.scope !== current.scope ? ruleDescriptorForScope(input.scope) : descriptor;
+  const next = normalizeRule({ ...input, id: ruleId, title: input.title ?? current.title }, current);
+
+  if (nextDescriptor !== descriptor) {
+    await ensureUniqueEntity(vaultRoot, locator, nextDescriptor, next.id);
+    await rm(resolveSafePath(vaultRoot, descriptor.relativePath(locator, ruleId)), { force: true });
+  }
+
+  return saveEntity(vaultRoot, locator, nextDescriptor, next);
 }
 
 export async function deleteRule(vaultRoot: string, locator: ProjectLocator, ruleId: string) {
-  assertProjectLocator(locator);
-  await readEntity(vaultRoot, locator, ruleDescriptor, ruleId);
-  await rm(resolveSafePath(vaultRoot, ruleDescriptor.relativePath(locator, ruleId)), { force: true });
+  const { descriptor } = await readRuleFromAnyScope(vaultRoot, locator, ruleId);
+  await rm(resolveSafePath(vaultRoot, descriptor.relativePath(locator, ruleId)), { force: true });
   return { id: ruleId, deleted: true };
 }
 

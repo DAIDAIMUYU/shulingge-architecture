@@ -859,6 +859,7 @@ export type RuleOverridePolicy = "locked" | "allow-branch-override" | "append-on
 export interface RuleRecord {
   id: string;
   title: string;
+  content: string;
   level: RuleLevel;
   scope: RuleScope;
   appliesTo?: string[];
@@ -875,6 +876,24 @@ export interface RuleRecord {
 export interface RuleInput {
   id: string;
   title: string;
+  content?: string;
+  level?: RuleLevel;
+  scope?: RuleScope;
+  appliesTo?: string[];
+  detectBy?: RuleDetectBy[];
+  onViolation?: RuleViolationAction;
+  enabled?: boolean;
+  source?: string;
+  priority?: number;
+  overridePolicy?: RuleOverridePolicy;
+  tags?: string[];
+}
+export interface RuleImportFileInput {
+  fileName?: string;
+  content: string;
+}
+export interface RuleImportInput {
+  files: RuleImportFileInput[];
   level?: RuleLevel;
   scope?: RuleScope;
   appliesTo?: string[];
@@ -1389,6 +1408,8 @@ export const api = {
     unwrapList<RuleRecord>(await get(withQuery("/knowledge/rules", { projectId })), "rules"),
   createRule: async (projectId: string, payload: RuleInput): Promise<RuleRecord> =>
     (await post<{ rule: RuleRecord }>("/knowledge/rules", { projectId, ...payload })).rule,
+  importRules: async (projectId: string, payload: RuleImportInput): Promise<RuleRecord[]> =>
+    unwrapList<RuleRecord>(await post("/knowledge/rules/import", { projectId, ...payload }), "rules"),
   updateRule: async (projectId: string, ruleId: string, payload: Partial<RuleInput>): Promise<RuleRecord> =>
     (await patch<{ rule: RuleRecord }>(`/knowledge/rules/${encodeURIComponent(ruleId)}`, {
       projectId,

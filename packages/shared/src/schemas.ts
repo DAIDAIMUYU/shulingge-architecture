@@ -286,6 +286,7 @@ export const runRecordSchema = entitySchema.extend({
 
 export const ruleSchema = entitySchema.extend({
   title: z.string().min(1),
+  content: z.string().default(""),
   level: z.enum(RULE_LEVEL_VALUES),
   scope: z.enum(SCOPE_VALUES),
   appliesTo: stringArraySchema.optional(),
