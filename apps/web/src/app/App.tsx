@@ -52,8 +52,12 @@ const NAV = [...PRIMARY_NAV, SETTINGS_NAV];
 interface AppViewProps {
   currentProjectId: string | null;
   vaultPath: string | null;
+  forceWelcome: boolean;
+  showEmptyWelcome: boolean;
   onSelectProject: (projectId: string) => void;
   onNavigate: (viewId: string) => void;
+  onWelcomeSeen: () => void;
+  onShowWelcome: () => void;
   onSetVault: (path: string) => Promise<void>;
   onClearVault: () => void;
 }
@@ -62,7 +66,14 @@ const VIEWS: Record<string, (props: AppViewProps) => ReactNode> = {
   workspace: ({ currentProjectId, vaultPath, onNavigate }) => (
     <WorkspaceView currentProjectId={currentProjectId} vaultPath={vaultPath} onNavigate={onNavigate} />
   ),
-  projects: ({ onSelectProject }) => <ProjectsView onOpenProject={onSelectProject} />,
+  projects: ({ forceWelcome, showEmptyWelcome, onSelectProject, onWelcomeSeen }) => (
+    <ProjectsView
+      forceWelcome={forceWelcome}
+      showEmptyWelcome={showEmptyWelcome}
+      onOpenProject={onSelectProject}
+      onWelcomeSeen={onWelcomeSeen}
+    />
+  ),
   characters: () => <CharactersView />,
   relations: () => <RelationsView />,
   timeline: () => <TimelineView />,
@@ -70,8 +81,8 @@ const VIEWS: Record<string, (props: AppViewProps) => ReactNode> = {
   "plot-outline": () => <PlotOutlineView />,
   skills: () => <SkillsView />,
   rules: () => <RulesView />,
-  settings: ({ vaultPath, onSetVault, onClearVault }) => (
-    <SettingsView vaultPath={vaultPath} onSetVault={onSetVault} onClearVault={onClearVault} />
+  settings: ({ vaultPath, onSetVault, onClearVault, onShowWelcome }) => (
+    <SettingsView vaultPath={vaultPath} onSetVault={onSetVault} onClearVault={onClearVault} onShowWelcome={onShowWelcome} />
   ),
 };
 
@@ -89,11 +100,29 @@ export function App() {
     }
     return window.localStorage.getItem("shulingge.web.vaultPath");
   });
+  const [forceWelcome, setForceWelcome] = useState(false);
+  const [welcomeSkipped, setWelcomeSkipped] = useState(() => {
+    if (typeof window === "undefined") {
+      return false;
+    }
+    return window.localStorage.getItem("shulingge.web.welcomeSkipped") === "1";
+  });
   const Current = VIEWS[view] ?? VIEWS.workspace;
   const onSelectProject = (projectId: string) => {
     setCurrentProjectId(projectId);
     window.localStorage.setItem("shulingge.web.projectId", projectId);
+    setForceWelcome(false);
     setView("workspace");
+  };
+  const showWelcome = () => {
+    setForceWelcome(true);
+    setWelcomeSkipped(false);
+    setView("projects");
+  };
+  const markWelcomeSeen = () => {
+    setForceWelcome(false);
+    setWelcomeSkipped(true);
+    window.localStorage.setItem("shulingge.web.welcomeSkipped", "1");
   };
   const onSetVault = async (path: string) => {
     const nextPath = path.trim();
@@ -154,7 +183,18 @@ export function App() {
             </div>
           </div>
         </header>
-        {Current({ currentProjectId, vaultPath, onSelectProject, onNavigate: setView, onSetVault, onClearVault })}
+        {Current({
+          currentProjectId,
+          vaultPath,
+          forceWelcome,
+          showEmptyWelcome: !welcomeSkipped,
+          onSelectProject,
+          onNavigate: setView,
+          onWelcomeSeen: markWelcomeSeen,
+          onShowWelcome: showWelcome,
+          onSetVault,
+          onClearVault,
+        })}
       </div>
 
       <nav className="mobile-nav" aria-label="移动导航">

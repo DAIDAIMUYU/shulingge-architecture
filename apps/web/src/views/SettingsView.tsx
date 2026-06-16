@@ -542,11 +542,13 @@ function GeneralPanel({
   setPreferences,
   feedback,
   setFeedback,
+  onShowWelcome,
 }: {
   preferences: WebPreferences;
   setPreferences: (value: WebPreferences) => void;
   feedback: string | null;
   setFeedback: (value: string | null) => void;
+  onShowWelcome?: () => void;
 }) {
   return (
     <div className="stack-list">
@@ -565,6 +567,15 @@ function GeneralPanel({
               英文
             </button>
           </div>
+        </div>
+        <div className="form-row">
+          <div>
+            <div className="fr-label">查看引导</div>
+            <div className="fr-desc">重新打开欢迎页，快速回顾书灵阁的创作流程。</div>
+          </div>
+          <button type="button" className="btn" onClick={onShowWelcome}>
+            重新查看引导
+          </button>
         </div>
         <div className="form-row">
           <div>
@@ -761,9 +772,10 @@ interface SettingsViewProps {
   vaultPath?: string | null;
   onSetVault?: (path: string) => Promise<void>;
   onClearVault?: () => void;
+  onShowWelcome?: () => void;
 }
 
-export function SettingsView({ vaultPath, onSetVault, onClearVault }: SettingsViewProps = {}) {
+export function SettingsView({ vaultPath, onSetVault, onClearVault, onShowWelcome }: SettingsViewProps = {}) {
   const [sec, setSec] = useState<Section>("资料库");
   const [preferences, setPreferences] = useState<WebPreferences>(() => readWebPreferences());
   const [preferencesFeedback, setPreferencesFeedback] = useState<string | null>(null);
@@ -1568,6 +1580,7 @@ export function SettingsView({ vaultPath, onSetVault, onClearVault }: SettingsVi
               setPreferences={setPreferences}
               feedback={preferencesFeedback}
               setFeedback={setPreferencesFeedback}
+              onShowWelcome={onShowWelcome}
             />
           ) : null}
 
