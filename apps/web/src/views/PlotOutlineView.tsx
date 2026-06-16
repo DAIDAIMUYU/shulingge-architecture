@@ -1,11 +1,9 @@
-import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import {
   AlertCircle,
   ArrowDown,
   ArrowUp,
   CheckCircle2,
-  ChevronDown,
-  FilePlus2,
   Pencil,
   Plus,
   Save,
@@ -38,6 +36,7 @@ import { ViewShell } from "./common.js";
 type FeedbackKind = "success" | "error" | "info";
 type FeedbackState = { kind: FeedbackKind; message: string };
 type PlotViewMode = "strip" | "table";
+type PlotModuleTab = "volumes" | "chapterPlans" | "keyEvents" | "plotNotes";
 
 interface VolumeDraft {
   title: string;
@@ -80,6 +79,12 @@ const NO_VOLUME = "__none__";
 const NO_REFERENCE = "__none__";
 const ALL_NOTE_CATEGORIES = "__all__";
 const PLOT_NOTE_CATEGORIES = ["角色弧线", "伏笔回收", "冲突节奏", "高光场景"];
+const PLOT_MODULE_TABS: Array<{ id: PlotModuleTab; label: string; description: string; createLabel: string }> = [
+  { id: "volumes", label: "分卷大纲", description: "规划卷级定位、主题和重点。", createLabel: "新建分卷" },
+  { id: "chapterPlans", label: "章节规划", description: "整理章节规划标题、归属分卷和梗概。", createLabel: "新建章节规划" },
+  { id: "keyEvents", label: "关键事件", description: "设计事件定位、流程、关系变化和禁止写法。", createLabel: "新建关键事件" },
+  { id: "plotNotes", label: "剧情笔记", description: "按分类整理角色弧线、伏笔回收、冲突节奏和高光场景。", createLabel: "新建剧情笔记" },
+];
 
 const STATUS_OPTIONS: Array<{ value: VolumeStatus; label: string; hint: string }> = [
   { value: "draft", label: "草稿", hint: "还在构思和调整" },
@@ -743,8 +748,8 @@ export function PlotOutlineView() {
   const [keyEventDraft, setKeyEventDraft] = useState<KeyEventDraft>(() => createKeyEventDraft());
   const [plotNoteDraft, setPlotNoteDraft] = useState<PlotNoteDraft>(() => createPlotNoteDraft());
   const [viewMode, setViewMode] = useState<PlotViewMode>(readStoredViewMode);
+  const [activeTab, setActiveTab] = useState<PlotModuleTab>("volumes");
   const [plotNoteCategoryFilter, setPlotNoteCategoryFilter] = useState(ALL_NOTE_CATEGORIES);
-  const [newMenuOpen, setNewMenuOpen] = useState(false);
   const [volumeModalOpen, setVolumeModalOpen] = useState(false);
   const [chapterPlanModalOpen, setChapterPlanModalOpen] = useState(false);
   const [keyEventModalOpen, setKeyEventModalOpen] = useState(false);
@@ -766,7 +771,6 @@ export function PlotOutlineView() {
   const [deleteChapterPlanTarget, setDeleteChapterPlanTarget] = useState<ChapterPlanRecord | null>(null);
   const [deleteKeyEventTarget, setDeleteKeyEventTarget] = useState<KeyEventRecord | null>(null);
   const [deletePlotNoteTarget, setDeletePlotNoteTarget] = useState<PlotNoteRecord | null>(null);
-  const newMenuRef = useRef<HTMLDivElement | null>(null);
 
   const selectedVolume = useMemo(
     () => volumes.find((volume) => volume.id === selectedVolumeId) ?? null,
@@ -812,28 +816,6 @@ export function PlotOutlineView() {
     }
     return groups;
   }, [sortedChapterPlans]);
-
-  useEffect(() => {
-    if (!newMenuOpen) {
-      return;
-    }
-    const onPointerDown = (event: PointerEvent) => {
-      if (newMenuRef.current && !newMenuRef.current.contains(event.target as Node)) {
-        setNewMenuOpen(false);
-      }
-    };
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        setNewMenuOpen(false);
-      }
-    };
-    window.addEventListener("pointerdown", onPointerDown);
-    window.addEventListener("keydown", onKeyDown);
-    return () => {
-      window.removeEventListener("pointerdown", onPointerDown);
-      window.removeEventListener("keydown", onKeyDown);
-    };
-  }, [newMenuOpen]);
 
   async function loadProjects() {
     setLoading(true);
@@ -939,8 +921,21 @@ export function PlotOutlineView() {
     writeStoredViewMode(mode);
   }
 
+  const activeTabConfig = PLOT_MODULE_TABS.find((tab) => tab.id === activeTab) ?? PLOT_MODULE_TABS[0];
+
+  function startCreateForActiveTab() {
+    if (activeTab === "volumes") {
+      startCreateVolume();
+    } else if (activeTab === "chapterPlans") {
+      startCreateChapterPlan();
+    } else if (activeTab === "keyEvents") {
+      startCreateKeyEvent();
+    } else {
+      startCreatePlotNote();
+    }
+  }
+
   function startCreateVolume() {
-    setNewMenuOpen(false);
     setSelectedVolumeId(null);
     setDraft(createDraft());
     setVolumeModalOpen(true);
@@ -957,7 +952,6 @@ export function PlotOutlineView() {
   }
 
   function startCreateChapterPlan() {
-    setNewMenuOpen(false);
     setEditingChapterPlan(null);
     setChapterPlanDraft(createChapterPlanDraft(undefined, selectedVolumeId ?? NO_VOLUME));
     setChapterPlanModalOpen(true);
@@ -974,7 +968,6 @@ export function PlotOutlineView() {
   }
 
   function startCreateKeyEvent() {
-    setNewMenuOpen(false);
     setEditingKeyEvent(null);
     setKeyEventDraft(createKeyEventDraft());
     setKeyEventModalOpen(true);
@@ -991,7 +984,6 @@ export function PlotOutlineView() {
   }
 
   function startCreatePlotNote() {
-    setNewMenuOpen(false);
     setEditingPlotNote(null);
     setPlotNoteDraft(createPlotNoteDraft());
     setPlotNoteModalOpen(true);
@@ -1418,72 +1410,74 @@ export function PlotOutlineView() {
   }
 
   return (
-    <ViewShell title="剧情大纲" subtitle="先搭好分卷大纲：明确每卷定位、主题和重点；也可以不分卷，直接新建章节开始写">
-      <div className="plot-layout">
-        <section className="editor-card plot-index-card">
-          <div className="editor-card-head">
-            <div>
-              <h2>分卷大纲索引</h2>
-              <p className="view-sub">当前小说共 {volumes.length} 卷。默认横条视图便于一眼扫过卷名、状态和摘要。</p>
-            </div>
-            <div className="plot-head-actions">
-              <div className="segmented" aria-label="分卷视图切换">
-                <button type="button" className={viewMode === "strip" ? "on" : ""} onClick={() => changeViewMode("strip")}>
-                  横条
-                </button>
-                <button type="button" className={viewMode === "table" ? "on" : ""} onClick={() => changeViewMode("table")}>
-                  表格
-                </button>
-              </div>
-              <div className="plot-create-wrap" ref={newMenuRef}>
-                <button type="button" className="btn btn-primary" disabled={!projectId || !novelId} onClick={() => setNewMenuOpen((value) => !value)}>
-                  <Plus size={15} strokeWidth={2} />
-                  新建
-                  <ChevronDown size={14} strokeWidth={1.8} />
-                </button>
-                {newMenuOpen ? (
-                  <div className="tree-create-menu" role="menu">
-                    <button type="button" role="menuitem" onClick={startCreateVolume}>
-                      <Plus size={14} />
-                      新建分卷
-                    </button>
-                    <button type="button" role="menuitem" onClick={startCreateChapterPlan}>
-                      <FilePlus2 size={14} />
-                      新建章节规划
-                    </button>
-                    <button type="button" role="menuitem" onClick={startCreateKeyEvent}>
-                      <FilePlus2 size={14} />
-                      新建关键事件
-                    </button>
-                    <button type="button" role="menuitem" onClick={startCreatePlotNote}>
-                      <FilePlus2 size={14} />
-                      新建剧情笔记
-                    </button>
-                  </div>
-                ) : null}
-              </div>
-            </div>
-          </div>
-
-          <div className="plot-select-row">
-            <ProjectSelector projects={projects} projectId={projectId} disabled={loading} onChange={(nextProjectId) => {
+    <ViewShell
+      title="剧情大纲"
+      subtitle="先搭好分卷、章节规划、关键事件和剧情笔记，按模块逐步整理故事结构。"
+      actions={
+        <>
+          <ProjectSelector
+            projects={projects}
+            projectId={projectId}
+            disabled={loading}
+            onChange={(nextProjectId) => {
               setProjectId(nextProjectId);
               setNovelId("");
               setVolumes([]);
+              setChapterPlans([]);
+              setKeyEvents([]);
+              setPlotNotes([]);
+              setTimelineEvents([]);
               setSelectedVolumeId(null);
               setDraft(createDraft());
               writeStoredProjectId(nextProjectId);
-            }} />
-            <label className="plot-novel-select">
-              <span>当前小说</span>
-              <Select
-                value={novelId}
-                options={novels.map((novel) => ({ value: novel.novelId, label: novel.title }))}
-                onChange={setNovelId}
-                ariaLabel="当前小说"
-                disabled={loading || novels.length === 0}
-              />
-            </label>
+            }}
+          />
+          <label className="plot-novel-select">
+            <span>当前小说</span>
+            <Select
+              value={novelId}
+              options={novels.map((novel) => ({ value: novel.novelId, label: novel.title }))}
+              onChange={setNovelId}
+              ariaLabel="当前小说"
+              disabled={loading || novels.length === 0}
+            />
+          </label>
+        </>
+      }
+    >
+      <div className="plot-layout">
+        <div className="plot-module-tabs">
+          <div className="segmented" aria-label="剧情大纲模块切换">
+            {PLOT_MODULE_TABS.map((tab) => (
+              <button type="button" className={activeTab === tab.id ? "on" : ""} key={tab.id} onClick={() => setActiveTab(tab.id)}>
+                {tab.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <section className="editor-card plot-index-card">
+          <div className="editor-card-head">
+            <div>
+              <h2>{activeTabConfig.label}</h2>
+              <p className="view-sub">{activeTabConfig.description}</p>
+            </div>
+            <div className="plot-head-actions">
+              {activeTab === "volumes" ? (
+                <div className="segmented" aria-label="分卷视图切换">
+                  <button type="button" className={viewMode === "strip" ? "on" : ""} onClick={() => changeViewMode("strip")}>
+                    横条
+                  </button>
+                  <button type="button" className={viewMode === "table" ? "on" : ""} onClick={() => changeViewMode("table")}>
+                    表格
+                  </button>
+                </div>
+              ) : null}
+              <button type="button" className="btn btn-primary" disabled={!projectId || !novelId} onClick={startCreateForActiveTab}>
+                <Plus size={15} strokeWidth={2} />
+                {activeTabConfig.createLabel}
+              </button>
+            </div>
           </div>
 
           {feedback ? (
@@ -1496,67 +1490,60 @@ export function PlotOutlineView() {
           {loading ? (
             <div className="center-state" style={{ minHeight: 180 }}>
               <div className="spinner" />
-              <span>正在加载分卷大纲...</span>
+              <span>正在加载剧情大纲...</span>
             </div>
-          ) : sortedVolumes.length ? (
-            viewMode === "strip" ? (
-              <div className="plot-volume-list plot-volume-list-strip">
-                {sortedVolumes.map((volume, index) => (
-                  <article
-                    className={`plot-volume-strip ${volume.id === selectedVolumeId ? "active" : ""}`}
-                    key={volume.id}
-                    onClick={() => setSelectedVolumeId(volume.id)}
-                  >
-                    <button type="button" className="plot-strip-main">
-                      <span className="plot-volume-order">{String(index + 1).padStart(2, "0")}</span>
-                      <span className="plot-strip-text">
-                        <span className="plot-volume-title">{volume.title}</span>
-                        <span className="plot-volume-summary">{volumeSummary(volume)}</span>
-                      </span>
-                      <span className={`status-pill status-pill-${volume.status ?? "draft"}`}>{statusLabel(volume.status)}</span>
-                    </button>
-                    {renderVolumeActions(volume, index)}
-                  </article>
-                ))}
-              </div>
-            ) : (
-              <div className="plot-volume-table">
-                <div className="plot-volume-table-head">
-                  <span>卷名</span>
-                  <span>状态</span>
-                  <span>定位 / 主题摘要</span>
-                  <span>操作</span>
+          ) : activeTab === "volumes" ? (
+            sortedVolumes.length ? (
+              viewMode === "strip" ? (
+                <div className="plot-volume-list plot-volume-list-strip">
+                  {sortedVolumes.map((volume, index) => (
+                    <article
+                      className={`plot-volume-strip ${volume.id === selectedVolumeId ? "active" : ""}`}
+                      key={volume.id}
+                      onClick={() => setSelectedVolumeId(volume.id)}
+                    >
+                      <button type="button" className="plot-strip-main">
+                        <span className="plot-volume-order">{String(index + 1).padStart(2, "0")}</span>
+                        <span className="plot-strip-text">
+                          <span className="plot-volume-title">{volume.title}</span>
+                          <span className="plot-volume-summary">{volumeSummary(volume)}</span>
+                        </span>
+                        <span className={`status-pill status-pill-${volume.status ?? "draft"}`}>{statusLabel(volume.status)}</span>
+                      </button>
+                      {renderVolumeActions(volume, index)}
+                    </article>
+                  ))}
                 </div>
-                {sortedVolumes.map((volume, index) => (
-                  <article
-                    className={`plot-volume-table-row ${volume.id === selectedVolumeId ? "active" : ""}`}
-                    key={volume.id}
-                    onClick={() => setSelectedVolumeId(volume.id)}
-                  >
-                    <button type="button" className="plot-table-title">
-                      <span className="plot-volume-order">{String(index + 1).padStart(2, "0")}</span>
-                      <span>{volume.title}</span>
-                    </button>
-                    <span className={`status-pill status-pill-${volume.status ?? "draft"}`}>{statusLabel(volume.status)}</span>
-                    <span className="plot-table-summary">{volumeSummary(volume)}</span>
-                    {renderVolumeActions(volume, index)}
-                  </article>
-                ))}
-              </div>
+              ) : (
+                <div className="plot-volume-table">
+                  <div className="plot-volume-table-head">
+                    <span>卷名</span>
+                    <span>状态</span>
+                    <span>定位 / 主题摘要</span>
+                    <span>操作</span>
+                  </div>
+                  {sortedVolumes.map((volume, index) => (
+                    <article
+                      className={`plot-volume-table-row ${volume.id === selectedVolumeId ? "active" : ""}`}
+                      key={volume.id}
+                      onClick={() => setSelectedVolumeId(volume.id)}
+                    >
+                      <button type="button" className="plot-table-title">
+                        <span className="plot-volume-order">{String(index + 1).padStart(2, "0")}</span>
+                        <span>{volume.title}</span>
+                      </button>
+                      <span className={`status-pill status-pill-${volume.status ?? "draft"}`}>{statusLabel(volume.status)}</span>
+                      <span className="plot-table-summary">{volumeSummary(volume)}</span>
+                      {renderVolumeActions(volume, index)}
+                    </article>
+                  ))}
+                </div>
+              )
+            ) : (
+              <div className="empty-card">还没有分卷。可以新建分卷做卷级规划，也可以直接规划章节。</div>
             )
-          ) : (
-            <div className="empty-card">还没有分卷。可以新建分卷做卷级规划，也可以直接新建章节开始写。</div>
-          )}
-
-
-          <section className="plot-chapter-section">
-            <div className="editor-card-head plot-chapter-section-head">
-              <div>
-                <h3>章节规划</h3>
-                <p className="view-sub">当前小说共 {chapterPlans.length} 条章节规划，可在这里调整标题、归属分卷和梗概。</p>
-              </div>
-            </div>
-            {sortedChapterPlans.length ? (
+          ) : activeTab === "chapterPlans" ? (
+            sortedChapterPlans.length ? (
               <div className="plot-chapter-groups">
                 {sortedVolumes.map((volume) => {
                   const volumeChapterPlans = chapterPlansByVolume.get(volume.id) ?? [];
@@ -1578,62 +1565,49 @@ export function PlotOutlineView() {
                 ) : null}
               </div>
             ) : (
-              <div className="empty-card">还没有章节规划。可以只写分卷大纲，也可以点击“新建”选择“新建章节规划”。</div>
-            )}
-          </section>
-
-          <section className="plot-chapter-section">
-            <div className="editor-card-head plot-chapter-section-head">
-              <div>
-                <h3>关键事件</h3>
-                <p className="view-sub">当前小说共 {keyEvents.length} 个关键事件，可记录事件定位、流程、关系变化和禁止写法。</p>
-              </div>
-            </div>
-            {sortedKeyEvents.length ? (
+              <div className="empty-card">还没有章节规划。可以只写分卷大纲，也可以新建章节规划。</div>
+            )
+          ) : activeTab === "keyEvents" ? (
+            sortedKeyEvents.length ? (
               <div className="plot-chapter-list">{sortedKeyEvents.map(renderKeyEventRow)}</div>
             ) : (
-              <div className="empty-card">还没有关键事件。点击“新建”选择“新建关键事件”来设计重要剧情节点。</div>
-            )}
-          </section>
-
-          <section className="plot-chapter-section">
-            <div className="editor-card-head plot-chapter-section-head">
-              <div>
-                <h3>剧情笔记</h3>
-                <p className="view-sub">当前小说共 {plotNotes.length} 条剧情笔记，可整理角色弧线、伏笔回收、冲突节奏和高光场景。</p>
-              </div>
-              <div className="segmented" aria-label="剧情笔记分类筛选">
-                <button type="button" className={plotNoteCategoryFilter === ALL_NOTE_CATEGORIES ? "on" : ""} onClick={() => setPlotNoteCategoryFilter(ALL_NOTE_CATEGORIES)}>
-                  全部
-                </button>
-                {plotNoteCategories.map((category) => (
-                  <button type="button" className={plotNoteCategoryFilter === category ? "on" : ""} key={category} onClick={() => setPlotNoteCategoryFilter(category)}>
-                    {category}
+              <div className="empty-card">还没有关键事件。新建关键事件来设计重要剧情节点。</div>
+            )
+          ) : (
+            <>
+              <div className="plot-note-filter-row">
+                <div className="segmented" aria-label="剧情笔记分类筛选">
+                  <button type="button" className={plotNoteCategoryFilter === ALL_NOTE_CATEGORIES ? "on" : ""} onClick={() => setPlotNoteCategoryFilter(ALL_NOTE_CATEGORIES)}>
+                    全部
                   </button>
-                ))}
+                  {plotNoteCategories.map((category) => (
+                    <button type="button" className={plotNoteCategoryFilter === category ? "on" : ""} key={category} onClick={() => setPlotNoteCategoryFilter(category)}>
+                      {category}
+                    </button>
+                  ))}
+                </div>
               </div>
-            </div>
-            {filteredPlotNotes.length ? (
-              <div className="plot-chapter-groups">
-                {plotNoteCategories.map((category) => {
-                  const notes = plotNotesByCategory.get(category) ?? [];
-                  if (!notes.length) {
-                    return null;
-                  }
-                  return (
-                    <div className="plot-chapter-group" key={category}>
-                      <div className="plot-chapter-group-title">{category}</div>
-                      <div className="plot-chapter-list">{notes.map(renderPlotNoteRow)}</div>
-                    </div>
-                  );
-                })}
-              </div>
-            ) : (
-              <div className="empty-card">还没有剧情笔记。点击“新建”选择“新建剧情笔记”来整理辅助剧情资料。</div>
-            )}
-          </section>
+              {filteredPlotNotes.length ? (
+                <div className="plot-chapter-groups">
+                  {plotNoteCategories.map((category) => {
+                    const notes = plotNotesByCategory.get(category) ?? [];
+                    if (!notes.length) {
+                      return null;
+                    }
+                    return (
+                      <div className="plot-chapter-group" key={category}>
+                        <div className="plot-chapter-group-title">{category}</div>
+                        <div className="plot-chapter-list">{notes.map(renderPlotNoteRow)}</div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="empty-card">还没有剧情笔记。新建剧情笔记来整理辅助剧情资料。</div>
+              )}
+            </>
+          )}
         </section>
-
       </div>
 
       {volumeModalOpen ? (

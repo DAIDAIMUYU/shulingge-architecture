@@ -956,6 +956,8 @@ body.app-focus .main { padding-bottom: 0; }
 .plot-layout { display: grid; gap: 22px; align-items: start; }
 .plot-index-card { margin-bottom: 0; }
 .plot-head-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: flex-end; }
+.plot-module-tabs { display: flex; align-items: center; justify-content: flex-start; }
+.plot-note-filter-row { display: flex; align-items: center; justify-content: flex-start; margin: 0 0 14px; overflow-x: auto; }
 .plot-create-wrap { position: relative; }
 .plot-select-row { display: flex; align-items: flex-end; gap: 12px; flex-wrap: wrap; margin: 18px 0; }
 .plot-novel-select { display: grid; gap: 6px; min-width: 220px; }
