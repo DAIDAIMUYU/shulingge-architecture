@@ -24,9 +24,11 @@ import { TimelineView } from "../views/TimelineView.js";
 import { WorkspaceView } from "../views/WorkspaceView.js";
 import { WorldbookView } from "../views/WorldbookView.js";
 import { api } from "../api/client.js";
+import { InputModal } from "./Modals.js";
 import { hydrateSelectedCustomFonts } from "./fonts.js";
 import { readWebPreferences } from "./preferences.js";
 import { VaultPickerModal } from "./VaultPickerModal.js";
+import { WelcomeGuide } from "./WelcomeGuide.js";
 
 interface NavItem {
   id: string;
@@ -52,11 +54,8 @@ const NAV = [...PRIMARY_NAV, SETTINGS_NAV];
 interface AppViewProps {
   currentProjectId: string | null;
   vaultPath: string | null;
-  forceWelcome: boolean;
-  showEmptyWelcome: boolean;
   onSelectProject: (projectId: string) => void;
   onNavigate: (viewId: string) => void;
-  onWelcomeSeen: () => void;
   onShowWelcome: () => void;
   onSetVault: (path: string) => Promise<void>;
   onClearVault: () => void;
@@ -66,14 +65,7 @@ const VIEWS: Record<string, (props: AppViewProps) => ReactNode> = {
   workspace: ({ currentProjectId, vaultPath, onNavigate }) => (
     <WorkspaceView currentProjectId={currentProjectId} vaultPath={vaultPath} onNavigate={onNavigate} />
   ),
-  projects: ({ forceWelcome, showEmptyWelcome, onSelectProject, onWelcomeSeen }) => (
-    <ProjectsView
-      forceWelcome={forceWelcome}
-      showEmptyWelcome={showEmptyWelcome}
-      onOpenProject={onSelectProject}
-      onWelcomeSeen={onWelcomeSeen}
-    />
-  ),
+  projects: ({ onSelectProject }) => <ProjectsView onOpenProject={onSelectProject} />,
   characters: () => <CharactersView />,
   relations: () => <RelationsView />,
   timeline: () => <TimelineView />,
@@ -100,29 +92,24 @@ export function App() {
     }
     return window.localStorage.getItem("shulingge.web.vaultPath");
   });
-  const [forceWelcome, setForceWelcome] = useState(false);
-  const [welcomeSkipped, setWelcomeSkipped] = useState(() => {
+  const [showWelcomeGuide, setShowWelcomeGuide] = useState(() => {
     if (typeof window === "undefined") {
       return false;
     }
-    return window.localStorage.getItem("shulingge.web.welcomeSkipped") === "1";
+    return window.localStorage.getItem("shulingge.web.vaultPath") === null;
   });
+  const [showGuideCreateModal, setShowGuideCreateModal] = useState(false);
+  const [creatingGuideProject, setCreatingGuideProject] = useState(false);
   const Current = VIEWS[view] ?? VIEWS.workspace;
   const onSelectProject = (projectId: string) => {
     setCurrentProjectId(projectId);
     window.localStorage.setItem("shulingge.web.projectId", projectId);
-    setForceWelcome(false);
+    setShowWelcomeGuide(false);
+    window.localStorage.setItem("shulingge.web.welcomeSeen", "1");
     setView("workspace");
   };
   const showWelcome = () => {
-    setForceWelcome(true);
-    setWelcomeSkipped(false);
-    setView("projects");
-  };
-  const markWelcomeSeen = () => {
-    setForceWelcome(false);
-    setWelcomeSkipped(true);
-    window.localStorage.setItem("shulingge.web.welcomeSkipped", "1");
+    setShowWelcomeGuide(true);
   };
   const onSetVault = async (path: string) => {
     const nextPath = path.trim();
@@ -137,6 +124,22 @@ export function App() {
   const onClearVault = () => {
     window.localStorage.removeItem("shulingge.web.vaultPath");
     setVaultPath(null);
+    setShowWelcomeGuide(true);
+  };
+  const finishWelcome = () => {
+    setShowWelcomeGuide(false);
+    window.localStorage.setItem("shulingge.web.welcomeSeen", "1");
+  };
+  const createGuideProject = async (title: string) => {
+    setShowGuideCreateModal(false);
+    setCreatingGuideProject(true);
+    try {
+      const created = await api.createProject(title);
+      finishWelcome();
+      onSelectProject(created.projectId);
+    } finally {
+      setCreatingGuideProject(false);
+    }
   };
   const currentLabel = NAV.find((item) => item.id === view)?.label ?? "写作";
 
@@ -186,11 +189,8 @@ export function App() {
         {Current({
           currentProjectId,
           vaultPath,
-          forceWelcome,
-          showEmptyWelcome: !welcomeSkipped,
           onSelectProject,
           onNavigate: setView,
-          onWelcomeSeen: markWelcomeSeen,
           onShowWelcome: showWelcome,
           onSetVault,
           onClearVault,
@@ -214,7 +214,27 @@ export function App() {
           );
         })}
       </nav>
-      {!vaultPath ? <VaultPickerModal onSelectVault={onSetVault} /> : null}
+      {showWelcomeGuide ? (
+        <WelcomeGuide
+          initialVaultPath={vaultPath}
+          onSetVault={onSetVault}
+          onCreateProject={() => {
+            finishWelcome();
+            setShowGuideCreateModal(true);
+          }}
+          onFinish={finishWelcome}
+        />
+      ) : null}
+      {!vaultPath && !showWelcomeGuide ? <VaultPickerModal onSelectVault={onSetVault} /> : null}
+      {showGuideCreateModal ? (
+        <InputModal
+          title="新建项目"
+          placeholder="请输入项目名称"
+          defaultValue="新项目"
+          onConfirm={(title) => void createGuideProject(title)}
+          onCancel={() => setShowGuideCreateModal(false)}
+        />
+      ) : null}
     </div>
   );
 }
