@@ -543,6 +543,36 @@ body.app-focus .main { padding-bottom: 0; }
 
 /* ===== 第四列：总控 AI 对话窗 ===== */
 .chat-pane { background: var(--bg-panel); background-image: none; border-left: 1px solid var(--border); display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
+.right-pane-tabs { margin: 14px 16px 0; flex: none; }
+.right-pane-tabs button { flex: 1; }
+.creation-flow-panel { flex: 1; min-height: 0; overflow: auto; padding: 18px 16px 20px; display: flex; flex-direction: column; gap: 16px; }
+.creation-flow-card { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 14px; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--bg-card); box-shadow: var(--shadow-card); }
+.creation-flow-current { min-width: 0; display: grid; gap: 5px; }
+.creation-flow-current span { color: var(--text-muted); font-size: 12px; }
+.creation-flow-current strong { color: var(--text-primary); font-size: 14px; line-height: 1.55; font-weight: 650; overflow-wrap: anywhere; }
+.creation-stage-pill { flex: none; padding: 4px 9px; border-radius: 999px; background: var(--bg-hover); color: var(--text-secondary); font-size: 12px; font-weight: 650; }
+.creation-stage-pill.planning,
+.creation-stage-pill.writing,
+.creation-stage-pill.reviewing,
+.creation-stage-pill.polishing { background: color-mix(in srgb, var(--primary) 12%, var(--bg-card)); color: var(--primary); }
+.creation-stage-pill.pending_confirm { background: color-mix(in srgb, var(--warning) 14%, var(--bg-card)); color: var(--warning); }
+.creation-stage-pill.finalized { background: color-mix(in srgb, var(--success) 14%, var(--bg-card)); color: var(--success); }
+.creation-flow-steps { display: grid; gap: 0; padding: 8px 0; }
+.creation-flow-step { position: relative; display: grid; grid-template-columns: 28px minmax(0, 1fr); gap: 10px; min-height: 58px; color: var(--text-muted); }
+.creation-flow-step:not(:last-child)::after { content: ""; position: absolute; left: 13px; top: 27px; bottom: 3px; width: 2px; border-radius: 2px; background: var(--border); }
+.creation-flow-step.done:not(:last-child)::after { background: color-mix(in srgb, var(--primary) 54%, var(--border)); }
+.creation-flow-marker { position: relative; z-index: 1; width: 28px; height: 28px; display: grid; place-items: center; border: 1px solid var(--border); border-radius: 999px; background: var(--bg-panel); color: var(--text-muted); font-size: 12px; line-height: 1; }
+.creation-flow-step.done .creation-flow-marker { border-color: var(--primary); background: var(--primary); color: var(--text-on-primary); }
+.creation-flow-step.current .creation-flow-marker { border-color: var(--primary); color: var(--primary); box-shadow: var(--focus-ring); }
+.creation-flow-step strong { display: block; color: var(--text-secondary); font-size: 13.5px; line-height: 1.4; }
+.creation-flow-step small { display: block; margin-top: 3px; color: var(--text-muted); font-size: 12px; }
+.creation-flow-step.done strong,
+.creation-flow-step.current strong { color: var(--text-primary); }
+.creation-flow-step.current small { color: var(--primary); }
+.creation-flow-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; padding: 14px; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--bg-card); box-shadow: var(--shadow-card); }
+.creation-flow-actions .btn { min-height: 34px; }
+.creation-flow-note { width: 100%; color: var(--text-secondary); font-size: 13px; line-height: 1.6; }
+.creation-flow-empty { min-height: 260px; padding: 32px 18px; }
 .chat-head { display: flex; align-items: center; gap: 12px; padding: 18px 20px; border-bottom: 1px solid var(--border); flex: none; position: relative; }
 .chat-avatar { width: 38px; height: 38px; border-radius: 11px; background: linear-gradient(135deg, var(--primary), var(--primary-hover)); color: var(--text-on-primary); display: grid; place-items: center; flex: none; box-shadow: inset 0 -2px 0 color-mix(in srgb, var(--accent-cinnabar) 36%, transparent), 0 8px 18px color-mix(in srgb, var(--primary) 18%, transparent); }
 .chat-title-block { min-width: 0; flex: 1; }

@@ -50,6 +50,7 @@ import {
   type AgentInfo,
   type AnnotationRecord,
   type Character,
+  type CreationStage,
   type DirectorChatMessage,
   type DirectorConversationSummary,
   type DirectorReviewReport,
@@ -62,7 +63,7 @@ import {
 } from "../api/client.js";
 import { applyBodyAlignPreference, mergeWebPreferences, readWebPreferences, type BodyAlignPreference } from "../app/preferences.js";
 import { ConfirmModal, InputModal } from "../app/Modals.js";
-import { CHAPTER_STATUS_VALUES, type ChapterStatus } from "@shulingge/shared";
+import { CHAPTER_STATUS_VALUES, CREATION_STAGE_VALUES, type ChapterStatus } from "@shulingge/shared";
 import {
   parseChapterRef,
 } from "./workspace-utils.js";
@@ -71,6 +72,7 @@ type SaveState = "idle" | "dirty" | "saving" | "saved" | "error";
 type MobilePanel = "chapters" | "editor" | "chat";
 type QuickLookupTab = "characters" | "worldbook";
 type EditorMode = "rich" | "source";
+type RightPaneTab = "flow" | "chat";
 type ChatMessage =
   | { id: number; kind: "text"; role: "ai" | "user"; text: string; selectionText?: string }
   | { id: number; kind: "confirm"; task: DirectorTaskSuggestion; status: "pending" | "confirmed" | "cancelled" }
@@ -122,6 +124,7 @@ interface ChapterNode {
   chapterId: string;
   title: string;
   status: ChapterStatus;
+  creationStage: CreationStage;
   wordCount: number;
 }
 
@@ -258,6 +261,43 @@ function formatWordCount(value: number): string {
 
 function normalizeChapterStatus(status: string): ChapterStatus {
   return CHAPTER_STATUS_VALUES.includes(status as ChapterStatus) ? (status as ChapterStatus) : "drafting";
+}
+
+function normalizeCreationStage(stage: unknown): CreationStage {
+  return CREATION_STAGE_VALUES.includes(stage as CreationStage) ? (stage as CreationStage) : "idle";
+}
+
+const CREATION_STAGE_LABELS: Record<CreationStage, string> = {
+  idle: "待开始",
+  planning: "规划中",
+  writing: "写作中",
+  reviewing: "质检中",
+  polishing: "润色中",
+  pending_confirm: "待确认",
+  finalized: "已定稿",
+};
+
+const CREATION_FLOW_STEPS = ["规划", "写作", "质检", "润色", "完成"] as const;
+
+function creationStepState(stage: CreationStage, index: number): "done" | "current" | "pending" {
+  const currentIndexByStage: Partial<Record<CreationStage, number>> = {
+    planning: 0,
+    writing: 1,
+    reviewing: 2,
+    polishing: 3,
+    pending_confirm: 4,
+  };
+  if (stage === "finalized") {
+    return "done";
+  }
+  const currentIndex = currentIndexByStage[stage];
+  if (currentIndex === undefined) {
+    return "pending";
+  }
+  if (index < currentIndex) {
+    return "done";
+  }
+  return index === currentIndex ? "current" : "pending";
 }
 
 function summarizeSearchContent(content: string): string {
@@ -480,6 +520,7 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
   const [bodyAlign, setBodyAlign] = useState<BodyAlignPreference>(preferences.bodyAlign);
   const [mobilePanel, setMobilePanel] = useState<MobilePanel>("editor");
   const [editorMode, setEditorMode] = useState<EditorMode>("rich");
+  const [rightPaneTab, setRightPaneTab] = useState<RightPaneTab>("flow");
   const [messages, setMessages] = useState<ChatMessage[]>(() => hydrateChatMessages([], () => 0));
   const [conversationLoadedKey, setConversationLoadedKey] = useState("");
   const [conversationId, setConversationId] = useState("");
@@ -530,6 +571,8 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
   const activeTitle =
     projectTree?.novels.flatMap((novel) => novel.chapters).find((chapterItem) => chapterItem.id === activeId)?.title ??
     locator.chapterId;
+  const activeChapterNode = projectTree?.novels.flatMap((novel) => novel.chapters).find((chapterItem) => chapterItem.id === activeId) ?? null;
+  const activeCreationStage = normalizeCreationStage(chapter?.metadata?.creationStage ?? chapter?.creationStage ?? activeChapterNode?.creationStage);
   const metadataWordCount = chapter?.metadata?.wordCount ?? draft.replace(/\s/g, "").length;
   const metadataAnnotationsCount = annotations.length;
   const metadataLocksCount = locks.length;
@@ -645,6 +688,7 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
                 chapterId: chapterItem.chapterId,
                 title: chapterItem.title,
                 status: normalizeChapterStatus(chapterItem.status),
+                creationStage: normalizeCreationStage(chapterItem.creationStage),
                 wordCount: chapterItem.wordCount ?? 0,
               })),
             };
@@ -1860,6 +1904,42 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
       }
     } catch (err) {
       setTreeError(err instanceof ApiError ? err.message : "设置章节状态失败");
+    }
+  };
+
+  const setChapterCreationStage = async (stage: CreationStage) => {
+    if (!projectTree || !activeChapterNode || !locator.projectId || !locator.novelId || !locator.chapterId) {
+      return;
+    }
+
+    try {
+      setTreeError(null);
+      const updated = await api.setChapterCreationStage(locator.projectId, locator.novelId, locator.chapterId, stage);
+      const nextStage = normalizeCreationStage(updated.creationStage);
+      setProjectTree((current) =>
+        current
+          ? {
+            ...current,
+            novels: current.novels.map((novel) => ({
+              ...novel,
+              chapters: novel.chapters.map((chapterItem) =>
+                chapterItem.id === activeChapterNode.id ? { ...chapterItem, creationStage: nextStage } : chapterItem,
+              ),
+            })),
+          }
+          : current,
+      );
+      setChapter((current) =>
+        current
+          ? {
+            ...current,
+            creationStage: nextStage,
+            metadata: { ...current.metadata, creationStage: nextStage },
+          }
+          : current,
+      );
+    } catch (err) {
+      setTreeError(err instanceof ApiError ? err.message : "更新创作流程状态失败");
     }
   };
 
@@ -3353,6 +3433,115 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
       </section>
 
       <aside className="chat-pane">
+        <div className="right-pane-tabs segmented" role="tablist" aria-label="右侧面板">
+          <button
+            type="button"
+            className={rightPaneTab === "flow" ? "on" : ""}
+            onClick={() => setRightPaneTab("flow")}
+            role="tab"
+            aria-selected={rightPaneTab === "flow"}
+          >
+            流程
+          </button>
+          <button
+            type="button"
+            className={rightPaneTab === "chat" ? "on" : ""}
+            onClick={() => setRightPaneTab("chat")}
+            role="tab"
+            aria-selected={rightPaneTab === "chat"}
+          >
+            对话
+          </button>
+        </div>
+
+        {rightPaneTab === "flow" ? (
+          <div className="creation-flow-panel">
+            {hasValidActiveChapter ? (
+              <>
+                <div className="creation-flow-card">
+                  <div className="creation-flow-current">
+                    <span>当前章</span>
+                    <strong>第{activeChapterNode ? allChapters.findIndex((item) => item.id === activeChapterNode.id) + 1 : 1}章《{activeTitle}》</strong>
+                  </div>
+                  <span className={`creation-stage-pill ${activeCreationStage}`}>{CREATION_STAGE_LABELS[activeCreationStage]}</span>
+                </div>
+
+                <div className="creation-flow-steps" aria-label="创作流程步骤">
+                  {CREATION_FLOW_STEPS.map((step, index) => {
+                    const state = creationStepState(activeCreationStage, index);
+                    return (
+                      <div className={`creation-flow-step ${state}`} key={step}>
+                        <span className="creation-flow-marker">{state === "done" ? <Check size={13} strokeWidth={2.1} /> : state === "current" ? "●" : "○"}</span>
+                        <div>
+                          <strong>{index + 1}. {step}</strong>
+                          <small>{state === "done" ? "已完成" : state === "current" ? "进行中" : "未开始"}</small>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <div className="creation-flow-actions">
+                  {activeCreationStage === "idle" ? (
+                    <button type="button" className="btn btn-primary" onClick={() => void setChapterCreationStage("planning")}>
+                      开始创作本章
+                    </button>
+                  ) : null}
+                  {activeCreationStage === "planning" || activeCreationStage === "writing" || activeCreationStage === "reviewing" || activeCreationStage === "polishing" ? (
+                    <>
+                      <div className="creation-flow-note">创作进行中…本步仅展示流程状态，AI 写作逻辑将在后续接入。</div>
+                      <button
+                        type="button"
+                        className="btn btn-ghost"
+                        onClick={() => {
+                          const nextStage: Record<CreationStage, CreationStage> = {
+                            idle: "planning",
+                            planning: "writing",
+                            writing: "reviewing",
+                            reviewing: "polishing",
+                            polishing: "pending_confirm",
+                            pending_confirm: "finalized",
+                            finalized: "planning",
+                          };
+                          void setChapterCreationStage(nextStage[activeCreationStage]);
+                        }}
+                      >
+                        推进状态演示
+                      </button>
+                    </>
+                  ) : null}
+                  {activeCreationStage === "pending_confirm" ? (
+                    <>
+                      <button type="button" className="btn btn-primary" onClick={() => void setChapterCreationStage("finalized")}>
+                        <Check size={14} strokeWidth={1.8} />
+                        满意，定稿
+                      </button>
+                      <button type="button" className="btn btn-ghost" onClick={() => void setChapterCreationStage("planning")}>
+                        <X size={14} strokeWidth={1.8} />
+                        不满意，重写
+                      </button>
+                    </>
+                  ) : null}
+                  {activeCreationStage === "finalized" ? (
+                    <>
+                      <div className="creation-flow-note">本章已定稿</div>
+                      <button type="button" className="btn btn-ghost" onClick={() => void setChapterCreationStage("planning")}>
+                        <RefreshCw size={14} strokeWidth={1.8} />
+                        重新创作
+                      </button>
+                    </>
+                  ) : null}
+                </div>
+              </>
+            ) : (
+              <div className="empty creation-flow-empty">
+                <Bot size={28} strokeWidth={1.7} />
+                <div>请选择一个章节查看创作流程</div>
+              </div>
+            )}
+          </div>
+        ) : (
+          <>
         <div className="chat-head">
           <div className="chat-avatar">
             <Bot size={20} strokeWidth={1.75} />
@@ -3535,6 +3724,8 @@ export function WorkspaceView({ currentProjectId, vaultPath, onNavigate }: Works
               : `Ctrl/Cmd+Enter 发送 · Enter 换行 · 自动保存 ${preferences.autosaveDelayMs}ms`}
           </div>
         </div>
+          </>
+        )}
       </aside>
     </div>
     {promptRequest ? (

@@ -6,6 +6,7 @@ import type {
   APP_UI_MODE_VALUES,
   BRANCH_TYPE_VALUES,
   CHAPTER_STATUS_VALUES,
+  CREATION_STAGE_VALUES,
   CONTEXT_SOURCE_REASON_VALUES,
   LOCK_LEVEL_VALUES,
   LOCK_SCOPE_VALUES,
@@ -41,6 +42,7 @@ export type Scope = (typeof SCOPE_VALUES)[number];
 export type RuleLevel = (typeof RULE_LEVEL_VALUES)[number];
 export type AgentPermissionMode = (typeof AGENT_PERMISSION_MODE_VALUES)[number];
 export type ChapterStatus = (typeof CHAPTER_STATUS_VALUES)[number];
+export type CreationStage = (typeof CREATION_STAGE_VALUES)[number];
 export type WritingFreedom = (typeof WRITING_FREEDOM_VALUES)[number];
 export type WriteScope = (typeof WRITE_SCOPE_VALUES)[number];
 export type ProviderType = (typeof PROVIDER_TYPE_VALUES)[number];
@@ -196,6 +198,7 @@ export interface Chapter extends Entity {
   order: number;
   manuscriptPath: string;
   status: ChapterStatus;
+  creationStage?: CreationStage;
   wordCount: number;
   involvedCharacters: string[];
   source?: ChapterSource;

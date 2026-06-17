@@ -2210,7 +2210,7 @@ test("editor save keeps manuscripts pure and externalizes annotations plus locks
           {
             id: "lock-001",
             scope: "paragraph",
-            level: "full",
+            level: "full-lock",
             range: { start: 0, end: 6 },
           },
         ],
@@ -2310,11 +2310,11 @@ test("project tree routes list and create novels and chapters", async () => {
     };
     const chaptersPayload = (await chaptersResponse.json()) as {
       ok: true;
-      data: { chapters: Array<{ chapterId: string; title: string; status: string; wordCount: number }> };
+      data: { chapters: Array<{ chapterId: string; title: string; status: string; creationStage: string; wordCount: number }> };
     };
     const createChapterPayload = (await createChapterResponse.json()) as {
       ok: true;
-      data: { chapterId: string; title: string; status: string; wordCount: number };
+      data: { chapterId: string; title: string; status: string; creationStage: string; wordCount: number };
     };
     const createNovelPayload = (await createNovelResponse.json()) as {
       ok: true;
@@ -2325,7 +2325,7 @@ test("project tree routes list and create novels and chapters", async () => {
       vaultRoot,
       `projects/demo-series/novels/main/manuscripts/${createChapterPayload.data.chapterId}.md`,
     );
-    const createdMetadata = await readJsonFile<{ title: string }>(
+    const createdMetadata = await readJsonFile<{ title: string; creationStage: string }>(
       vaultRoot,
       `projects/demo-series/novels/main/metadata/chapters/${createChapterPayload.data.chapterId}.json`,
     );
@@ -2402,7 +2402,19 @@ test("project tree routes list and create novels and chapters", async () => {
       ok: true;
       data: { chapterId: string; title: string; status: string; wordCount: number };
     };
-    const statusMetadata = await readJsonFile<{ status: string }>(
+    const setCreationStageResponse = await fetch(
+      `${server.baseUrl}/api/v1/projects/demo-series/novels/${createNovelPayload.data.novelId}/chapters/${createChapterPayload.data.chapterId}`,
+      {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ creationStage: "planning" }),
+      },
+    );
+    const setCreationStagePayload = (await setCreationStageResponse.json()) as {
+      ok: true;
+      data: { chapterId: string; title: string; status: string; creationStage: string; wordCount: number };
+    };
+    const statusMetadata = await readJsonFile<{ status: string; creationStage: string }>(
       vaultRoot,
       `projects/demo-series/novels/${createNovelPayload.data.novelId}/metadata/chapters/${createChapterPayload.data.chapterId}.json`,
     );
@@ -2467,14 +2479,17 @@ test("project tree routes list and create novels and chapters", async () => {
     assert.equal(chaptersResponse.status, 200);
     assert.equal(chaptersPayload.data.chapters[0]?.chapterId, "chapter-001");
     assert.equal(chaptersPayload.data.chapters[0]?.status, "drafting");
+    assert.equal(chaptersPayload.data.chapters[0]?.creationStage, "idle");
     assert.equal(chaptersPayload.data.chapters[0]?.wordCount, 0);
     assert.equal(createChapterResponse.status, 200);
     assert.equal(createChapterPayload.data.chapterId, "chapter-002");
     assert.equal(createChapterPayload.data.title, "新章节");
     assert.equal(createChapterPayload.data.status, "drafting");
+    assert.equal(createChapterPayload.data.creationStage, "idle");
     assert.equal(createChapterPayload.data.wordCount, 0);
     assert.equal(createdManuscript, "");
     assert.equal(createdMetadata.title, "新章节");
+    assert.equal(createdMetadata.creationStage, "idle");
     assert.equal(createNovelResponse.status, 200);
     assert.equal(createNovelPayload.data.novelId, "novel");
     assert.equal(createNovelPayload.data.title, "番外卷");
@@ -2500,7 +2515,11 @@ test("project tree routes list and create novels and chapters", async () => {
     assert.equal(setChapterStatusResponse.status, 200);
     assert.equal(setChapterStatusPayload.data.chapterId, createChapterPayload.data.chapterId);
     assert.equal(setChapterStatusPayload.data.status, "finalized");
+    assert.equal(setCreationStageResponse.status, 200);
+    assert.equal(setCreationStagePayload.data.chapterId, createChapterPayload.data.chapterId);
+    assert.equal(setCreationStagePayload.data.creationStage, "planning");
     assert.equal(statusMetadata.status, "finalized");
+    assert.equal(statusMetadata.creationStage, "planning");
     assert.equal(renameNovelResponse.status, 200);
     assert.equal(renameNovelPayload.data.novelId, createNovelPayload.data.novelId);
     assert.equal(renameNovelPayload.data.title, "改名卷");

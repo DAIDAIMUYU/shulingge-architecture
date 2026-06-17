@@ -1,7 +1,7 @@
 import { mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 
-import { CHAPTER_STATUS_VALUES, type Annotation, type Chapter, type ChapterPlan, type ChapterStatus, type KeyEvent, type KeyEventCustomField, type Lock, type PlotNote, type PlotNoteCustomField, type Volume } from "@shulingge/shared";
+import { CHAPTER_STATUS_VALUES, CREATION_STAGE_VALUES, chapterSchema, type Annotation, type Chapter, type ChapterPlan, type ChapterStatus, type CreationStage, type KeyEvent, type KeyEventCustomField, type Lock, type PlotNote, type PlotNoteCustomField, type Volume } from "@shulingge/shared";
 import { readJsonFile, readManuscriptFile, resolveSafePath, writeJsonFile, writeManuscriptFile } from "@shulingge/vault-core";
 
 import { createHttpError } from "./errors.js";
@@ -42,6 +42,7 @@ export interface ChapterSummary {
   chapterId: string;
   title: string;
   status: ChapterStatus;
+  creationStage: CreationStage;
   wordCount: number;
 }
 
@@ -197,6 +198,12 @@ const VOLUME_STATUS_VALUES: VolumeStatus[] = ["draft", "finalized"];
 function assertChapterStatus(status: unknown): asserts status is ChapterStatus {
   if (typeof status !== "string" || !CHAPTER_STATUS_VALUES.includes(status as ChapterStatus)) {
     throw createHttpError(400, "EDITOR_INVALID_STATUS", "章节状态无效");
+  }
+}
+
+function assertCreationStage(stage: unknown): asserts stage is CreationStage {
+  if (typeof stage !== "string" || !CREATION_STAGE_VALUES.includes(stage as CreationStage)) {
+    throw createHttpError(400, "EDITOR_INVALID_CREATION_STAGE", "creationStage is invalid");
   }
 }
 
@@ -377,6 +384,7 @@ function createDefaultMetadata(locator: EditorChapterLocator, manuscriptPath: st
     order: 0,
     manuscriptPath,
     status: "drafting",
+    creationStage: "idle",
     wordCount: 0,
     involvedCharacters: [],
     locks: [],
@@ -398,6 +406,7 @@ function createChapterMetadata(locator: EditorChapterLocator, title: string, ord
     order,
     manuscriptPath,
     status: "drafting",
+    creationStage: "idle",
     wordCount: 0,
     involvedCharacters: [],
     locks: [],
@@ -417,7 +426,7 @@ async function readChapterMetadata(
   const metadataPath = getMetadataRelativePath(locator);
 
   try {
-    return await readJsonFile<Chapter>(vaultRoot, metadataPath);
+    return chapterSchema.parse(await readJsonFile<unknown>(vaultRoot, metadataPath));
   } catch {
     return createDefaultMetadata(locator, manuscriptPath);
   }
@@ -1267,6 +1276,7 @@ export async function listChapters(vaultRoot: string, projectId: string, novelId
         chapterId,
         title: readTitle(metadata, chapterId),
         status: metadata?.status ?? "drafting",
+        creationStage: metadata?.creationStage ?? "idle",
         wordCount: metadata?.wordCount ?? 0,
       };
     }),
@@ -1311,13 +1321,14 @@ export async function createChapter(
     chapterId,
     title,
     status: "drafting",
+    creationStage: "idle",
     wordCount: 0,
   };
 }
 
 export async function renameChapter(
   vaultRoot: string,
-  input: { projectId: string; novelId: string; chapterId: string; title?: unknown; status?: unknown },
+  input: { projectId: string; novelId: string; chapterId: string; title?: unknown; status?: unknown; creationStage?: unknown },
 ): Promise<ChapterSummary> {
   assertLocator(input);
   if (input.title !== undefined) {
@@ -1326,13 +1337,18 @@ export async function renameChapter(
   if (input.status !== undefined) {
     assertChapterStatus(input.status);
   }
+  if (input.creationStage !== undefined) {
+    assertCreationStage(input.creationStage);
+  }
   const metadata = await readChapterMetadata(vaultRoot, input);
   const title = typeof input.title === "string" ? input.title.trim() : metadata.title;
   const status = input.status !== undefined ? input.status : metadata.status;
+  const creationStage = input.creationStage !== undefined ? input.creationStage : metadata.creationStage ?? "idle";
   await writeJsonFile(vaultRoot, getMetadataRelativePath(input), {
     ...metadata,
     title,
     status,
+    creationStage,
     updatedAt: new Date().toISOString(),
   });
 
@@ -1340,6 +1356,7 @@ export async function renameChapter(
     chapterId: input.chapterId,
     title,
     status,
+    creationStage,
     wordCount: metadata.wordCount ?? 0,
   };
 }

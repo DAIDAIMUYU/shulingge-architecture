@@ -37,6 +37,16 @@ export const CHAPTER_STATUS_VALUES = [
   "archived",
 ] as const;
 
+export const CREATION_STAGE_VALUES = [
+  "idle",
+  "planning",
+  "writing",
+  "reviewing",
+  "polishing",
+  "pending_confirm",
+  "finalized",
+] as const;
+
 export const WRITING_FREEDOM_VALUES = [
   "strict",
   "light",

@@ -150,12 +150,14 @@ export interface EditorChapter {
   content: string;
   wordCount?: number;
   status?: string;
+  creationStage?: CreationStage;
   updatedAt?: string;
   annotationsCount?: number;
   locksCount?: number;
   metadata?: {
     title?: string;
     status?: string;
+    creationStage?: CreationStage;
     wordCount?: number;
     annotationsRef?: string;
     locks?: LockRecord[];
@@ -275,8 +277,10 @@ export interface ChapterSummary {
   chapterId: string;
   title: string;
   status: string;
+  creationStage?: CreationStage;
   wordCount: number;
 }
+export type CreationStage = "idle" | "planning" | "writing" | "reviewing" | "polishing" | "pending_confirm" | "finalized";
 export interface SearchQuery {
   text?: string;
   projectId?: string;
@@ -1151,6 +1155,11 @@ export const api = {
     patch<ChapterSummary>(
       `/projects/${encodeURIComponent(projectId)}/novels/${encodeURIComponent(novelId)}/chapters/${encodeURIComponent(chapterId)}`,
       { status },
+    ),
+  setChapterCreationStage: async (projectId: string, novelId: string, chapterId: string, creationStage: CreationStage): Promise<ChapterSummary> =>
+    patch<ChapterSummary>(
+      `/projects/${encodeURIComponent(projectId)}/novels/${encodeURIComponent(novelId)}/chapters/${encodeURIComponent(chapterId)}`,
+      { creationStage },
     ),
   deleteChapter: async (projectId: string, novelId: string, chapterId: string): Promise<{ ok: true }> =>
     request<{ ok: true }>(
